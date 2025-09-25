@@ -12,7 +12,7 @@ export function Nav() {
   const { pathname } = useLocation();
   return (
     <nav className="w-60 min-h-screen bg-slate-900 border-r border-slate-800 p-4">
-      <div className="text-2xl font-semibold tracking-tight mb-6">Vivified</div>
+      <div className="text-2xl font-semibold tracking-tight mb-6">Vivi</div>
       <ul className="space-y-1">
         {items.map(({ to, label, icon: Icon }) => {
           const active = pathname === to || (to !== "/" && pathname.startsWith(to));

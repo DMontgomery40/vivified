@@ -1,7 +1,7 @@
 [project]
-name = "vivified-core"
+name = "vivi-core"
 version = "0.0.1"
-description = "Vivified kernel and plugin API"
+description = "Vivi kernel and plugin API"
 requires-python = ">=3.11"
 dependencies = []
 

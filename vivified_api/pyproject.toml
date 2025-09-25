@@ -1,12 +1,12 @@
 [project]
-name = "vivified-api"
+name = "vivi-api"
 version = "0.0.1"
-description = "Vivified FastAPI server"
+description = "Vivi FastAPI server"
 requires-python = ">=3.11"
-dependencies = ["fastapi>=0.115.0","uvicorn>=0.30.0","vivified-core>=0.0.1"]
+dependencies = ["fastapi>=0.115.0","uvicorn>=0.30.0","vivi-core>=0.0.1"]
 
 [project.scripts]
-vivified-api = "vivified_api.main:run"
+vivi-api = "vivified_api.main:run"
 
 [build-system]
 requires = ["setuptools>=68"]

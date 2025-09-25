@@ -1,7 +1,7 @@
 Metadata-Version: 2.4
-Name: vivified-cli
+Name: vivi-cli
 Version: 0.0.1
-Summary: Vivified CLI
+Summary: Vivi CLI
 Requires-Python: >=3.11
 Requires-Dist: typer>=0.12.5
-Requires-Dist: vivified-core>=0.0.1
+Requires-Dist: vivi-core>=0.0.1

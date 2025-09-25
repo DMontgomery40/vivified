@@ -1,9 +1,9 @@
 [project]
 name = "manage-py"
 version = "0.0.1"
-description = "Management plugin for Vivified (traits + plugin enable/disable)"
+description = "Management plugin for Vivi (traits + plugin enable/disable)"
 requires-python = ">=3.11"
-dependencies = ["vivified-core>=0.0.1"]
+dependencies = ["vivi-core>=0.0.1"]
 
 [build-system]
 requires = ["setuptools>=68"]

@@ -1,2 +1,2 @@
 [console_scripts]
-vivified-api = vivified_api.main:run
+vivi-api = vivified_api.main:run

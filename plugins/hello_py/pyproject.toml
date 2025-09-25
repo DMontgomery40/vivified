@@ -1,9 +1,9 @@
 [project]
 name = "hello-py"
 version = "0.0.1"
-description = "Example Python plugin for Vivified"
+description = "Example Python plugin for Vivi"
 requires-python = ">=3.11"
-dependencies = ["vivified-core>=0.0.1"]
+dependencies = ["vivi-core>=0.0.1"]
 
 [build-system]
 requires = ["setuptools>=68"]

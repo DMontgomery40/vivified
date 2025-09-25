@@ -3,7 +3,7 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from vivified_core.kernel import Kernel, create_default_context
 
-app = FastAPI(title="Vivified API", version="0.0.1")
+app = FastAPI(title="Vivi API", version="0.0.1")
 _kernel = Kernel(create_default_context())
 
 try:

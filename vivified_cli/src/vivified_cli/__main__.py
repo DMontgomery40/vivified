@@ -3,7 +3,7 @@ import os, glob, json
 import typer
 from vivified_core.kernel import Kernel, create_default_context
 
-app = typer.Typer(add_completion=False, help="Vivified CLI")
+app = typer.Typer(add_completion=False, help="Vivi CLI")
 
 def _kernel():
     ctx = create_default_context()

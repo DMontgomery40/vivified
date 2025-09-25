@@ -1,9 +1,9 @@
 [project]
-name = "vivified-cli"
+name = "vivi-cli"
 version = "0.0.1"
-description = "Vivified CLI"
+description = "Vivi CLI"
 requires-python = ">=3.11"
-dependencies = ["typer>=0.12.5","vivified-core>=0.0.1"]
+dependencies = ["typer>=0.12.5","vivi-core>=0.0.1"]
 
 [project.scripts]
 vivi = "vivified_cli.__main__:app"

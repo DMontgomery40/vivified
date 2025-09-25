@@ -1,5 +1,5 @@
 Metadata-Version: 2.4
-Name: vivified-core
+Name: vivi-core
 Version: 0.0.1
-Summary: Vivified kernel and plugin API
+Summary: Vivi kernel and plugin API
 Requires-Python: >=3.11

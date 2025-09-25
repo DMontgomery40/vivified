@@ -5,7 +5,7 @@ from pydantic import BaseModel
 from vivified_core.kernel import Kernel, create_default_context
 from vivified_core.state import load_state, save_state
 
-app = FastAPI(title="Vivified API", version="0.0.1")
+app = FastAPI(title="Vivi API", version="0.0.1")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],

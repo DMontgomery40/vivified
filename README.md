@@ -1,4 +1,4 @@
-# Vivified (kernel + polyglot plugins)
+# Vivi (kernel + polyglot plugins)
 
 Packages:
 - `vivified_core`: kernel + plugin API (traits + config-ready)
@@ -16,7 +16,7 @@ pip install -U pip
 pip install -e vivified_core -e vivified_cli -e vivified_api -e plugins/hello_py
 vivi plugins
 vivi run hello Vivi
-vivified-api
+vivi-api
 # test:
 # curl -s -X POST http://localhost:8787/run -H 'content-type: application/json' -d '{"plugin":"hello","args":["David"]}'
 ```
@@ -26,7 +26,7 @@ vivified-api
 # API (with demo trait so you can run example plugins)
 python3 -m venv .venv && . .venv/bin/activate && \
 pip install -e vivified_core -e vivified_api -e plugins/hello_py && \
-VIVI_TRAITS=demo vivified-api &
+VIVI_TRAITS=demo vivi-api &
 
 # Frontend
 cd admin && \
