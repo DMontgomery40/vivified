@@ -13,6 +13,11 @@ def _kernel():
         k.register(hello)
     except Exception:
         pass
+    try:
+        from manage_py.plugin import plugin as manage
+        k.register(manage)
+    except Exception:
+        pass
     for cfg in glob.glob(os.path.join(os.getcwd(), "plugins.d", "*.json")):
         spec = json.load(open(cfg))
         for exe in spec.get("executables", []):

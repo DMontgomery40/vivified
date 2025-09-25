@@ -1,0 +1,7 @@
+pyproject.toml
+src/manage_py/plugin.py
+src/manage_py.egg-info/PKG-INFO
+src/manage_py.egg-info/SOURCES.txt
+src/manage_py.egg-info/dependency_links.txt
+src/manage_py.egg-info/requires.txt
+src/manage_py.egg-info/top_level.txt

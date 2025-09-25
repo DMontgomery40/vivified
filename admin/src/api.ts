@@ -22,3 +22,11 @@ export async function runPlugin(name: string, args: string[] = []): Promise<numb
   return data.code ?? 0;
 }
 
+export async function getState(): Promise<{ traits: string[]; disabled: string[] }> {
+  const { data } = await api.get("/state");
+  return { traits: data.traits || [], disabled: data.disabled || [] };
+}
+
+export async function setState(next: { traits: string[]; disabled: string[] }): Promise<void> {
+  await api.post("/state", next);
+}
