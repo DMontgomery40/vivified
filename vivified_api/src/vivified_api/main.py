@@ -1,9 +1,18 @@
 from __future__ import annotations
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from vivified_core.kernel import Kernel, create_default_context
 
 app = FastAPI(title="Vivified API", version="0.0.1")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 _kernel = Kernel(create_default_context())
 
 try:
