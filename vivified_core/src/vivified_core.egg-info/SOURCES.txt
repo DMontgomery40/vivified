@@ -1,0 +1,8 @@
+pyproject.toml
+src/vivified_core/config.py
+src/vivified_core/kernel.py
+src/vivified_core/types.py
+src/vivified_core.egg-info/PKG-INFO
+src/vivified_core.egg-info/SOURCES.txt
+src/vivified_core.egg-info/dependency_links.txt
+src/vivified_core.egg-info/top_level.txt
