@@ -27,7 +27,7 @@ jobs:
           pip install black flake8 mypy
           black --check core/
           flake8 core/
-          mypy core/
+          mypy --config-file mypy.ini core/
   
   test:
     runs-on: ubuntu-latest
@@ -39,7 +39,7 @@ jobs:
       - name: Run tests
         run: |
           pip install -r core/requirements.txt pytest pytest-cov
-          pytest --cov=core --cov-report=xml
+          PYTHONPATH=$PWD pytest --cov=core --cov-report=xml
       - name: Check coverage
         run: |
           pip install coverage
