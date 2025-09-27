@@ -16,12 +16,17 @@ export class AdminAPIClient {
 
   constructor(apiKey: string) {
     const envBase = (import.meta as any)?.env?.VITE_CORE_URL;
-    this.baseURL = envBase || window.location.origin;
+    // Fallback to localhost:8000 if env variable is not set (for development)
+    this.baseURL = envBase || 'http://localhost:8000';
     this.apiKey = apiKey;
+    console.log('AdminAPIClient constructor:', { envBase, baseURL: this.baseURL, apiKey });
   }
 
   private async fetch(path: string, options: RequestInit = {}): Promise<Response> {
-    const response = await fetch(`${this.baseURL}${path}`, {
+    const url = `${this.baseURL}${path}`;
+    console.log('AdminAPIClient fetch:', { url, headers: { 'Authorization': `Bearer ${this.apiKey}`, 'X-API-Key': this.apiKey } });
+    
+    const response = await fetch(url, {
       ...options,
       headers: {
         'Authorization': `Bearer ${this.apiKey}`,
@@ -31,6 +36,8 @@ export class AdminAPIClient {
       },
     });
 
+    console.log('AdminAPIClient response:', { status: response.status, statusText: response.statusText });
+    
     if (!response.ok) {
       throw new Error(`API Error: ${response.status} ${response.statusText}`);
     }
