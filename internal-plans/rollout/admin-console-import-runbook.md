@@ -203,3 +203,16 @@ Appendix B: Example Vite env
 VITE_CORE_URL=http://localhost:8000
 
 This runbook aligns with AGENTS.md security, CI/CD, and HIPAA requirements and is suitable for internal rollout and audits.
+
+Execution Log (Automation)
+- 2025-09-27: PR #2 merged into claude-test — Align lint/type checks and test env; add .flake8, mypy.ini, ensure pytest imports local core; fix mkdocs deps.
+- 2025-09-27: PR #3 merged — Scaffold Admin Console under core/ui (Vite+React) with gateway API adapter.
+- 2025-09-27: PR #4 merged — Add Brand Settings page wired to Core config (ui.brand).
+- 2025-09-27: PR #5 merged — Add Canonical Schemas page with react-query (list/upsert/activate).
+- 2025-09-27: PR #6 merged — Add ThemeProvider (HIPAA/business) and useBrand hook; wrap app root.
+- 2025-09-27: PR #7 merged — Add UI build job to CI (Node 20) to build core/ui.
+
+Notes
+- All PRs targeted base branch claude-test, per instruction. No changes pushed to development or main.
+- CI for Python (black/flake8/mypy/pytest) is green. Docs Check is green. New UI job builds successfully.
+- Docs Autopilot push workflow intermittently fails; considered non-blocking for this rollout.
