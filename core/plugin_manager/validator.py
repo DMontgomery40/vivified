@@ -38,7 +38,7 @@ class SecurityValidator:
         Returns:
             Tuple of (is_valid, list_of_errors)
         """
-        errors = []
+        errors: List[str] = []
 
         try:
             # Validate basic security configuration

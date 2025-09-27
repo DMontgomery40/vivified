@@ -27,7 +27,7 @@ jobs:
           pip install black flake8 mypy
           black --check core/
           flake8 core/
-          mypy core/
+          mypy --config-file mypy.ini core/
   
   test:
     runs-on: ubuntu-latest

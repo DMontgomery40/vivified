@@ -28,6 +28,8 @@ class PluginRegistry:
             raise HTTPException(status_code=409, detail="Plugin already registered")
 
         # Generate authentication token for plugin
+        if not isinstance(plugin_id, str) or not plugin_id:
+            raise HTTPException(status_code=400, detail="Invalid plugin id")
         token = self._generate_plugin_token(plugin_id)
 
         # Store plugin information
