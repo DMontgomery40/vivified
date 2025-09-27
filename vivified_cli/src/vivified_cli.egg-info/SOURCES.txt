@@ -1,8 +1,0 @@
-pyproject.toml
-src/vivified_cli/__main__.py
-src/vivified_cli.egg-info/PKG-INFO
-src/vivified_cli.egg-info/SOURCES.txt
-src/vivified_cli.egg-info/dependency_links.txt
-src/vivified_cli.egg-info/entry_points.txt
-src/vivified_cli.egg-info/requires.txt
-src/vivified_cli.egg-info/top_level.txt
