@@ -87,7 +87,7 @@ class SecurityValidator:
 
     def _validate_security_config(self, security: PluginSecurity) -> List[str]:
         """Validate security configuration."""
-        errors = []
+        errors: List[str] = []
 
         # Authentication must be required
         if not security.authentication_required:
