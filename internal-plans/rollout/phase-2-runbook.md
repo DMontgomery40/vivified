@@ -1009,6 +1009,13 @@ async def list_traits(current_user: Dict = Depends(get_current_user)):
     }
 ```
 
+#### 5.2 Admin Console UI Parity (Phase 2)
+- Map Identity, Config, and Plugin management endpoints to Admin Console views.
+- Ensure trait‑aware rendering (admin, config_manager, plugin_manager) is enforced both server and client side.
+- Provide `/admin/user/traits` and `/admin/ui-config` for UI feature flags and trait discovery.
+- In development, allow `bootstrap_admin_only` API key to access Admin Console without terminal steps (`DEV_MODE=true`).
+
+
 ### 6. Update Example Plugins
 
 #### 6.1 Enhanced User Management Plugin

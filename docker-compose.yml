@@ -41,6 +41,10 @@ services:
       DATABASE_URL: postgresql://vivified:${DB_PASSWORD:-changeme}@postgres:5432/vivified
       NATS_URL: nats://nats:4222
       JWT_SECRET: ${JWT_SECRET:-change-this-secret}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:5173}
+      DB_INIT: "true"
+      ADMIN_USERNAME: admin
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin-pass-change-me}
       LOG_LEVEL: INFO
     ports:
       - "8000:8000"

@@ -24,6 +24,8 @@ Pre-Flight Checklist (must be fully checked before PR merge)
 - [ ] All traffic via Core gateway (no direct plugin endpoints)
 - [ ] Lint, security scan, and tests passed in CI
 - [ ] Documentation updated (this runbook + user docs as relevant)
+- [ ] UI Parity: For any CLI operation added/changed, a matching Admin Console view/action exists, trait‑gated appropriately
+- [ ] DEV bootstrap: `bootstrap_admin_only` key works end‑to‑end (DEV_MODE), no terminal steps required to access the UI
 
 CI/CD Gates (mirror AGENTS.md pipeline)
 - Lint: eslint/prettier (UI) if present, black/flake8/mypy (server)
@@ -55,6 +57,12 @@ Implementation Plan
 - Create workspace and copy the Faxbot Admin UI as the starting point for Vivified Admin Console.
 - Rebrand names, strings, colors, favicons, and assets from Faxbot → Vivified.
 - Replace any direct API wiring with a single adapter that talks to the Core gateway.
+
+3) UI Parity & Accessibility
+- Map every supported operation to a UI action; add trait‑aware gating to each menu/route.
+- Ensure `/admin/user/traits` and `/admin/ui-config` are wired to drive visibility.
+- In development, allow `bootstrap_admin_only` to authenticate without MFA/terminal steps; restrict to `DEV_MODE`.
+- Add accessibility note in PR description: Developer is extremely dyslexic; visual flows must be primary; avoid CLI‑only steps.
 
 API Adapter (example)
 Note: This example enforces a single base URL, timeout, and a minimal surface aligned with Core.
@@ -178,6 +186,8 @@ PR Requirements (paste into PR template and complete)
 - [ ] Migration requirements (feature flags, config keys)
 - [ ] Tests added/updated; coverage ≥ 80%
 - [ ] Documentation updated (runbook + user docs)
+- [ ] UI Parity check completed; trait mapping documented
+- [ ] DEV bootstrap (`bootstrap_admin_only`) verified for local run
 
 Local Validation (before opening PR)
 - Python server checks (mirror CI):

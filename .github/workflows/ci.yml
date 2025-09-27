@@ -59,3 +59,20 @@ jobs:
         run: npm ci || npm i
       - name: Build UI
         run: npm run build
+
+  admin-ui-build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: core/admin_ui
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install deps
+        run: npm ci || npm i
+      - name: Build Admin UI
+        env:
+          VITE_CORE_URL: http://localhost:8000
+        run: npm run build
