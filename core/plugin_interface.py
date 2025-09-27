@@ -66,4 +66,3 @@ class StoragePlugin(PluginBase):
     @abstractmethod
     async def delete(self, id: str) -> bool:
         """Delete data by ID."""
-

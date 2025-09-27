@@ -14,11 +14,11 @@ from .encryption import StorageEncryption
 from .providers import FilesystemProvider, S3Provider
 
 __all__ = [
-    'StorageService',
-    'StorageObject',
-    'StorageMetadata',
-    'DataClassification',
-    'StorageEncryption',
-    'FilesystemProvider',
-    'S3Provider'
+    "StorageService",
+    "StorageObject",
+    "StorageMetadata",
+    "DataClassification",
+    "StorageEncryption",
+    "FilesystemProvider",
+    "S3Provider",
 ]

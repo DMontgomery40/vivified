@@ -2,7 +2,7 @@
 
 import re
 import ipaddress
-from typing import List, Dict, Any, Tuple, Set
+from typing import List, Dict, Any, Tuple, Set, Optional
 from urllib.parse import urlparse
 import logging
 
@@ -23,10 +23,12 @@ class SecurityValidator:
         self.required_security_configs = [
             "authentication_required",
             "network_isolation",
-            "data_classification"
+            "data_classification",
         ]
 
-    def validate_manifest_security(self, manifest: PluginManifest) -> Tuple[bool, List[str]]:
+    def validate_manifest_security(
+        self, manifest: PluginManifest
+    ) -> Tuple[bool, List[str]]:
         """
         Comprehensive security validation of plugin manifest.
 
@@ -70,7 +72,9 @@ class SecurityValidator:
             is_valid = len(errors) == 0
 
             if not is_valid:
-                logger.warning(f"Plugin manifest validation failed for {manifest.id}: {errors}")
+                logger.warning(
+                    f"Plugin manifest validation failed for {manifest.id}: {errors}"
+                )
             else:
                 logger.info(f"Plugin manifest validation passed for {manifest.id}")
 
@@ -100,13 +104,13 @@ class SecurityValidator:
 
         # Validate resource limits if specified
         if security.resource_limits:
-            if 'memory_mb' in security.resource_limits:
-                memory = security.resource_limits['memory_mb']
+            if "memory_mb" in security.resource_limits:
+                memory = security.resource_limits["memory_mb"]
                 if memory > 4096:  # 4GB limit
                     errors.append("Memory limit exceeds maximum allowed (4GB)")
 
-            if 'cpu_cores' in security.resource_limits:
-                cpu = security.resource_limits['cpu_cores']
+            if "cpu_cores" in security.resource_limits:
+                cpu = security.resource_limits["cpu_cores"]
                 if cpu > 4:  # 4 core limit
                     errors.append("CPU limit exceeds maximum allowed (4 cores)")
 
@@ -143,10 +147,14 @@ class SecurityValidator:
         # PHI handling requirements
         if "handles_phi" in traits:
             if "phi" not in security.data_classification:
-                errors.append("Plugin with handles_phi trait must declare 'phi' in data_classification")
+                errors.append(
+                    "Plugin with handles_phi trait must declare 'phi' in data_classification"
+                )
 
             if manifest.compliance.audit_level not in ["detailed", "comprehensive"]:
-                errors.append("PHI handling plugins require detailed or comprehensive audit level")
+                errors.append(
+                    "PHI handling plugins require detailed or comprehensive audit level"
+                )
 
             if not manifest.compliance.encryption_required:
                 errors.append("PHI handling plugins must require encryption")
@@ -154,7 +162,9 @@ class SecurityValidator:
         # PII handling requirements
         if "handles_pii" in traits:
             if "pii" not in security.data_classification:
-                errors.append("Plugin with handles_pii trait must declare 'pii' in data_classification")
+                errors.append(
+                    "Plugin with handles_pii trait must declare 'pii' in data_classification"
+                )
 
         # External service requirements
         if "external_service" in traits:
@@ -194,7 +204,7 @@ class SecurityValidator:
                 errors.append("PHI handling plugins must specify HIPAA controls")
 
             # Validate HIPAA control format
-            valid_control_pattern = re.compile(r'^\d{3}\.\d{3}\([a-z]\)(\(\d+\))?$')
+            valid_control_pattern = re.compile(r"^\d{3}\.\d{3}\([a-z]\)(\(\d+\))?$")
             for control in compliance.hipaa_controls:
                 if not valid_control_pattern.match(control):
                     errors.append(f"Invalid HIPAA control format: {control}")
@@ -202,7 +212,9 @@ class SecurityValidator:
         # Data retention validation
         if compliance.data_retention_days < 2555:  # 7 years for HIPAA
             if "handles_phi" in manifest.traits:
-                errors.append("PHI handling plugins must retain data for at least 7 years (2555 days)")
+                errors.append(
+                    "PHI handling plugins must retain data for at least 7 years (2555 days)"
+                )
 
         return errors
 
@@ -215,9 +227,9 @@ class SecurityValidator:
             return errors
 
         # Memory limits
-        if 'memory_limit' in resources:
+        if "memory_limit" in resources:
             try:
-                memory = int(resources['memory_limit'])
+                memory = int(resources["memory_limit"])
                 if memory < 64:  # Minimum 64MB
                     errors.append("Memory limit too low (minimum 64MB)")
                 elif memory > 8192:  # Maximum 8GB
@@ -226,9 +238,9 @@ class SecurityValidator:
                 errors.append("Invalid memory limit format")
 
         # CPU limits
-        if 'cpu_limit' in resources:
+        if "cpu_limit" in resources:
             try:
-                cpu = float(resources['cpu_limit'])
+                cpu = float(resources["cpu_limit"])
                 if cpu < 0.1:  # Minimum 0.1 core
                     errors.append("CPU limit too low (minimum 0.1 core)")
                 elif cpu > 8.0:  # Maximum 8 cores
@@ -245,7 +257,7 @@ class SecurityValidator:
         for dependency in dependencies:
             # Check for circular dependencies (would need registry access)
             # For now, just validate format
-            if not re.match(r'^[a-z0-9-]+$', dependency):
+            if not re.match(r"^[a-z0-9-]+$", dependency):
                 errors.append(f"Invalid dependency format: {dependency}")
 
         return errors
@@ -257,15 +269,15 @@ class SecurityValidator:
     def _is_suspicious_domain(self, domain: str) -> bool:
         """Check for suspicious domain patterns."""
         suspicious_patterns = [
-            r'.*\.onion$',  # Tor domains
-            r'.*\.bit$',    # Namecoin domains
-            r'.*localhost.*',  # Localhost variants
-            r'.*127\.0\.0\.1.*',  # Loopback
-            r'.*192\.168\..*',  # Private networks
-            r'.*10\..*',    # Private networks
-            r'.*172\.1[6-9]\..*',  # Private networks
-            r'.*172\.2[0-9]\..*',  # Private networks
-            r'.*172\.3[0-1]\..*',  # Private networks
+            r".*\.onion$",  # Tor domains
+            r".*\.bit$",  # Namecoin domains
+            r".*localhost.*",  # Localhost variants
+            r".*127\.0\.0\.1.*",  # Loopback
+            r".*192\.168\..*",  # Private networks
+            r".*10\..*",  # Private networks
+            r".*172\.1[6-9]\..*",  # Private networks
+            r".*172\.2[0-9]\..*",  # Private networks
+            r".*172\.3[0-1]\..*",  # Private networks
         ]
 
         for pattern in suspicious_patterns:
@@ -278,7 +290,9 @@ class SecurityValidator:
         """Validate domain format."""
         # Basic domain validation
         domain_pattern = re.compile(
-            r'^[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)*$'
+            r"^[a-zA-Z0-9]"
+            r"([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?"
+            r"(\.[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)*$"
         )
 
         if not domain_pattern.match(domain):
@@ -288,10 +302,10 @@ class SecurityValidator:
         if len(domain) > 253:  # Maximum domain length
             return False
 
-        if domain.startswith('-') or domain.endswith('-'):
+        if domain.startswith("-") or domain.endswith("-"):
             return False
 
-        if '..' in domain:  # No consecutive dots
+        if ".." in domain:  # No consecutive dots
             return False
 
         return True
@@ -300,13 +314,13 @@ class SecurityValidator:
         """Load blocked domains list."""
         # In production, this could be loaded from a file or database
         return {
-            'localhost',
-            '127.0.0.1',
-            '0.0.0.0',
-            'example.com',
-            'test.com',
-            'malware.com',
-            'phishing.com',
+            "localhost",
+            "127.0.0.1",
+            "0.0.0.0",
+            "example.com",
+            "test.com",
+            "malware.com",
+            "phishing.com",
             # Add more blocked domains as needed
         }
 
@@ -315,7 +329,7 @@ class SecurityValidator:
         plugin_id: str,
         operation: str,
         target: Optional[str] = None,
-        data: Optional[Dict[str, Any]] = None
+        data: Optional[Dict[str, Any]] = None,
     ) -> Tuple[bool, str]:
         """
         Validate a plugin operation at runtime.
@@ -334,7 +348,7 @@ class SecurityValidator:
             # This would integrate with the policy engine
 
             # For now, basic validation
-            if operation in ['delete', 'admin']:
+            if operation in ["delete", "admin"]:
                 return False, f"Operation '{operation}' not allowed for plugins"
 
             if target and self._is_sensitive_target(target):
@@ -352,12 +366,12 @@ class SecurityValidator:
     def _is_sensitive_target(self, target: str) -> bool:
         """Check if target is sensitive."""
         sensitive_patterns = [
-            r'/etc/.*',
-            r'/root/.*',
-            r'/home/.*/.ssh/.*',
-            r'.*password.*',
-            r'.*secret.*',
-            r'.*key.*',
+            r"/etc/.*",
+            r"/root/.*",
+            r"/home/.*/.ssh/.*",
+            r".*password.*",
+            r".*secret.*",
+            r".*key.*",
         ]
 
         for pattern in sensitive_patterns:
@@ -372,13 +386,13 @@ class SecurityValidator:
         data_str = str(data).lower()
 
         malicious_patterns = [
-            r'<script.*?>.*?</script>',  # Script tags
-            r'javascript:',  # JavaScript URLs
-            r'eval\s*\(',  # Eval calls
-            r'exec\s*\(',  # Exec calls
-            r'\.\./\.\.',  # Directory traversal
-            r'rm\s+-rf',   # Dangerous commands
-            r'DROP\s+TABLE',  # SQL injection
+            r"<script.*?>.*?</script>",  # Script tags
+            r"javascript:",  # JavaScript URLs
+            r"eval\s*\(",  # Eval calls
+            r"exec\s*\(",  # Exec calls
+            r"\.\./\.\.",  # Directory traversal
+            r"rm\s+-rf",  # Dangerous commands
+            r"DROP\s+TABLE",  # SQL injection
         ]
 
         for pattern in malicious_patterns:

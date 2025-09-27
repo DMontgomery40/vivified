@@ -32,7 +32,9 @@ class StorageEncryption:
             config_encryption = ConfigEncryption()
             self.master_key = config_encryption.key
 
-    def generate_object_key(self, object_id: str, salt: Optional[bytes] = None) -> Tuple[Fernet, str]:
+    def generate_object_key(
+        self, object_id: str, salt: Optional[bytes] = None
+    ) -> Tuple[Fernet, str]:
         """
         Generate unique encryption key for an object.
 
@@ -53,7 +55,9 @@ class StorageEncryption:
             salt=salt,
             iterations=100000,
         )
-        object_key = base64.urlsafe_b64encode(kdf.derive(self.master_key + object_id.encode()))
+        object_key = base64.urlsafe_b64encode(
+            kdf.derive(self.master_key + object_id.encode())
+        )
 
         # Create key ID for tracking (non-reversible)
         key_id = hashlib.sha256(salt + object_id.encode()).hexdigest()[:16]
@@ -75,7 +79,9 @@ class StorageEncryption:
         encrypted_data = cipher.encrypt(data)
         return encrypted_data, key_id
 
-    def decrypt_object(self, encrypted_data: bytes, object_id: str, key_id: str) -> bytes:
+    def decrypt_object(
+        self, encrypted_data: bytes, object_id: str, key_id: str
+    ) -> bytes:
         """
         Decrypt object data using stored key ID.
 
@@ -94,12 +100,14 @@ class StorageEncryption:
             # We need to try different salts to find the right key
             # In production, salt should be stored with key_id
             # For now, we'll derive it from key_id (not ideal but functional)
-            salt = bytes.fromhex(key_id.ljust(32, '0'))[:16]
+            salt = bytes.fromhex(key_id.ljust(32, "0"))[:16]
 
             cipher, derived_key_id = self.generate_object_key(object_id, salt)
 
             if derived_key_id != key_id:
-                raise ValueError(f"Key ID mismatch: expected {key_id}, got {derived_key_id}")
+                raise ValueError(
+                    f"Key ID mismatch: expected {key_id}, got {derived_key_id}"
+                )
 
             return cipher.decrypt(encrypted_data)
 
@@ -127,14 +135,23 @@ class StorageEncryption:
             Secure filename for storage
         """
         # Extract extension if present
-        if '.' in original_filename:
-            ext = '.' + original_filename.split('.')[-1].lower()
+        if "." in original_filename:
+            ext = "." + original_filename.split(".")[-1].lower()
             # Validate extension
-            allowed_exts = {'.txt', '.pdf', '.json', '.csv', '.jpg', '.jpeg', '.png', '.bin'}
+            allowed_exts = {
+                ".txt",
+                ".pdf",
+                ".json",
+                ".csv",
+                ".jpg",
+                ".jpeg",
+                ".png",
+                ".bin",
+            }
             if ext not in allowed_exts:
-                ext = '.bin'
+                ext = ".bin"
         else:
-            ext = '.bin'
+            ext = ".bin"
 
         # Create secure filename from object ID
         secure_name = hashlib.sha256(object_id.encode()).hexdigest()[:16]
@@ -158,6 +175,10 @@ class StorageEncryption:
         Returns:
             Previous master key for migration purposes
         """
-        old_key = self.master_key.decode() if isinstance(self.master_key, bytes) else self.master_key
+        old_key = (
+            self.master_key.decode()
+            if isinstance(self.master_key, bytes)
+            else self.master_key
+        )
         self.master_key = new_master_key.encode()
         return old_key
