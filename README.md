@@ -13,6 +13,12 @@ Services
 - Core: FastAPI app exposing `/health` and plugin registration endpoints
 - Example Plugin: `user_management` service, registers itself with core on startup
 
+Docs
+
+- Built with MkDocs + Material, versioned with mike
+- Working branch: `mkdocs` (auto-deploys to `gh-pages`)
+- Build locally: `make docs`; serve: `make docs-serve`
+
 Commands
 
 - `make build` — Build Docker images
@@ -21,6 +27,7 @@ Commands
 - `make test` — Run unit tests
 - `make lint` — Run linters
 - `make proto` — Compile protobufs
+- `make docs` — Build docs site locally
 
 Notes
 
