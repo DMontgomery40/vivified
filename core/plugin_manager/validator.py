@@ -38,7 +38,7 @@ class SecurityValidator:
         Returns:
             Tuple of (is_valid, list_of_errors)
         """
-        errors = []
+        errors: List[str] = []
 
         try:
             # Validate basic security configuration
@@ -87,7 +87,7 @@ class SecurityValidator:
 
     def _validate_security_config(self, security: PluginSecurity) -> List[str]:
         """Validate security configuration."""
-        errors = []
+        errors: List[str] = []
 
         # Authentication must be required
         if not security.authentication_required:
@@ -220,7 +220,7 @@ class SecurityValidator:
 
     def _validate_resource_limits(self, resources: Dict[str, Any]) -> List[str]:
         """Validate resource limit specifications."""
-        errors = []
+        errors: List[str] = []
 
         if not resources:
             # Resource limits are optional but recommended
