@@ -8,6 +8,7 @@ Implement the three communication lanes (Event Bus, RPC Gateway, Proxy Service),
 - NATS JetStream running
 - Plugin authentication working
 - Policy engine configured
+- Admin Console parity: New communication features must expose trait‑gated UI (diagnostics, events, RPC actions) and be accessible in DEV via `bootstrap_admin_only` key.
 
 ## Tasks
 

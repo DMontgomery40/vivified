@@ -7,6 +7,10 @@ import os
 from typing import Dict, Any
 
 from .plugin_manager.registry import PluginRegistry
+from .api import admin_router, auth_router
+from .api.admin import configure_admin_api
+from .config.service import get_config_service
+from .identity.auth import dev_issue_admin_token
 
 
 class AddTraceIdFilter(logging.Filter):
@@ -41,6 +45,10 @@ app.add_middleware(
 
 JWT_SECRET = os.getenv("JWT_SECRET", "change-this-secret")
 registry = PluginRegistry(jwt_secret=JWT_SECRET)
+# Wire admin API dependencies
+configure_admin_api(config_service=get_config_service(), registry=registry)
+app.include_router(admin_router)
+app.include_router(auth_router)
 
 
 class ManifestModel(BaseModel):
@@ -69,6 +77,28 @@ async def health_check():
 @app.on_event("startup")
 async def startup_event():
     logger.info("Vivified Core Platform starting")
+    # Optional DB bootstrap for Identity
+    if os.getenv("DB_INIT", "false").lower() in {"1", "true", "yes"}:
+        try:
+            from .database import get_engine, async_session_factory
+            from .identity.service import IdentityService
+            from .identity.auth import get_auth_manager
+
+            engine = get_engine()
+            async with engine.begin():
+                pass
+            # Create schema and defaults
+            async with async_session_factory() as session:
+                ids = IdentityService(session, get_auth_manager())
+                await ids.init_schema(engine)
+                await ids.ensure_default_roles()
+                # Seed admin user if provided (only if credentials set)
+                admin_user = os.getenv("ADMIN_USERNAME")
+                admin_pass = os.getenv("ADMIN_PASSWORD")
+                if admin_user and admin_pass:
+                    await ids.ensure_admin_user(admin_user, admin_pass)
+        except Exception as e:  # noqa: BLE001
+            logger.exception("DB init failed: %s", e)
 
 
 @app.on_event("shutdown")
@@ -103,3 +133,17 @@ async def plugin_heartbeat(plugin_id: str, status: HeartbeatModel):
     if not ok:
         raise HTTPException(status_code=404, detail="Plugin not found")
     return {"status": "ok"}
+
+
+class DevLoginRequest(BaseModel):
+    enabled: bool | None = True
+
+
+@app.post("/auth/dev-login")
+async def dev_login(_: DevLoginRequest):
+    """Issue a short-lived admin token for development when DEV_MODE is enabled."""
+    try:
+        token = dev_issue_admin_token()
+    except PermissionError:
+        raise HTTPException(status_code=403, detail="Dev login disabled")
+    return {"token": token, "expires_in": 1800}

@@ -427,3 +427,20 @@ Before ANY release:
 - Escalation: CTO, CISO, Legal
 
 Remember: When in doubt, prioritize security and compliance over features or performance.
+
+## UI Parity Mandate (Admin Console)
+
+- Everything operable via CLI MUST be operable via the Admin Console.
+- All platform capabilities (config, identity/users/roles, plugins, audit, diagnostics, lanes, storage tools, etc.) must have a trait‑gated UI path.
+- “No CLI‑only features” policy: If a new capability is added, include an Admin Console flow and corresponding trait mapping in the same PR.
+- Trait‑aware rendering is mandatory; least‑privilege by default. Admin surfaces require `admin` and/or specific traits (e.g., `config_manager`, `plugin_manager`, `audit_viewer`).
+- Development bootstrap: In DEV_MODE, the UI must be immediately accessible without terminal steps.
+  - Accept the bootstrap API key `bootstrap_admin_only` as a development‑only admin credential.
+  - The UI login should accept this key; the backend must map it to an admin JWT/claims when `DEV_MODE=true`.
+- Accessibility & Developer Experience: The lead developer is extremely dyslexic; visual, trait‑aware UI must be first‑class. Favor visual flows over terminal commands wherever possible.
+
+Implementation notes
+- Expose `/auth/me` for trait discovery; wire the Admin Console to hide/show features accordingly.
+- Provide `/admin/ui-config` and `/admin/user/traits` for feature flags and trait mapping.
+- Add a “UI Parity Checklist” to all runbooks for any new feature.
+- CI should fail PRs that introduce CLI‑only features without corresponding UI and trait mappings.
