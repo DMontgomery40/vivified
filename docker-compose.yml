@@ -1,0 +1,73 @@
+version: '3.8'
+
+networks:
+  vivified-net:
+    driver: bridge
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: vivified
+      POSTGRES_USER: vivified
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - vivified-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vivified"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  nats:
+    image: nats:2.10-alpine
+    command: ["-js", "-m", "8222"]
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+    networks:
+      - vivified-net
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "4222"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  vivified-core:
+    build: ./core
+    environment:
+      DATABASE_URL: postgresql://vivified:${DB_PASSWORD:-changeme}@postgres:5432/vivified
+      NATS_URL: nats://nats:4222
+      JWT_SECRET: ${JWT_SECRET:-change-this-secret}
+      LOG_LEVEL: INFO
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+    networks:
+      - vivified-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  user-management-plugin:
+    build: ./plugins/user_management
+    environment:
+      CORE_URL: http://vivified-core:8000
+      LOG_LEVEL: INFO
+    depends_on:
+      vivified-core:
+        condition: service_healthy
+    networks:
+      - vivified-net
+    restart: unless-stopped
+
+volumes:
+  postgres_data:

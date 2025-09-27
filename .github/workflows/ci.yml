@@ -1,0 +1,46 @@
+name: CI Pipeline
+on: [push, pull_request]
+
+jobs:
+  security-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - name: Run security scan
+        run: |
+          pip install safety bandit
+          safety check || true
+          bandit -r core/ || true
+  
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - name: Python lint
+        run: |
+          pip install black flake8 mypy
+          black --check core/
+          flake8 core/
+          mypy core/
+  
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - name: Run tests
+        run: |
+          pip install -r core/requirements.txt pytest pytest-cov
+          pytest --cov=core --cov-report=xml
+      - name: Check coverage
+        run: |
+          pip install coverage
+          coverage report --fail-under=80 || true

@@ -1,0 +1,41 @@
+syntax = "proto3";
+
+package vivified.canonical;
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/any.proto";
+
+// Event envelope for all canonical events
+message CanonicalEvent {
+  string event_id = 1;
+  string trace_id = 2;
+  string event_type = 3;
+  google.protobuf.Timestamp timestamp = 4;
+  string source_plugin = 5;
+  repeated string data_traits = 6;  // PHI, PII, confidential
+  google.protobuf.Any payload = 7;
+  map<string, string> metadata = 8;
+}
+
+// Canonical user representation
+message CanonicalUser {
+  string id = 1;
+  string username = 2;
+  string email = 3;
+  repeated string roles = 4;
+  repeated string traits = 5;
+  google.protobuf.Timestamp created_at = 6;
+  map<string, string> attributes = 7;
+}
+
+// Canonical message for communication
+message CanonicalMessage {
+  string id = 1;
+  string from_user = 2;
+  string to_user = 3;
+  string content_type = 4;
+  bytes content = 5;
+  repeated string data_traits = 6;
+  google.protobuf.Timestamp sent_at = 7;
+}
+
