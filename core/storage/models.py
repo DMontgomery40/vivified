@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field, validator
 
 class DataClassification(str, Enum):
     """Data classification levels for HIPAA compliance."""
+
     PUBLIC = "public"
     INTERNAL = "internal"
     CONFIDENTIAL = "confidential"
@@ -21,15 +22,17 @@ class DataClassification(str, Enum):
 
 class RetentionPolicy(str, Enum):
     """Standard retention periods for different data types."""
-    SHORT_TERM = "90_days"      # 90 days
-    MEDIUM_TERM = "1_year"      # 1 year
-    LONG_TERM = "3_years"       # 3 years
+
+    SHORT_TERM = "90_days"  # 90 days
+    MEDIUM_TERM = "1_year"  # 1 year
+    LONG_TERM = "3_years"  # 3 years
     HIPAA_STANDARD = "7_years"  # 7 years (HIPAA requirement)
-    INDEFINITE = "indefinite"   # Never auto-delete
+    INDEFINITE = "indefinite"  # Never auto-delete
 
 
 class StorageProvider(str, Enum):
     """Supported storage providers."""
+
     FILESYSTEM = "filesystem"
     S3 = "s3"
     AZURE_BLOB = "azure_blob"
@@ -70,14 +73,14 @@ class StorageMetadata(BaseModel):
     # Custom metadata
     custom_metadata: Dict[str, Any] = Field(default_factory=dict)
 
-    @validator('expires_at', always=True)
+    @validator("expires_at", always=True)
     def set_expiration_date(cls, v, values):
         """Set expiration date based on retention policy."""
         if v is not None:
             return v
 
-        created_at = values.get('created_at', datetime.utcnow())
-        retention = values.get('retention_policy', RetentionPolicy.HIPAA_STANDARD)
+        created_at = values.get("created_at", datetime.utcnow())
+        retention = values.get("retention_policy", RetentionPolicy.HIPAA_STANDARD)
 
         if retention == RetentionPolicy.SHORT_TERM:
             return created_at + timedelta(days=90)
@@ -90,19 +93,19 @@ class StorageMetadata(BaseModel):
         else:  # INDEFINITE
             return None
 
-    @validator('traits')
+    @validator("traits")
     def validate_traits_for_classification(cls, v, values):
         """Ensure traits match data classification."""
-        classification = values.get('data_classification')
+        classification = values.get("data_classification")
 
         if classification == DataClassification.PHI:
-            if 'phi_handler' not in v:
-                v.append('phi_handler')
-            if 'hipaa_covered_entity' not in v:
-                v.append('hipaa_covered_entity')
+            if "phi_handler" not in v:
+                v.append("phi_handler")
+            if "hipaa_covered_entity" not in v:
+                v.append("hipaa_covered_entity")
         elif classification == DataClassification.PII:
-            if 'pii_processor' not in v:
-                v.append('pii_processor')
+            if "pii_processor" not in v:
+                v.append("pii_processor")
 
         return v
 
@@ -165,15 +168,17 @@ class StorageConfig(BaseModel):
 
     # Security settings
     max_file_size_mb: int = 100
-    allowed_content_types: List[str] = Field(default_factory=lambda: [
-        "application/json",
-        "application/pdf",
-        "text/plain",
-        "text/csv",
-        "image/jpeg",
-        "image/png",
-        "application/octet-stream"
-    ])
+    allowed_content_types: List[str] = Field(
+        default_factory=lambda: [
+            "application/json",
+            "application/pdf",
+            "text/plain",
+            "text/csv",
+            "image/jpeg",
+            "image/png",
+            "application/octet-stream",
+        ]
+    )
 
     # Retention cleanup
     cleanup_expired_objects: bool = True

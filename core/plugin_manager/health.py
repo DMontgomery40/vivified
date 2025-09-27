@@ -47,13 +47,11 @@ class HealthMonitor:
         self.plugin_health[plugin_id] = PluginHealth(
             status=HealthStatus.UNKNOWN,
             last_check=datetime.utcnow(),
-            consecutive_failures=0
+            consecutive_failures=0,
         )
 
         # Start monitoring task
-        task = asyncio.create_task(
-            self._monitor_plugin(plugin_id, health_config)
-        )
+        task = asyncio.create_task(self._monitor_plugin(plugin_id, health_config))
         self.monitoring_tasks[plugin_id] = task
 
         logger.info(f"Started health monitoring for plugin {plugin_id}")
@@ -76,9 +74,7 @@ class HealthMonitor:
         logger.info(f"Stopped health monitoring for plugin {plugin_id}")
 
     async def check_plugin_health(
-        self,
-        plugin_id: str,
-        health_config: Dict[str, Any]
+        self, plugin_id: str, health_config: Dict[str, Any]
     ) -> PluginHealth:
         """
         Perform a single health check for a plugin.
@@ -97,7 +93,7 @@ class HealthMonitor:
             health = PluginHealth(
                 status=HealthStatus.UNKNOWN,
                 last_check=datetime.utcnow(),
-                consecutive_failures=0
+                consecutive_failures=0,
             )
             self.plugin_health[plugin_id] = health
 
@@ -107,26 +103,26 @@ class HealthMonitor:
 
             response_time = int((time.time() - start_time) * 1000)
 
-            if check_result['healthy']:
+            if check_result["healthy"]:
                 # Plugin is healthy
                 health.status = HealthStatus.HEALTHY
                 health.consecutive_failures = 0
                 health.error_message = None
                 health.response_time_ms = response_time
-                health.metrics = check_result.get('metrics', {})
+                health.metrics = check_result.get("metrics", {})
 
                 # Update performance metrics
-                if 'uptime' in check_result:
-                    health.uptime_seconds = check_result['uptime']
-                if 'memory_usage' in check_result:
-                    health.memory_usage_mb = check_result['memory_usage']
-                if 'cpu_usage' in check_result:
-                    health.cpu_usage_percent = check_result['cpu_usage']
+                if "uptime" in check_result:
+                    health.uptime_seconds = check_result["uptime"]
+                if "memory_usage" in check_result:
+                    health.memory_usage_mb = check_result["memory_usage"]
+                if "cpu_usage" in check_result:
+                    health.cpu_usage_percent = check_result["cpu_usage"]
 
             else:
                 # Plugin is unhealthy
                 health.consecutive_failures += 1
-                health.error_message = check_result.get('error', 'Health check failed')
+                health.error_message = check_result.get("error", "Health check failed")
                 health.response_time_ms = response_time
 
                 # Determine status based on consecutive failures
@@ -139,7 +135,9 @@ class HealthMonitor:
 
             # Log health check result
             if health.status == HealthStatus.UNHEALTHY:
-                logger.warning(f"Plugin {plugin_id} is unhealthy: {health.error_message}")
+                logger.warning(
+                    f"Plugin {plugin_id} is unhealthy: {health.error_message}"
+                )
             elif health.status == HealthStatus.DEGRADED:
                 logger.info(f"Plugin {plugin_id} is degraded: {health.error_message}")
 
@@ -192,7 +190,9 @@ class HealthMonitor:
 
         # Wait for tasks to complete
         if self.monitoring_tasks:
-            await asyncio.gather(*self.monitoring_tasks.values(), return_exceptions=True)
+            await asyncio.gather(
+                *self.monitoring_tasks.values(), return_exceptions=True
+            )
 
         self.monitoring_tasks.clear()
         self.plugin_health.clear()
@@ -221,7 +221,9 @@ class HealthMonitor:
                     logger.info(f"Health monitoring cancelled for plugin {plugin_id}")
                     break
                 except Exception as e:
-                    logger.error(f"Error in health monitoring loop for {plugin_id}: {e}")
+                    logger.error(
+                        f"Error in health monitoring loop for {plugin_id}: {e}"
+                    )
                     # Continue monitoring even if individual check fails
                     await asyncio.sleep(self.check_interval)
 
@@ -231,9 +233,7 @@ class HealthMonitor:
             logger.info(f"Health monitoring loop ended for plugin {plugin_id}")
 
     async def _perform_health_check(
-        self,
-        plugin_id: str,
-        health_config: Dict[str, Any]
+        self, plugin_id: str, health_config: Dict[str, Any]
     ) -> Dict[str, Any]:
         """
         Perform the actual health check based on configuration.
@@ -245,36 +245,33 @@ class HealthMonitor:
         Returns:
             Dictionary with health check results
         """
-        check_type = health_config.get('type', 'http')
-        timeout = health_config.get('timeout', 5.0)
+        check_type = health_config.get("type", "http")
+        timeout = health_config.get("timeout", 5.0)
 
-        if check_type == 'http':
+        if check_type == "http":
             return await self._http_health_check(plugin_id, health_config, timeout)
-        elif check_type == 'tcp':
+        elif check_type == "tcp":
             return await self._tcp_health_check(plugin_id, health_config, timeout)
-        elif check_type == 'custom':
+        elif check_type == "custom":
             return await self._custom_health_check(plugin_id, health_config, timeout)
         else:
             return {
-                'healthy': False,
-                'error': f'Unknown health check type: {check_type}'
+                "healthy": False,
+                "error": f"Unknown health check type: {check_type}",
             }
 
     async def _http_health_check(
-        self,
-        plugin_id: str,
-        health_config: Dict[str, Any],
-        timeout: float
+        self, plugin_id: str, health_config: Dict[str, Any], timeout: float
     ) -> Dict[str, Any]:
         """Perform HTTP health check."""
         try:
             # Build health check URL
-            port = health_config.get('port', 8080)
-            path = health_config.get('path', '/health')
+            port = health_config.get("port", 8080)
+            path = health_config.get("path", "/health")
             url = f"http://{plugin_id}:{port}{path}"
 
             # Expected response code
-            expected_code = health_config.get('expected_code', 200)
+            expected_code = health_config.get("expected_code", 200)
 
             async with httpx.AsyncClient(timeout=timeout) as client:
                 response = await client.get(url)
@@ -284,93 +281,68 @@ class HealthMonitor:
                     try:
                         data = response.json()
                         return {
-                            'healthy': True,
-                            'metrics': data.get('metrics', {}),
-                            'uptime': data.get('uptime'),
-                            'memory_usage': data.get('memory_usage'),
-                            'cpu_usage': data.get('cpu_usage')
+                            "healthy": True,
+                            "metrics": data.get("metrics", {}),
+                            "uptime": data.get("uptime"),
+                            "memory_usage": data.get("memory_usage"),
+                            "cpu_usage": data.get("cpu_usage"),
                         }
-                    except:
+                    except Exception:
                         # Response is not JSON, but status code is correct
-                        return {'healthy': True}
+                        return {"healthy": True}
                 else:
                     return {
-                        'healthy': False,
-                        'error': f'HTTP {response.status_code}: {response.text[:200]}'
+                        "healthy": False,
+                        "error": f"HTTP {response.status_code}: {response.text[:200]}",
                     }
 
         except httpx.TimeoutException:
-            return {
-                'healthy': False,
-                'error': f'Health check timeout after {timeout}s'
-            }
+            return {"healthy": False, "error": f"Health check timeout after {timeout}s"}
         except httpx.ConnectError:
-            return {
-                'healthy': False,
-                'error': 'Failed to connect to plugin'
-            }
+            return {"healthy": False, "error": "Failed to connect to plugin"}
         except Exception as e:
-            return {
-                'healthy': False,
-                'error': f'Health check error: {str(e)}'
-            }
+            return {"healthy": False, "error": f"Health check error: {str(e)}"}
 
     async def _tcp_health_check(
-        self,
-        plugin_id: str,
-        health_config: Dict[str, Any],
-        timeout: float
+        self, plugin_id: str, health_config: Dict[str, Any], timeout: float
     ) -> Dict[str, Any]:
         """Perform TCP health check."""
         try:
-            port = health_config.get('port', 8080)
+            port = health_config.get("port", 8080)
 
             # Try to open TCP connection
             reader, writer = await asyncio.wait_for(
-                asyncio.open_connection(plugin_id, port),
-                timeout=timeout
+                asyncio.open_connection(plugin_id, port), timeout=timeout
             )
 
             writer.close()
             await writer.wait_closed()
 
-            return {'healthy': True}
+            return {"healthy": True}
 
         except asyncio.TimeoutError:
             return {
-                'healthy': False,
-                'error': f'TCP connection timeout after {timeout}s'
+                "healthy": False,
+                "error": f"TCP connection timeout after {timeout}s",
             }
         except ConnectionRefusedError:
-            return {
-                'healthy': False,
-                'error': 'TCP connection refused'
-            }
+            return {"healthy": False, "error": "TCP connection refused"}
         except Exception as e:
-            return {
-                'healthy': False,
-                'error': f'TCP health check error: {str(e)}'
-            }
+            return {"healthy": False, "error": f"TCP health check error: {str(e)}"}
 
     async def _custom_health_check(
-        self,
-        plugin_id: str,
-        health_config: Dict[str, Any],
-        timeout: float
+        self, plugin_id: str, health_config: Dict[str, Any], timeout: float
     ) -> Dict[str, Any]:
         """Perform custom health check."""
         # This would implement custom health check logic
         # For now, return a basic check
-        return {
-            'healthy': True,
-            'note': 'Custom health check not implemented'
-        }
+        return {"healthy": True, "note": "Custom health check not implemented"}
 
     async def _audit_health_change(self, plugin_id: str, health: PluginHealth):
         """Audit significant health status changes."""
         try:
             # Only audit status changes, not every check
-            previous_status = getattr(self, f'_last_status_{plugin_id}', None)
+            previous_status = getattr(self, f"_last_status_{plugin_id}", None)
             current_status = health.status
 
             if previous_status != current_status:
@@ -379,25 +351,25 @@ class HealthMonitor:
 
                 audit_service = await get_audit_service()
                 await audit_service.log_event(
-                    event_type='plugin_health_change',
+                    event_type="plugin_health_change",
                     category=AuditCategory.SYSTEM,
-                    action='health_check',
-                    result='success',
+                    action="health_check",
+                    result="success",
                     plugin_id=plugin_id,
-                    resource_type='plugin',
+                    resource_type="plugin",
                     resource_id=plugin_id,
-                    description=f'Plugin health changed from {previous_status} to {current_status}',
+                    description=f"Plugin health changed from {previous_status} to {current_status}",
                     details={
-                        'previous_status': previous_status,
-                        'current_status': current_status.value,
-                        'consecutive_failures': health.consecutive_failures,
-                        'error_message': health.error_message,
-                        'response_time_ms': health.response_time_ms
-                    }
+                        "previous_status": previous_status,
+                        "current_status": current_status.value,
+                        "consecutive_failures": health.consecutive_failures,
+                        "error_message": health.error_message,
+                        "response_time_ms": health.response_time_ms,
+                    },
                 )
 
                 # Store current status for next comparison
-                setattr(self, f'_last_status_{plugin_id}', current_status)
+                setattr(self, f"_last_status_{plugin_id}", current_status)
 
                 # Alert on unhealthy status
                 if current_status == HealthStatus.UNHEALTHY:
@@ -409,10 +381,13 @@ class HealthMonitor:
     async def _send_alert(self, plugin_id: str, health: PluginHealth):
         """Send alert for unhealthy plugin."""
         # This would integrate with alerting systems
-        logger.critical(f"ALERT: Plugin {plugin_id} is unhealthy", extra={
-            'plugin_id': plugin_id,
-            'status': health.status.value,
-            'consecutive_failures': health.consecutive_failures,
-            'error_message': health.error_message,
-            'last_check': health.last_check.isoformat()
-        })
+        logger.critical(
+            f"ALERT: Plugin {plugin_id} is unhealthy",
+            extra={
+                "plugin_id": plugin_id,
+                "status": health.status.value,
+                "consecutive_failures": health.consecutive_failures,
+                "error_message": health.error_message,
+                "last_check": health.last_check.isoformat(),
+            },
+        )

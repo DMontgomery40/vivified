@@ -70,14 +70,16 @@ class FilesystemProvider(StorageProviderBase):
         """Get filesystem path for object based on classification and date."""
         # Organize by classification and year/month for efficient management
         date_path = metadata.created_at.strftime("%Y/%m")
-        classification_path = self.base_path / metadata.data_classification.value / date_path
+        classification_path = (
+            self.base_path / metadata.data_classification.value / date_path
+        )
 
         # Use secure filename from metadata
         from .encryption import StorageEncryption
+
         encryption = StorageEncryption()
         secure_filename = encryption.create_secure_filename(
-            metadata.original_filename or "unknown",
-            str(metadata.id)
+            metadata.original_filename or "unknown", str(metadata.id)
         )
 
         return classification_path / secure_filename
@@ -104,12 +106,12 @@ class FilesystemProvider(StorageProviderBase):
         # Store object content
         storage_object.metadata.provider_path = str(object_path)
 
-        async with aiofiles.open(object_path, 'wb') as f:
+        async with aiofiles.open(object_path, "wb") as f:
             await f.write(storage_object.content)
 
         # Store metadata
         metadata_json = storage_object.metadata.json()
-        async with aiofiles.open(metadata_path, 'w') as f:
+        async with aiofiles.open(metadata_path, "w") as f:
             await f.write(metadata_json)
 
         return storage_object.metadata
@@ -126,7 +128,7 @@ class FilesystemProvider(StorageProviderBase):
             return None
 
         # Read content
-        async with aiofiles.open(object_path, 'rb') as f:
+        async with aiofiles.open(object_path, "rb") as f:
             content = await f.read()
 
         return StorageObject(metadata=metadata, content=content)
@@ -173,14 +175,16 @@ class FilesystemProvider(StorageProviderBase):
         end = start + query.limit
         return results[start:end]
 
-    async def _scan_metadata_files(self, directory: Path, query: StorageQuery) -> AsyncIterator[StorageMetadata]:
+    async def _scan_metadata_files(
+        self, directory: Path, query: StorageQuery
+    ) -> AsyncIterator[StorageMetadata]:
         """Scan directory for metadata files matching query."""
         for root, dirs, files in os.walk(directory):
             for file in files:
                 if file.endswith(self.metadata_suffix):
                     metadata_path = Path(root) / file
                     try:
-                        async with aiofiles.open(metadata_path, 'r') as f:
+                        async with aiofiles.open(metadata_path, "r") as f:
                             metadata_json = await f.read()
                         metadata = StorageMetadata.parse_raw(metadata_json)
 
@@ -196,7 +200,10 @@ class FilesystemProvider(StorageProviderBase):
         if query.object_keys and metadata.object_key not in query.object_keys:
             return False
 
-        if query.data_classification and metadata.data_classification != query.data_classification:
+        if (
+            query.data_classification
+            and metadata.data_classification != query.data_classification
+        ):
             return False
 
         if query.traits and not any(trait in metadata.traits for trait in query.traits):
@@ -219,7 +226,9 @@ class FilesystemProvider(StorageProviderBase):
 
         return True
 
-    def _filter_results(self, results: List[StorageMetadata], query: StorageQuery) -> List[StorageMetadata]:
+    def _filter_results(
+        self, results: List[StorageMetadata], query: StorageQuery
+    ) -> List[StorageMetadata]:
         """Apply additional filtering and sorting."""
         # Sort by creation date (newest first)
         results.sort(key=lambda x: x.created_at, reverse=True)
@@ -246,7 +255,7 @@ class FilesystemProvider(StorageProviderBase):
                     if file.endswith(self.metadata_suffix):
                         metadata_path = Path(root) / file
                         try:
-                            async with aiofiles.open(metadata_path, 'r') as f:
+                            async with aiofiles.open(metadata_path, "r") as f:
                                 metadata_json = await f.read()
                             metadata = StorageMetadata.parse_raw(metadata_json)
 
@@ -266,7 +275,9 @@ class S3Provider(StorageProviderBase):
     or similar async S3 client.
     """
 
-    def __init__(self, bucket: str, region: str = "us-east-1", endpoint_url: Optional[str] = None):
+    def __init__(
+        self, bucket: str, region: str = "us-east-1", endpoint_url: Optional[str] = None
+    ):
         """Initialize S3 provider."""
         self.bucket = bucket
         self.region = region

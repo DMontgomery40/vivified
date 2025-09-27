@@ -1,0 +1,10 @@
+[flake8]
+max-line-length = 100
+extend-ignore = E203, W503, F401, F403
+exclude = 
+    .git,
+    __pycache__,
+    core/proto,
+    core/ui,
+    build,
+    dist
