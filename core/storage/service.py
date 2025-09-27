@@ -18,7 +18,7 @@ from .models import (
     StorageObject,
     StorageProvider,
     StorageQuery,
-    RetentionPolicy
+    RetentionPolicy,
 )
 from .providers import FilesystemProvider, S3Provider, StorageProviderBase
 
@@ -42,7 +42,7 @@ class StorageService:
         config: StorageConfig,
         policy_engine: PolicyEngine,
         audit_service: AuditService,
-        encryption_key: Optional[str] = None
+        encryption_key: Optional[str] = None,
     ):
         """Initialize storage service."""
         self.config = config
@@ -66,7 +66,7 @@ class StorageService:
             self.providers[StorageProvider.S3] = S3Provider(
                 bucket=self.config.s3_bucket,
                 region=self.config.s3_region or "us-east-1",
-                endpoint_url=self.config.s3_endpoint_url
+                endpoint_url=self.config.s3_endpoint_url,
             )
 
     def _get_provider(self, provider: StorageProvider) -> StorageProviderBase:
@@ -75,7 +75,9 @@ class StorageService:
             raise ValueError(f"Storage provider {provider} not configured")
         return self.providers[provider]
 
-    async def _check_access_policy(self, user_id: UUID, metadata: StorageMetadata, action: str) -> bool:
+    async def _check_access_policy(
+        self, user_id: UUID, metadata: StorageMetadata, action: str
+    ) -> bool:
         """Check if user has access to perform action on object."""
         # Create policy request
         request = PolicyRequest(
@@ -88,15 +90,17 @@ class StorageService:
                 "data_classification": metadata.data_classification.value,
                 "object_key": metadata.object_key,
                 "content_type": metadata.content_type,
-                "size_bytes": metadata.size_bytes
-            }
+                "size_bytes": metadata.size_bytes,
+            },
         )
 
         # Evaluate policy
         decision = await self.policy_engine.evaluate_request(request)
         return decision.decision == PolicyDecision.ALLOW
 
-    def _auto_classify_content(self, content: bytes, filename: str, content_type: str) -> DataClassification:
+    def _auto_classify_content(
+        self, content: bytes, filename: str, content_type: str
+    ) -> DataClassification:
         """
         Automatically classify content based on patterns and metadata.
 
@@ -105,27 +109,39 @@ class StorageService:
         """
         # Check filename patterns
         filename_lower = filename.lower()
-        if any(pattern in filename_lower for pattern in ['medical', 'patient', 'health', 'phi']):
+        if any(
+            pattern in filename_lower
+            for pattern in ["medical", "patient", "health", "phi"]
+        ):
             return DataClassification.PHI
 
-        if any(pattern in filename_lower for pattern in ['ssn', 'social', 'personal', 'pii']):
+        if any(
+            pattern in filename_lower
+            for pattern in ["ssn", "social", "personal", "pii"]
+        ):
             return DataClassification.PII
 
         # Check content type
-        if content_type.startswith('application/dicom'):
+        if content_type.startswith("application/dicom"):
             return DataClassification.PHI
 
         # Check content patterns (basic)
         if len(content) > 0:
-            content_str = content[:1024].decode('utf-8', errors='ignore').lower()
+            content_str = content[:1024].decode("utf-8", errors="ignore").lower()
 
             # PHI patterns
-            phi_patterns = ['patient', 'medical record', 'diagnosis', 'treatment', 'healthcare']
+            phi_patterns = [
+                "patient",
+                "medical record",
+                "diagnosis",
+                "treatment",
+                "healthcare",
+            ]
             if any(pattern in content_str for pattern in phi_patterns):
                 return DataClassification.PHI
 
             # PII patterns
-            pii_patterns = ['ssn', 'social security', 'driver license', 'passport']
+            pii_patterns = ["ssn", "social security", "driver license", "passport"]
             if any(pattern in content_str for pattern in pii_patterns):
                 return DataClassification.PII
 
@@ -142,7 +158,7 @@ class StorageService:
         traits: Optional[List[str]] = None,
         retention_policy: Optional[RetentionPolicy] = None,
         custom_metadata: Optional[Dict] = None,
-        provider: Optional[StorageProvider] = None
+        provider: Optional[StorageProvider] = None,
     ) -> StorageMetadata:
         """
         Store object with encryption and audit logging.
@@ -167,7 +183,9 @@ class StorageService:
         """
         # Validate content size
         if len(content) > self.config.max_file_size_mb * 1024 * 1024:
-            raise ValueError(f"File size exceeds limit of {self.config.max_file_size_mb}MB")
+            raise ValueError(
+                f"File size exceeds limit of {self.config.max_file_size_mb}MB"
+            )
 
         # Validate content type
         if content_type not in self.config.allowed_content_types:
@@ -175,7 +193,9 @@ class StorageService:
 
         # Auto-classify if not provided
         if data_classification is None and self.config.auto_classify_content:
-            data_classification = self._auto_classify_content(content, filename, content_type)
+            data_classification = self._auto_classify_content(
+                content, filename, content_type
+            )
         elif data_classification is None:
             data_classification = DataClassification.CONFIDENTIAL
 
@@ -192,7 +212,7 @@ class StorageService:
             created_by=user_id,
             provider=provider or self.config.default_provider,
             provider_path="",  # Will be set by provider
-            custom_metadata=custom_metadata or {}
+            custom_metadata=custom_metadata or {},
         )
 
         # Check access policy
@@ -205,8 +225,8 @@ class StorageService:
                     "action": "store",
                     "object_key": object_id,
                     "data_classification": data_classification.value,
-                    "reason": "policy_denied"
-                }
+                    "reason": "policy_denied",
+                },
             )
             raise PermissionError("Access denied by policy engine")
 
@@ -227,7 +247,11 @@ class StorageService:
         stored_metadata = await provider_instance.store_object(storage_object)
 
         # Audit log
-        audit_level = AuditLevel.COMPREHENSIVE if stored_metadata.is_sensitive else AuditLevel.STANDARD
+        audit_level = (
+            AuditLevel.COMPREHENSIVE
+            if stored_metadata.is_sensitive
+            else AuditLevel.STANDARD
+        )
         await self.audit_service.log_event(
             event_type="object_stored",
             user_id=user_id,
@@ -239,15 +263,17 @@ class StorageService:
                 "size_bytes": stored_metadata.size_bytes,
                 "provider": stored_metadata.provider.value,
                 "encrypted": stored_metadata.is_encrypted,
-                "traits": stored_metadata.traits
-            }
+                "traits": stored_metadata.traits,
+            },
         )
 
         logger.info(f"Stored object {stored_metadata.object_key} for user {user_id}")
         return stored_metadata
 
     @audit_phi_access
-    async def retrieve_object(self, object_key: str, user_id: UUID) -> Optional[StorageObject]:
+    async def retrieve_object(
+        self, object_key: str, user_id: UUID
+    ) -> Optional[StorageObject]:
         """
         Retrieve object with access control and audit logging.
 
@@ -277,8 +303,8 @@ class StorageService:
                     "action": "retrieve",
                     "object_key": object_key,
                     "data_classification": metadata.data_classification.value,
-                    "reason": "policy_denied"
-                }
+                    "reason": "policy_denied",
+                },
             )
             raise PermissionError("Access denied by policy engine")
 
@@ -293,9 +319,7 @@ class StorageService:
         if metadata.is_encrypted and metadata.encryption_key_id:
             try:
                 decrypted_content = self.encryption.decrypt_object(
-                    storage_object.content,
-                    object_key,
-                    metadata.encryption_key_id
+                    storage_object.content, object_key, metadata.encryption_key_id
                 )
                 storage_object.content = decrypted_content
             except Exception as e:
@@ -304,7 +328,9 @@ class StorageService:
 
         # Verify checksum
         if metadata.checksum:
-            if not self.encryption.verify_checksum(storage_object.content, metadata.checksum):
+            if not self.encryption.verify_checksum(
+                storage_object.content, metadata.checksum
+            ):
                 logger.error(f"Checksum verification failed for object {object_key}")
                 raise ValueError("Object integrity check failed")
 
@@ -314,11 +340,15 @@ class StorageService:
         # Update metadata in storage
         provider_instance = self._get_provider(metadata.provider)
         await provider_instance.store_object(
-            StorageObject(metadata=storage_object.metadata, content=b"")  # Just update metadata
+            StorageObject(
+                metadata=storage_object.metadata, content=b""
+            )  # Just update metadata
         )
 
         # Audit log
-        audit_level = AuditLevel.COMPREHENSIVE if metadata.is_sensitive else AuditLevel.STANDARD
+        audit_level = (
+            AuditLevel.COMPREHENSIVE if metadata.is_sensitive else AuditLevel.STANDARD
+        )
         await self.audit_service.log_event(
             event_type="object_retrieved",
             user_id=user_id,
@@ -328,8 +358,8 @@ class StorageService:
                 "object_key": object_key,
                 "data_classification": metadata.data_classification.value,
                 "size_bytes": metadata.size_bytes,
-                "access_count": storage_object.metadata.access_count
-            }
+                "access_count": storage_object.metadata.access_count,
+            },
         )
 
         logger.info(f"Retrieved object {object_key} for user {user_id}")
@@ -365,8 +395,8 @@ class StorageService:
                     "action": "delete",
                     "object_key": object_key,
                     "data_classification": metadata.data_classification.value,
-                    "reason": "policy_denied"
-                }
+                    "reason": "policy_denied",
+                },
             )
             raise PermissionError("Access denied by policy engine")
 
@@ -376,7 +406,11 @@ class StorageService:
 
         if success:
             # Audit log
-            audit_level = AuditLevel.COMPREHENSIVE if metadata.is_sensitive else AuditLevel.STANDARD
+            audit_level = (
+                AuditLevel.COMPREHENSIVE
+                if metadata.is_sensitive
+                else AuditLevel.STANDARD
+            )
             await self.audit_service.log_event(
                 event_type="object_deleted",
                 user_id=user_id,
@@ -386,15 +420,17 @@ class StorageService:
                     "object_key": object_key,
                     "data_classification": metadata.data_classification.value,
                     "size_bytes": metadata.size_bytes,
-                    "provider": metadata.provider.value
-                }
+                    "provider": metadata.provider.value,
+                },
             )
 
             logger.info(f"Deleted object {object_key} by user {user_id}")
 
         return success
 
-    async def list_objects(self, query: StorageQuery, user_id: UUID) -> List[StorageMetadata]:
+    async def list_objects(
+        self, query: StorageQuery, user_id: UUID
+    ) -> List[StorageMetadata]:
         """
         List objects with access control filtering.
 
@@ -423,13 +459,15 @@ class StorageService:
             level=AuditLevel.MINIMAL,
             details={
                 "query_filters": query.dict(exclude_none=True),
-                "result_count": len(results)
-            }
+                "result_count": len(results),
+            },
         )
 
         return results
 
-    async def get_object_metadata(self, object_key: str, user_id: UUID) -> Optional[StorageMetadata]:
+    async def get_object_metadata(
+        self, object_key: str, user_id: UUID
+    ) -> Optional[StorageMetadata]:
         """
         Get object metadata with access control.
 
@@ -489,8 +527,8 @@ class StorageService:
                                 "object_key": metadata.object_key,
                                 "data_classification": metadata.data_classification.value,
                                 "expired_at": metadata.expires_at.isoformat(),
-                                "retention_policy": metadata.retention_policy.value
-                            }
+                                "retention_policy": metadata.retention_policy.value,
+                            },
                         )
 
         if cleaned_count > 0:

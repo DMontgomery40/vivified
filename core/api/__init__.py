@@ -13,6 +13,4 @@ from .admin import admin_router
 from .models import *
 from .dependencies import *
 
-__all__ = [
-    'admin_router'
-]
+__all__ = ["admin_router"]

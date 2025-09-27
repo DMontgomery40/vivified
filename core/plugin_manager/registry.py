@@ -76,4 +76,3 @@ class PluginRegistry:
         self.plugins[plugin_id]["last_heartbeat"] = datetime.utcnow().isoformat()
         self.plugins[plugin_id]["health"] = status.get("health", "healthy")
         return True
-

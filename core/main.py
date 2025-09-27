@@ -103,4 +103,3 @@ async def plugin_heartbeat(plugin_id: str, status: HeartbeatModel):
     if not ok:
         raise HTTPException(status_code=404, detail="Plugin not found")
     return {"status": "ok"}
-

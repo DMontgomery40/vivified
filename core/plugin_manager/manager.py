@@ -6,9 +6,7 @@ from typing import Dict, List, Optional, Any, Tuple
 from fastapi import HTTPException
 import logging
 
-from .models import (
-    PluginManifest, PluginInfo, PluginStatus, PluginHealth, HealthStatus
-)
+from .models import PluginManifest, PluginInfo, PluginStatus, PluginHealth, HealthStatus
 from .validator import SecurityValidator
 from .health import HealthMonitor
 from .registry import PluginRegistry
@@ -26,7 +24,7 @@ class EnhancedPluginManager:
         self,
         jwt_secret: str,
         health_check_interval: int = 30,
-        failure_threshold: int = 3
+        failure_threshold: int = 3,
     ):
         """
         Initialize enhanced plugin manager.
@@ -45,9 +43,7 @@ class EnhancedPluginManager:
         self._shutdown = False
 
     async def register_plugin(
-        self,
-        manifest_data: Dict[str, Any],
-        registration_token: Optional[str] = None
+        self, manifest_data: Dict[str, Any], registration_token: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Register a plugin with comprehensive security validation.
@@ -65,49 +61,49 @@ class EnhancedPluginManager:
                 manifest = PluginManifest(**manifest_data)
             except Exception as e:
                 raise HTTPException(
-                    status_code=400,
-                    detail=f"Invalid manifest format: {str(e)}"
+                    status_code=400, detail=f"Invalid manifest format: {str(e)}"
                 )
 
             # Validate registration token if provided
             if registration_token:
                 if not self._validate_registration_token(registration_token):
                     raise HTTPException(
-                        status_code=401,
-                        detail="Invalid registration token"
+                        status_code=401, detail="Invalid registration token"
                     )
 
             # Comprehensive security validation
-            is_secure, security_errors = self.validator.validate_manifest_security(manifest)
+            is_secure, security_errors = self.validator.validate_manifest_security(
+                manifest
+            )
             if not is_secure:
                 raise HTTPException(
                     status_code=400,
-                    detail=f"Security validation failed: {'; '.join(security_errors)}"
+                    detail=f"Security validation failed: {'; '.join(security_errors)}",
                 )
 
             # Check for duplicate registration
             if manifest.id in self.plugins:
                 raise HTTPException(
-                    status_code=409,
-                    detail=f"Plugin {manifest.id} already registered"
+                    status_code=409, detail=f"Plugin {manifest.id} already registered"
                 )
 
             # Validate dependencies
             missing_deps = await self._check_dependencies(manifest.dependencies)
             if missing_deps:
-                logger.warning(f"Missing dependencies for {manifest.id}: {missing_deps}")
+                logger.warning(
+                    f"Missing dependencies for {manifest.id}: {missing_deps}"
+                )
 
             # Generate secure plugin token
             plugin_token = self.auth_manager.generate_plugin_token(
-                manifest.id,
-                manifest.traits
+                manifest.id, manifest.traits
             )
 
             # Initialize plugin health
             initial_health = PluginHealth(
                 status=HealthStatus.UNKNOWN,
                 last_check=datetime.utcnow(),
-                consecutive_failures=0
+                consecutive_failures=0,
             )
 
             # Create plugin info
@@ -116,7 +112,7 @@ class EnhancedPluginManager:
                 status=PluginStatus.REGISTERED,
                 health=initial_health,
                 registered_at=datetime.utcnow(),
-                token=plugin_token
+                token=plugin_token,
             )
 
             # Store plugin
@@ -125,8 +121,7 @@ class EnhancedPluginManager:
             # Start health monitoring if configured
             if manifest.health_check:
                 await self.health_monitor.start_monitoring(
-                    manifest.id,
-                    manifest.health_check
+                    manifest.id, manifest.health_check
                 )
 
             # Audit registration
@@ -141,7 +136,7 @@ class EnhancedPluginManager:
                 "status": "registered",
                 "plugin_id": manifest.id,
                 "token": plugin_token,
-                "health_monitoring": manifest.health_check is not None
+                "health_monitoring": manifest.health_check is not None,
             }
 
         except HTTPException:
@@ -151,20 +146,17 @@ class EnhancedPluginManager:
             # Log and convert other exceptions
             logger.error(f"Plugin registration failed: {e}")
             await self._audit_plugin_registration(
-                manifest_data.get('id', 'unknown'),
-                manifest_data.get('traits', []),
+                manifest_data.get("id", "unknown"),
+                manifest_data.get("traits", []),
                 False,
-                str(e)
+                str(e),
             )
             raise HTTPException(
-                status_code=500,
-                detail=f"Registration failed: {str(e)}"
+                status_code=500, detail=f"Registration failed: {str(e)}"
             )
 
     async def unregister_plugin(
-        self,
-        plugin_id: str,
-        reason: Optional[str] = None
+        self, plugin_id: str, reason: Optional[str] = None
     ) -> bool:
         """
         Unregister a plugin and clean up resources.
@@ -179,8 +171,7 @@ class EnhancedPluginManager:
         try:
             if plugin_id not in self.plugins:
                 raise HTTPException(
-                    status_code=404,
-                    detail=f"Plugin {plugin_id} not found"
+                    status_code=404, detail=f"Plugin {plugin_id} not found"
                 )
 
             plugin_info = self.plugins[plugin_id]
@@ -197,9 +188,7 @@ class EnhancedPluginManager:
 
             # Audit unregistration
             await self._audit_plugin_event(
-                'plugin_unregistered',
-                plugin_id,
-                {'reason': reason}
+                "plugin_unregistered", plugin_id, {"reason": reason}
             )
 
             logger.info(f"Plugin unregistered: {plugin_id}, reason: {reason}")
@@ -210,15 +199,11 @@ class EnhancedPluginManager:
         except Exception as e:
             logger.error(f"Failed to unregister plugin {plugin_id}: {e}")
             raise HTTPException(
-                status_code=500,
-                detail=f"Unregistration failed: {str(e)}"
+                status_code=500, detail=f"Unregistration failed: {str(e)}"
             )
 
     async def disable_plugin(
-        self,
-        plugin_id: str,
-        reason: str,
-        disabled_by: Optional[str] = None
+        self, plugin_id: str, reason: str, disabled_by: Optional[str] = None
     ) -> bool:
         """
         Disable a plugin due to security or health issues.
@@ -234,8 +219,7 @@ class EnhancedPluginManager:
         try:
             if plugin_id not in self.plugins:
                 raise HTTPException(
-                    status_code=404,
-                    detail=f"Plugin {plugin_id} not found"
+                    status_code=404, detail=f"Plugin {plugin_id} not found"
                 )
 
             plugin_info = self.plugins[plugin_id]
@@ -249,13 +233,13 @@ class EnhancedPluginManager:
 
             # Audit disabling
             await self._audit_plugin_event(
-                'plugin_disabled',
+                "plugin_disabled",
                 plugin_id,
                 {
-                    'reason': reason,
-                    'disabled_by': disabled_by,
-                    'previous_status': plugin_info.status.value
-                }
+                    "reason": reason,
+                    "disabled_by": disabled_by,
+                    "previous_status": plugin_info.status.value,
+                },
             )
 
             logger.warning(f"Plugin disabled: {plugin_id}, reason: {reason}")
@@ -265,15 +249,10 @@ class EnhancedPluginManager:
             raise
         except Exception as e:
             logger.error(f"Failed to disable plugin {plugin_id}: {e}")
-            raise HTTPException(
-                status_code=500,
-                detail=f"Disable failed: {str(e)}"
-            )
+            raise HTTPException(status_code=500, detail=f"Disable failed: {str(e)}")
 
     async def enable_plugin(
-        self,
-        plugin_id: str,
-        enabled_by: Optional[str] = None
+        self, plugin_id: str, enabled_by: Optional[str] = None
     ) -> bool:
         """
         Enable a previously disabled plugin.
@@ -288,16 +267,14 @@ class EnhancedPluginManager:
         try:
             if plugin_id not in self.plugins:
                 raise HTTPException(
-                    status_code=404,
-                    detail=f"Plugin {plugin_id} not found"
+                    status_code=404, detail=f"Plugin {plugin_id} not found"
                 )
 
             plugin_info = self.plugins[plugin_id]
 
             if plugin_info.status != PluginStatus.DISABLED:
                 raise HTTPException(
-                    status_code=400,
-                    detail=f"Plugin {plugin_id} is not disabled"
+                    status_code=400, detail=f"Plugin {plugin_id} is not disabled"
                 )
 
             # Re-validate security before enabling
@@ -307,7 +284,7 @@ class EnhancedPluginManager:
             if not is_secure:
                 raise HTTPException(
                     status_code=400,
-                    detail=f"Security validation failed: {'; '.join(security_errors)}"
+                    detail=f"Security validation failed: {'; '.join(security_errors)}",
                 )
 
             # Update status
@@ -317,15 +294,12 @@ class EnhancedPluginManager:
             # Restart health monitoring if configured
             if plugin_info.manifest.health_check:
                 await self.health_monitor.start_monitoring(
-                    plugin_id,
-                    plugin_info.manifest.health_check
+                    plugin_id, plugin_info.manifest.health_check
                 )
 
             # Audit enabling
             await self._audit_plugin_event(
-                'plugin_enabled',
-                plugin_id,
-                {'enabled_by': enabled_by}
+                "plugin_enabled", plugin_id, {"enabled_by": enabled_by}
             )
 
             logger.info(f"Plugin enabled: {plugin_id}")
@@ -335,16 +309,9 @@ class EnhancedPluginManager:
             raise
         except Exception as e:
             logger.error(f"Failed to enable plugin {plugin_id}: {e}")
-            raise HTTPException(
-                status_code=500,
-                detail=f"Enable failed: {str(e)}"
-            )
+            raise HTTPException(status_code=500, detail=f"Enable failed: {str(e)}")
 
-    async def heartbeat(
-        self,
-        plugin_id: str,
-        status_data: Dict[str, Any]
-    ) -> bool:
+    async def heartbeat(self, plugin_id: str, status_data: Dict[str, Any]) -> bool:
         """
         Update plugin heartbeat and status.
 
@@ -365,36 +332,38 @@ class EnhancedPluginManager:
             plugin_info.last_heartbeat = datetime.utcnow()
 
             # Update status if provided
-            if 'status' in status_data:
+            if "status" in status_data:
                 try:
-                    new_status = PluginStatus(status_data['status'])
+                    new_status = PluginStatus(status_data["status"])
                     if new_status != plugin_info.status:
                         old_status = plugin_info.status
                         plugin_info.status = new_status
 
                         # Audit status change
                         await self._audit_plugin_event(
-                            'plugin_status_change',
+                            "plugin_status_change",
                             plugin_id,
                             {
-                                'old_status': old_status.value,
-                                'new_status': new_status.value
-                            }
+                                "old_status": old_status.value,
+                                "new_status": new_status.value,
+                            },
                         )
                 except ValueError:
-                    logger.warning(f"Invalid status from plugin {plugin_id}: {status_data['status']}")
+                    logger.warning(
+                        f"Invalid status from plugin {plugin_id}: {status_data['status']}"
+                    )
 
             # Update health information
-            if 'health' in status_data:
-                health_data = status_data['health']
-                plugin_info.health.metrics.update(health_data.get('metrics', {}))
+            if "health" in status_data:
+                health_data = status_data["health"]
+                plugin_info.health.metrics.update(health_data.get("metrics", {}))
 
-                if 'uptime' in health_data:
-                    plugin_info.health.uptime_seconds = health_data['uptime']
-                if 'memory_usage' in health_data:
-                    plugin_info.health.memory_usage_mb = health_data['memory_usage']
-                if 'cpu_usage' in health_data:
-                    plugin_info.health.cpu_usage_percent = health_data['cpu_usage']
+                if "uptime" in health_data:
+                    plugin_info.health.uptime_seconds = health_data["uptime"]
+                if "memory_usage" in health_data:
+                    plugin_info.health.memory_usage_mb = health_data["memory_usage"]
+                if "cpu_usage" in health_data:
+                    plugin_info.health.cpu_usage_percent = health_data["cpu_usage"]
 
             return True
 
@@ -415,7 +384,7 @@ class EnhancedPluginManager:
     async def list_plugins(
         self,
         status: Optional[PluginStatus] = None,
-        health_status: Optional[HealthStatus] = None
+        health_status: Optional[HealthStatus] = None,
     ) -> List[PluginInfo]:
         """
         List plugins with optional filtering.
@@ -457,7 +426,7 @@ class EnhancedPluginManager:
         plugin_id: str,
         operation: str,
         target: Optional[str] = None,
-        data: Optional[Dict[str, Any]] = None
+        data: Optional[Dict[str, Any]] = None,
     ) -> Tuple[bool, str]:
         """
         Validate a plugin operation using security policies.
@@ -479,7 +448,10 @@ class EnhancedPluginManager:
             plugin_info = self.plugins[plugin_id]
 
             if plugin_info.status not in [PluginStatus.ACTIVE, PluginStatus.REGISTERED]:
-                return False, f"Plugin {plugin_id} is not active (status: {plugin_info.status.value})"
+                return (
+                    False,
+                    f"Plugin {plugin_id} is not active (status: {plugin_info.status.value})",
+                )
 
             # Check health status
             if plugin_info.health.status == HealthStatus.UNHEALTHY:
@@ -504,9 +476,7 @@ class EnhancedPluginManager:
         # Audit shutdown
         try:
             await self._audit_plugin_event(
-                'plugin_manager_shutdown',
-                'system',
-                {'plugin_count': len(self.plugins)}
+                "plugin_manager_shutdown", "system", {"plugin_count": len(self.plugins)}
             )
         except Exception as e:
             logger.error(f"Failed to audit plugin manager shutdown: {e}")
@@ -519,7 +489,10 @@ class EnhancedPluginManager:
         for dep in dependencies:
             if dep not in self.plugins:
                 missing.append(dep)
-            elif self.plugins[dep].status not in [PluginStatus.ACTIVE, PluginStatus.REGISTERED]:
+            elif self.plugins[dep].status not in [
+                PluginStatus.ACTIVE,
+                PluginStatus.REGISTERED,
+            ]:
                 missing.append(f"{dep} (inactive)")
         return missing
 
@@ -534,7 +507,7 @@ class EnhancedPluginManager:
         plugin_id: str,
         traits: List[str],
         success: bool,
-        error: Optional[str] = None
+        error: Optional[str] = None,
     ):
         """Audit plugin registration events."""
         try:
@@ -543,27 +516,21 @@ class EnhancedPluginManager:
 
             audit_service = await get_audit_service()
             await audit_service.log_event(
-                event_type='plugin_registration',
+                event_type="plugin_registration",
                 category=AuditCategory.SYSTEM,
-                action='register',
-                result='success' if success else 'failure',
+                action="register",
+                result="success" if success else "failure",
                 plugin_id=plugin_id,
-                resource_type='plugin',
+                resource_type="plugin",
                 resource_id=plugin_id,
                 description=f'Plugin registration {"succeeded" if success else "failed"}',
-                details={
-                    'traits': traits,
-                    'error': error if not success else None
-                }
+                details={"traits": traits, "error": error if not success else None},
             )
         except Exception as e:
             logger.error(f"Failed to audit plugin registration: {e}")
 
     async def _audit_plugin_event(
-        self,
-        event_type: str,
-        plugin_id: str,
-        details: Dict[str, Any]
+        self, event_type: str, plugin_id: str, details: Dict[str, Any]
     ):
         """Audit plugin-related events."""
         try:
@@ -573,13 +540,13 @@ class EnhancedPluginManager:
             await audit_service.log_event(
                 event_type=event_type,
                 category=AuditCategory.SYSTEM,
-                action='manage',
-                result='success',
+                action="manage",
+                result="success",
                 plugin_id=plugin_id,
-                resource_type='plugin',
+                resource_type="plugin",
                 resource_id=plugin_id,
-                description=f'Plugin event: {event_type}',
-                details=details
+                description=f"Plugin event: {event_type}",
+                details=details,
             )
         except Exception as e:
             logger.error(f"Failed to audit plugin event {event_type}: {e}")
