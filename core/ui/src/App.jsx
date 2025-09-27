@@ -1,6 +1,7 @@
 import React from 'react'
 import { Link, Routes, Route } from 'react-router-dom'
 import BrandSettings from './pages/BrandSettings.jsx'
+import Schemas from './pages/Schemas.jsx'
 
 function Home() {
   return (
@@ -24,7 +25,7 @@ export default function App(){
     <Routes>
       <Route path="/" element={<Home/>} />
       <Route path="/brand" element={<BrandSettings/>} />
-      <Route path="/schemas" element={<Placeholder title="Canonical Schemas"/>} />
+      <Route path="/schemas" element={<Schemas/>} />
     </Routes>
   )
 }
