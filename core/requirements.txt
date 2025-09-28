@@ -21,3 +21,5 @@ aiofiles==23.2.1
 prometheus-client==0.20.0
 nats-py==2.7.2
 pytest-asyncio==0.23.7
+webauthn==2.0.2
+cbor2==5.6.4
