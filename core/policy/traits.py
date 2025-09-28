@@ -276,6 +276,14 @@ class TraitRegistry:
                 ui_icon="app_registration",
                 requires=["admin", "plugin_manager"],
             ),
+            Trait(
+                name="ui.storage",
+                description="Access to storage browser",
+                category=TraitCategory.UI_FEATURE,
+                ui_label="Storage",
+                ui_icon="folder",
+                requires=["admin"],
+            ),
         ]
 
         # PLUGIN TYPE TRAITS - Plugin categories
@@ -490,6 +498,7 @@ class TraitRegistry:
             "ui.canonical": "ui.canonical",
             "ui.policy": "ui.policy",
             "ui.register": "ui.register",
+            "ui.storage": "ui.storage",
         }
 
         self._ui_mapping.update(ui_mappings)
