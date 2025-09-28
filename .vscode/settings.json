@@ -1,5 +1,8 @@
 {
   "search.exclude": {
     "internal-plans": true
+  },
+  "files.exclude": {
+    "**/.env": false
   }
 }
