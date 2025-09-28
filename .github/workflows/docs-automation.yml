@@ -1,0 +1,112 @@
+name: Documentation Automation
+
+on:
+  push:
+    branches: ["development", "claude-test", "main"]
+  pull_request:
+    branches: ["development"]
+  workflow_dispatch:
+    inputs:
+      regenerate_all:
+        description: 'Regenerate all documentation'
+        required: false
+        type: boolean
+        default: false
+      model_override:
+        description: 'OpenAI model (default: gpt-5-mini-2025-08-07, options: gpt-5-chat-latest, gpt-5-mini-2025-08-07, gpt-5-nano-2025-08-07, gpt-4o)'
+        required: false
+        type: string
+        default: 'gpt-5-mini-2025-08-07'
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+  pull-requests: write
+
+jobs:
+  generate-docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          
+      - name: Install dependencies
+        run: |
+          pip install -r docs/requirements.txt
+          pip install requests pyyaml
+          
+      - name: Generate documentation with GPT-5
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_MODEL: ${{ github.event.inputs.model_override || 'gpt-5-mini-2025-08-07' }}
+        run: |
+          echo "Using GPT-5 model: $OPENAI_MODEL"
+          python tools/scripts/docs_autopilot_enhanced.py
+          
+      - name: Create PR with documentation updates
+        if: github.event_name != 'pull_request'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          title: "docs: GPT-5 generated documentation updates"
+          body: |
+            This PR contains GPT-5 AI-generated documentation updates based on recent code changes.
+            
+            **Model used:** ${{ github.event.inputs.model_override || 'gpt-5-mini-2025-08-07' }}
+            **Generated:** September 2025
+            
+            **Please review carefully before merging:**
+            
+            - [ ] Documentation is accurate and comprehensive
+            - [ ] No internal/sensitive information exposed
+            - [ ] Material for MkDocs features utilized effectively
+            - [ ] Navigation structure is logical and user-friendly
+            - [ ] Code examples are correct and tested
+            - [ ] HIPAA compliance guidelines maintained
+          commit-message: "docs: update documentation with GPT-5 assistance"
+          branch: docs/ai-updates-${{ github.run_id }}
+          base: mkdocs
+          
+  deploy-docs:
+    if: github.ref == 'refs/heads/mkdocs'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: mkdocs
+          
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r docs/requirements.txt
+          
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          
+      - name: Build and deploy with mike
+        run: |
+          # Deploy to gh-pages with versioning
+          mike deploy --push --update-aliases latest dev
+          mike set-default --push latest
+          
+      - name: Ensure CNAME file for custom domain
+        run: |
+          git checkout gh-pages
+          echo "docs.vivified.dev" > CNAME
+          git add CNAME
+          git commit -m "docs: ensure CNAME for custom domain" || true
+          git push origin gh-pages
