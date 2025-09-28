@@ -115,6 +115,14 @@ class TraitRegistry:
                 ui_icon="notifications",
             ),
             Trait(
+                name="notification_manager",
+                description="Can manage notifications, inbox, and sends",
+                category=TraitCategory.CAPABILITY,
+                ui_label="Notification Manager",
+                ui_icon="notifications_active",
+                requires=["admin"],
+            ),
+            Trait(
                 name="plugin_manager",
                 description="Can manage plugins and extensions",
                 category=TraitCategory.CAPABILITY,
@@ -194,6 +202,30 @@ class TraitRegistry:
                 ui_label="Admin UI",
                 ui_icon="admin_panel_settings",
                 requires=["admin"],
+            ),
+            Trait(
+                name="ui.notifications",
+                description="Access to notifications surfaces",
+                category=TraitCategory.UI_FEATURE,
+                ui_label="Notifications",
+                ui_icon="notifications",
+                requires=["notification_manager"],
+            ),
+            Trait(
+                name="ui.notifications_inbox",
+                description="Access to notifications inbox",
+                category=TraitCategory.UI_FEATURE,
+                ui_label="Notifications Inbox",
+                ui_icon="inbox",
+                requires=["notification_manager"],
+            ),
+            Trait(
+                name="ui.notifications_send",
+                description="Access to notifications send",
+                category=TraitCategory.UI_FEATURE,
+                ui_label="Send Notification",
+                ui_icon="send",
+                requires=["notification_manager"],
             ),
             Trait(
                 name="ui.config",
@@ -549,6 +581,9 @@ class TraitRegistry:
             "ui.inbound_demo": "ui.inbound_demo",
             "ui.jobs": "ui.jobs",
             "ui.dashboard": "ui.dashboard",
+            "ui.notifications": "ui.notifications",
+            "ui.notifications_inbox": "ui.notifications_inbox",
+            "ui.notifications_send": "ui.notifications_send",
         }
 
         self._ui_mapping.update(ui_mappings)
