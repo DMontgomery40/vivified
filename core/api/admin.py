@@ -1,6 +1,6 @@
 from typing import Dict, Any, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Header
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 import hashlib
 import json
 import os
@@ -13,6 +13,9 @@ from core.database import get_session
 from core.identity.service import IdentityService
 from core.identity.auth import get_auth_manager
 from core.audit.service import get_audit_service
+from core.policy.engine import policy_engine
+from core.storage.models import StorageQuery, DataClassification, StorageConfig
+from core.storage.service import StorageService
 from core.policy.traits import registry as trait_registry
 from core.identity.models import User
 
@@ -23,6 +26,7 @@ admin_router = APIRouter(prefix="/admin", tags=["admin"])
 # Service providers set by core.main
 _CONFIG_SVC = None
 _REGISTRY = None
+_STORAGE_SVC: Optional[StorageService] = None
 
 
 def configure_admin_api(*, config_service, registry) -> None:
@@ -353,3 +357,87 @@ async def set_user_roles(
     if not ok:
         raise HTTPException(status_code=404, detail="User not found")
     return {"ok": True, "user_id": user_id, "roles": roles}
+
+
+async def _get_storage_service() -> StorageService:
+    global _STORAGE_SVC
+    if _STORAGE_SVC is not None:
+        return _STORAGE_SVC
+    audit = await get_audit_service()
+    cfg = StorageConfig()  # Defaults are fine for dev/CI; providers list may be empty
+    _STORAGE_SVC = StorageService(
+        config=cfg,
+        policy_engine=policy_engine,
+        audit_service=audit,
+        encryption_key=os.getenv("STORAGE_ENC_KEY"),
+    )
+    return _STORAGE_SVC
+
+
+@admin_router.get("/storage/objects")
+async def storage_list_objects(
+    limit: int = Query(50, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
+    classification: Optional[str] = Query(None),
+    user: Dict = Depends(get_current_user),
+    _: Dict = Depends(require_auth(["admin", "viewer"])),
+):
+    svc = await _get_storage_service()
+    # Build query
+    q = StorageQuery(limit=limit, offset=offset)
+    if classification:
+        try:
+            q.data_classification = DataClassification(classification.lower())
+        except Exception:
+            pass
+    items = await svc.list_objects(q, user_id=str(user.get("id")))
+    # Convert to JSON-friendly dicts
+    payload = [
+        {
+            "object_key": m.object_key,
+            "provider": m.provider.value,
+            "data_classification": m.data_classification.value,
+            "size_bytes": m.size_bytes,
+            "created_at": m.created_at.isoformat(),
+            "expires_at": m.expires_at.isoformat() if m.expires_at else None,
+        }
+        for m in items
+    ]
+    return {"items": payload, "limit": limit, "offset": offset}
+
+
+@admin_router.get("/storage/objects/{object_key}")
+async def storage_get_metadata(
+    object_key: str,
+    user: Dict = Depends(get_current_user),
+    _: Dict = Depends(require_auth(["admin", "viewer"])),
+):
+    svc = await _get_storage_service()
+    m = await svc.get_object_metadata(object_key, user_id=str(user.get("id")))
+    if not m:
+        raise HTTPException(status_code=404, detail="Object not found")
+    return {
+        "object_key": m.object_key,
+        "provider": m.provider.value,
+        "data_classification": m.data_classification.value,
+        "size_bytes": m.size_bytes,
+        "created_at": m.created_at.isoformat(),
+        "expires_at": m.expires_at.isoformat() if m.expires_at else None,
+        "is_encrypted": m.is_encrypted,
+        "traits": m.traits,
+        "custom_metadata": m.custom_metadata,
+    }
+
+
+@admin_router.get("/storage/objects/{object_key}/download")
+async def storage_download_object(
+    object_key: str,
+    user: Dict = Depends(get_current_user),
+    _: Dict = Depends(require_auth(["admin", "viewer"])),
+):
+    svc = await _get_storage_service()
+    sobj = await svc.retrieve_object(object_key, user_id=str(user.get("id")))
+    if not sobj or sobj.content is None:
+        raise HTTPException(status_code=404, detail="Object not found")
+    media_type = sobj.metadata.content_type or "application/octet-stream"
+    return StreamingResponse(iter([sobj.content]), media_type=media_type)

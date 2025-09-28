@@ -65,6 +65,7 @@ import MessagingConsole from './components/MessagingConsole';
 import CanonicalTools from './components/CanonicalTools';
 import PolicyInspector from './components/PolicyInspector';
 import PluginRegister from './components/PluginRegister';
+import StorageBrowser from './components/StorageBrowser';
 import ProviderSetupWizard from './components/ProviderSetupWizard';
 import InboundWebhookTester from './components/InboundWebhookTester';
 import OutboundSmokeTests from './components/OutboundSmokeTests';
@@ -330,6 +331,7 @@ function AppContent() {
     { label: 'Canonical', icon: <AssessmentIcon />, trait: 'ui.canonical' },
     { label: 'Policy', icon: <AssessmentIcon />, trait: 'ui.policy' },
     { label: 'Register', icon: <ExtensionIcon />, trait: 'ui.register' },
+    { label: 'Storage', icon: <DescriptionIcon />, trait: 'ui.storage' },
   ];
 
   const hasTrait = (t: string) => !!(userTraits && userTraits.includes(t));
@@ -879,6 +881,7 @@ function AppContent() {
               {toolsTab === 10 && <CanonicalTools client={client!} />}
               {toolsTab === 11 && <PolicyInspector client={client!} />}
               {toolsTab === 12 && <PluginRegister client={client!} />}
+              {toolsTab === 13 && <StorageBrowser client={client!} />}
             </Box>
           </Paper>
         </TabPanel>

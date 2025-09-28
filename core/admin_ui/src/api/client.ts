@@ -311,6 +311,31 @@ export class AdminAPIClient {
     return res.json();
   }
 
+  // Storage
+  async storageList(limit = 50, offset = 0, classification?: string): Promise<{ items: Array<any>; limit: number; offset: number }>{
+    const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+    if (classification) params.set('classification', classification);
+    const res = await this.fetch(`/admin/storage/objects?${params.toString()}`);
+    return res.json();
+  }
+
+  async storageMetadata(objectKey: string): Promise<any> {
+    const res = await this.fetch(`/admin/storage/objects/${encodeURIComponent(objectKey)}`);
+    return res.json();
+  }
+
+  async storageDownload(objectKey: string): Promise<Blob> {
+    const url = `${this.baseURL}/admin/storage/objects/${encodeURIComponent(objectKey)}/download`;
+    const res = await fetch(url, {
+      headers: {
+        'Authorization': `Bearer ${this.apiKey}`,
+        'X-API-Key': this.apiKey,
+      },
+    });
+    if (!res.ok) throw new Error(`Download failed: ${res.status}`);
+    return res.blob();
+  }
+
   async disablePlugin(pluginId: string, reason: string = ''): Promise<{ status: string; plugin_id: string }>{
     const res = await this.fetch(`/admin/plugins/${encodeURIComponent(pluginId)}/disable`, { method: 'POST', body: JSON.stringify({ reason }) });
     return res.json();
