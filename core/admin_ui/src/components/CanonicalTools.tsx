@@ -10,11 +10,11 @@ export default function CanonicalTools({ client }: Props) {
   const [stats, setStats] = useState<any>(null);
   const [source, setSource] = useState('plugin.src');
   const [target, setTarget] = useState('plugin.dest');
-  const [userData, setUserData] = useState('{
+  const [userData, setUserData] = useState(`{
   "id": "u_123",
   "name": "Jane Doe",
   "email": "jane@example.com"
-}');
+}`);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<any>(null);
 
@@ -69,4 +69,3 @@ export default function CanonicalTools({ client }: Props) {
     </Paper>
   );
 }
-

@@ -10,9 +10,9 @@ export default function MessagingConsole({ client }: Props) {
   const [stats, setStats] = useState<any>(null);
   const [eventType, setEventType] = useState('demo.event');
   const [sourcePlugin, setSourcePlugin] = useState('admin-ui');
-  const [payload, setPayload] = useState('{
+  const [payload, setPayload] = useState(`{
   "hello": "world"
-}');
+}`);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<any>(null);
 
@@ -74,4 +74,3 @@ export default function MessagingConsole({ client }: Props) {
     </Paper>
   );
 }
-

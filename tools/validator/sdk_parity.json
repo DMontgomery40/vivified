@@ -1,0 +1,12 @@
+{
+  "client": "VivifiedClient",
+  "methods": [
+    "publish_event",
+    "subscribe",
+    "call_plugin",
+    "call_external",
+    "get_config",
+    "set_config"
+  ]
+}
+
