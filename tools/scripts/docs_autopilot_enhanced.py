@@ -448,7 +448,7 @@ Example features to use:
             "- Exclude any internal development plans or phase numbers",
             "",
             "Return as JSON with file paths as keys and complete markdown content as values."
-        ]
+        ])
         
         return '\n'.join(prompt_parts)
     
