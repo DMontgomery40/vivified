@@ -1,5 +1,9 @@
 name: CI Pipeline
-on: [push, pull_request]
+on:
+  push:
+    branches-ignore: [mkdocs]
+  pull_request:
+    branches-ignore: [mkdocs]
 
 jobs:
   security-scan:
