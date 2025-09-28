@@ -109,6 +109,15 @@ class StorageMetadata(BaseModel):
 
         return v
 
+    @property
+    def is_sensitive(self) -> bool:
+        """Check if the data is sensitive based on classification."""
+        return self.data_classification in [
+            DataClassification.PHI, 
+            DataClassification.PII, 
+            DataClassification.CONFIDENTIAL
+        ]
+
     class Config:
         use_enum_values = True
 

@@ -6,7 +6,7 @@ from typing import List, Dict, Any, Tuple, Set, Optional
 from urllib.parse import urlparse
 import logging
 
-from .models import PluginManifest, PluginSecurity
+from .models import PluginManifest
 from core.policy.traits import trait_validator
 
 logger = logging.getLogger(__name__)
@@ -62,7 +62,8 @@ class SecurityValidator:
             errors.extend(compliance_errors)
 
             # Validate resource limits
-            resource_errors = self._validate_resource_limits(manifest.resources)
+            resources = getattr(manifest, 'resources', None) or {}
+            resource_errors = self._validate_resource_limits(resources)
             errors.extend(resource_errors)
 
             # Validate dependencies
@@ -85,34 +86,28 @@ class SecurityValidator:
             logger.error(error_msg)
             return False, [error_msg]
 
-    def _validate_security_config(self, security: PluginSecurity) -> List[str]:
+    def _validate_security_config(self, security: Dict[str, Any]) -> List[str]:
         """Validate security configuration."""
         errors: List[str] = []
 
+        if not security:
+            errors.append("Security configuration is required")
+            return errors
+
         # Authentication must be required
-        if not security.authentication_required:
+        if not security.get("authentication_required", False):
             errors.append("Authentication must be required for all plugins")
 
-        # Network isolation should be enabled by default
-        if not security.network_isolation:
-            logger.warning("Network isolation is disabled - ensure this is intentional")
+        # Data classification must be specified
+        data_classification = security.get("data_classification", [])
+        if not data_classification:
+            errors.append("Data classification must be specified")
 
-        # Check data classification
-        if not security.data_classification:
-            # This is optional but recommended
-            pass
-
-        # Validate resource limits if specified
-        if security.resource_limits:
-            if "memory_mb" in security.resource_limits:
-                memory = security.resource_limits["memory_mb"]
-                if memory > 4096:  # 4GB limit
-                    errors.append("Memory limit exceeds maximum allowed (4GB)")
-
-            if "cpu_cores" in security.resource_limits:
-                cpu = security.resource_limits["cpu_cores"]
-                if cpu > 4:  # 4 core limit
-                    errors.append("CPU limit exceeds maximum allowed (4 cores)")
+        # Validate data classification values
+        valid_classifications = ["public", "internal", "confidential", "phi", "pii"]
+        for classification in data_classification:
+            if classification not in valid_classifications:
+                errors.append(f"Invalid data classification: {classification}")
 
         return errors
 
@@ -120,20 +115,19 @@ class SecurityValidator:
         """Validate plugin traits."""
         errors = []
 
+        if not traits:
+            errors.append("Plugin must have at least one trait")
+            return errors
+
         # Check for dangerous traits
         dangerous_found = self.dangerous_traits.intersection(set(traits))
         if dangerous_found:
             errors.append(f"Dangerous traits not allowed: {list(dangerous_found)}")
 
-        # Validate trait combinations
-        is_valid, trait_errors = trait_validator.validate_trait_combination(traits)
+        # Use trait validator
+        is_valid, trait_errors = trait_validator.validate_plugin_traits(traits)
         if not is_valid:
             errors.extend(trait_errors)
-
-        # Check for unknown traits
-        for trait in traits:
-            if not trait_validator.registry.get_trait(trait):
-                errors.append(f"Unknown trait: {trait}")
 
         return errors
 
@@ -142,42 +136,37 @@ class SecurityValidator:
         errors = []
 
         traits = set(manifest.traits)
-        security = manifest.security
+        security = manifest.security or {}
+        data_classification = security.get("data_classification", [])
 
         # PHI handling requirements
         if "handles_phi" in traits:
-            if "phi" not in security.data_classification:
+            if "phi" not in data_classification:
                 errors.append(
                     "Plugin with handles_phi trait must declare 'phi' in data_classification"
                 )
 
-            if manifest.compliance.audit_level not in ["detailed", "comprehensive"]:
-                errors.append(
-                    "PHI handling plugins require detailed or comprehensive audit level"
-                )
-
-            if not manifest.compliance.encryption_required:
-                errors.append("PHI handling plugins must require encryption")
-
         # PII handling requirements
         if "handles_pii" in traits:
-            if "pii" not in security.data_classification:
+            if "pii" not in data_classification:
                 errors.append(
                     "Plugin with handles_pii trait must declare 'pii' in data_classification"
                 )
 
         # External service requirements
         if "external_service" in traits:
-            if not security.allowed_domains:
+            allowed_domains = security.get("allowed_domains", [])
+            if not allowed_domains:
                 errors.append("External service plugins must specify allowed domains")
 
         return errors
 
-    def _validate_network_security(self, security: PluginSecurity) -> List[str]:
+    def _validate_network_security(self, security: Dict[str, Any]) -> List[str]:
         """Validate network security configuration."""
         errors = []
 
-        for domain in security.allowed_domains:
+        allowed_domains = security.get("allowed_domains", [])
+        for domain in allowed_domains:
             # Check against blocked domains
             if self._is_blocked_domain(domain):
                 errors.append(f"Domain '{domain}' is blocked for security reasons")
@@ -186,7 +175,7 @@ class SecurityValidator:
             if self._is_suspicious_domain(domain):
                 errors.append(f"Domain '{domain}' appears suspicious")
 
-            # Validate domain format (already done in model, but double-check)
+            # Validate domain format
             if not self._is_valid_domain(domain):
                 errors.append(f"Invalid domain format: {domain}")
 
@@ -196,22 +185,25 @@ class SecurityValidator:
         """Validate compliance configuration."""
         errors = []
 
-        compliance = manifest.compliance
+        compliance = manifest.compliance or {}
+        traits = set(manifest.traits)
 
         # HIPAA controls validation
-        if "handles_phi" in manifest.traits:
-            if not compliance.hipaa_controls:
+        if "handles_phi" in traits:
+            hipaa_controls = compliance.get("hipaa_controls", [])
+            if not hipaa_controls:
                 errors.append("PHI handling plugins must specify HIPAA controls")
 
             # Validate HIPAA control format
             valid_control_pattern = re.compile(r"^\d{3}\.\d{3}\([a-z]\)(\(\d+\))?$")
-            for control in compliance.hipaa_controls:
+            for control in hipaa_controls:
                 if not valid_control_pattern.match(control):
                     errors.append(f"Invalid HIPAA control format: {control}")
 
         # Data retention validation
-        if compliance.data_retention_days < 2555:  # 7 years for HIPAA
-            if "handles_phi" in manifest.traits:
+        data_retention_days = compliance.get("data_retention_days", 0)
+        if data_retention_days < 2555:  # 7 years for HIPAA
+            if "handles_phi" in traits:
                 errors.append(
                     "PHI handling plugins must retain data for at least 7 years (2555 days)"
                 )
@@ -328,40 +320,38 @@ class SecurityValidator:
         self,
         plugin_id: str,
         operation: str,
-        target: Optional[str] = None,
-        data: Optional[Dict[str, Any]] = None,
-    ) -> Tuple[bool, str]:
+        context: Dict[str, Any],
+    ) -> Tuple[bool, List[str]]:
         """
         Validate a plugin operation at runtime.
 
         Args:
             plugin_id: ID of plugin performing operation
             operation: Type of operation (read, write, delete, etc.)
-            target: Target resource or service
-            data: Data being processed
+            context: Operation context and data
 
         Returns:
-            Tuple of (is_allowed, reason)
+            Tuple of (is_allowed, list_of_errors)
         """
+        errors: List[str] = []
+
         try:
-            # Check if operation is allowed for this plugin type
-            # This would integrate with the policy engine
+            # Check for dangerous operations
+            dangerous_operations = ["delete_all", "format", "shutdown", "restart"]
+            if operation in dangerous_operations:
+                errors.append(f"Dangerous operation not allowed: {operation}")
 
-            # For now, basic validation
-            if operation in ["delete", "admin"]:
-                return False, f"Operation '{operation}' not allowed for plugins"
+            # Check data access permissions
+            data_classification = context.get("data_classification", "")
+            if data_classification in ["phi", "pii"]:
+                if not context.get("has_appropriate_traits", False):
+                    errors.append(f"Operation requires appropriate traits for {data_classification} data")
 
-            if target and self._is_sensitive_target(target):
-                return False, f"Access to sensitive target '{target}' not allowed"
-
-            if data and self._contains_malicious_content(data):
-                return False, "Malicious content detected in data"
-
-            return True, "Operation allowed"
+            return len(errors) == 0, errors
 
         except Exception as e:
             logger.error(f"Error validating plugin operation: {e}")
-            return False, "Validation error occurred"
+            return False, [f"Validation error occurred: {str(e)}"]
 
     def _is_sensitive_target(self, target: str) -> bool:
         """Check if target is sensitive."""

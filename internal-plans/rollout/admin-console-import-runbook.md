@@ -46,12 +46,20 @@ Deployment Strategy
 - Ship to staging, validate security and compliance gates, then enable flag for internal users only. Gradually expand to all admins.
 - Keep backout ready: toggling off the flag restores the previous UI surface.
 
+Containerization Defaults
+- The Core image builds the Admin Console via a multi-stage Dockerfile:
+  - Stage 1 (Node 20 on Alpine): `npm ci && npm run build` in `core/admin_ui`.
+  - Stage 2 (Python 3.11 on Alpine): copies `core/` and the built `admin_ui/dist` into the image.
+  - Core serves the static UI at `/admin/ui` (same-origin; no CORS needed).
+- Compose uses the async driver for Postgres: `DATABASE_URL=postgresql+asyncpg://...` to avoid psycopg2 runtime deps.
+
 Implementation Plan
 
 1) Prerequisites
 - Tools: git, node, npm, ripgrep (rg).
 - Environments: development and staging Core reachable via gateway (e.g., http://localhost:8000 for dev).
 - Access: admin account with MFA to validate operator flows.
+- Runtime: Node 18+ and npm 9+ (Admin Console uses Vite)
 
 2) Import and Rebrand Admin UI (formalized)
 - Create workspace and copy the Faxbot Admin UI as the starting point for Vivified Admin Console.
@@ -194,7 +202,15 @@ Local Validation (before opening PR)
   - pip install black flake8 mypy; run: black --check core/; flake8 core/; mypy core/
   - pip install -r core/requirements.txt pytest pytest-cov; run: pytest --cov=core
 - Docs: mkdocs build --strict (site includes docs/ content; this runbook lives outside and does not affect build)
-- UI: npm run build (if UI repo present) and validate lint if configured.
+- UI:
+  - Ensure you are in `core/admin_ui` and `package.json` scripts use Vite (no `react-scripts`).
+  - Clean install: `rm -rf node_modules package-lock.json && npm ci`.
+  - Build: `npm run build` and preview locally if needed (`npm run preview`).
+  - If `npm ci` fails with `ERESOLVE` referencing `react-scripts@5.x` or TypeScript `^3||^4`, you are on an old CRA state; pull latest and repeat the clean install.
+- Docker:
+  - `docker compose build vivified-core && docker compose up -d`
+  - Open `http://localhost:8000/admin/ui`
+  - If Core fails at startup with `psycopg2` import errors, verify compose uses the `postgresql+asyncpg://` URL.
 
 Operational Notes
 - All UI → Core traffic must flow through the gateway (Operator lane). No direct plugin endpoints or cross-plugin access from UI.

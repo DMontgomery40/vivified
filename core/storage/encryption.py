@@ -46,7 +46,8 @@ class StorageEncryption:
             Tuple of (Fernet cipher, key_id for tracking)
         """
         if salt is None:
-            salt = os.urandom(16)
+            # Use deterministic salt based on object_id for consistency
+            salt = hashlib.sha256(object_id.encode()).digest()[:16]
 
         # Derive object-specific key using PBKDF2
         kdf = PBKDF2HMAC(
@@ -97,10 +98,8 @@ class StorageEncryption:
             ValueError: If decryption fails
         """
         try:
-            # We need to try different salts to find the right key
-            # In production, salt should be stored with key_id
-            # For now, we'll derive it from key_id (not ideal but functional)
-            salt = bytes.fromhex(key_id.ljust(32, "0"))[:16]
+            # Use the same deterministic salt as encryption
+            salt = hashlib.sha256(object_id.encode()).digest()[:16]
 
             cipher, derived_key_id = self.generate_object_key(object_id, salt)
 

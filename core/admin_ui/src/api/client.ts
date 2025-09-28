@@ -19,12 +19,17 @@ export class AdminAPIClient {
     // Fallback to localhost:8000 if env variable is not set (for development)
     this.baseURL = envBase || 'http://localhost:8000';
     this.apiKey = apiKey;
-    console.log('AdminAPIClient constructor:', { envBase, baseURL: this.baseURL, apiKey });
+    if ((import.meta as any)?.env?.DEV) {
+      // Dev-only: do not log secrets
+      console.debug('AdminAPIClient initialized', { baseURL: this.baseURL });
+    }
   }
 
   private async fetch(path: string, options: RequestInit = {}): Promise<Response> {
     const url = `${this.baseURL}${path}`;
-    console.log('AdminAPIClient fetch:', { url, headers: { 'Authorization': `Bearer ${this.apiKey}`, 'X-API-Key': this.apiKey } });
+    if ((import.meta as any)?.env?.DEV) {
+      console.debug('AdminAPIClient fetch', { url, method: options?.method || 'GET' });
+    }
     
     const response = await fetch(url, {
       ...options,
@@ -35,8 +40,9 @@ export class AdminAPIClient {
         ...options.headers,
       },
     });
-
-    console.log('AdminAPIClient response:', { status: response.status, statusText: response.statusText });
+    if ((import.meta as any)?.env?.DEV) {
+      console.debug('AdminAPIClient response', { url, status: response.status, statusText: response.statusText });
+    }
     
     if (!response.ok) {
       throw new Error(`API Error: ${response.status} ${response.statusText}`);
@@ -165,15 +171,22 @@ export class AdminAPIClient {
 
   // UI Config (ETag-cached on server)
   async getUiConfig(): Promise<{ schema_version: number; features: any; endpoints: any; docs_base?: string }>{
-    const headers: Record<string, string> = {};
+    const headers: Record<string, string> = {
+      'Authorization': `Bearer ${this.apiKey}`,
+      'X-API-Key': this.apiKey,
+    };
     if (this.uiConfigEtag) headers['If-None-Match'] = this.uiConfigEtag;
-    const res = await this.fetch('/admin/ui-config', { headers });
+    const url = `${this.baseURL}/admin/ui-config`;
+    const res = await fetch(url, { headers });
     // Capture ETag for conditional requests
     const et = res.headers.get('ETag') || res.headers.get('etag') || undefined;
     if (et) this.uiConfigEtag = et.trim();
     if (res.status === 304) {
       // No change; return a minimal stub to signal no-update
       return { schema_version: 1, features: {}, endpoints: {} } as any;
+    }
+    if (!res.ok) {
+      throw new Error(`API Error: ${res.status} ${res.statusText}`);
     }
     return res.json();
   }
