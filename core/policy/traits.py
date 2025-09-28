@@ -284,6 +284,38 @@ class TraitRegistry:
                 ui_icon="folder",
                 requires=["admin"],
             ),
+            Trait(
+                name="ui.send_demo",
+                description="Access to demo send flow",
+                category=TraitCategory.UI_FEATURE,
+                ui_label="Demo Send",
+                ui_icon="send",
+                requires=["admin"],
+            ),
+            Trait(
+                name="ui.inbound_demo",
+                description="Access to inbound demo view",
+                category=TraitCategory.UI_FEATURE,
+                ui_label="Inbound Demo",
+                ui_icon="inbox",
+                requires=["admin"],
+            ),
+            Trait(
+                name="ui.jobs",
+                description="Access to jobs view",
+                category=TraitCategory.UI_FEATURE,
+                ui_label="Jobs",
+                ui_icon="list",
+                requires=["admin", "system_monitor"],
+            ),
+            Trait(
+                name="ui.dashboard",
+                description="Access to dashboard",
+                category=TraitCategory.UI_FEATURE,
+                ui_label="Dashboard",
+                ui_icon="dashboard",
+                requires=["viewer"],
+            ),
         ]
 
         # PLUGIN TYPE TRAITS - Plugin categories
@@ -499,6 +531,10 @@ class TraitRegistry:
             "ui.policy": "ui.policy",
             "ui.register": "ui.register",
             "ui.storage": "ui.storage",
+            "ui.send_demo": "ui.send_demo",
+            "ui.inbound_demo": "ui.inbound_demo",
+            "ui.jobs": "ui.jobs",
+            "ui.dashboard": "ui.dashboard",
         }
 
         self._ui_mapping.update(ui_mappings)
