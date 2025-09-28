@@ -73,6 +73,7 @@ import InboundWebhookTester from './components/InboundWebhookTester';
 import OutboundSmokeTests from './components/OutboundSmokeTests';
 import ConfigurationManager from './components/ConfigurationManager';
 import PluginMarketplace from './components/PluginMarketplace';
+import MFA from './components/MFA';
 import { ThemeProvider } from './theme/ThemeContext';
 import { ThemeToggle } from './components/ThemeToggle';
 
@@ -340,6 +341,7 @@ function AppContent() {
     { label: 'Messaging', icon: <AssessmentIcon />, trait: 'ui.messaging' },
     { label: 'Canonical', icon: <AssessmentIcon />, trait: 'ui.canonical' },
     { label: 'Policy', icon: <AssessmentIcon />, trait: 'ui.policy' },
+    { label: 'MFA & Passkeys', icon: <VpnKeyIcon />, trait: 'role.admin' },
     { label: 'Register', icon: <ExtensionIcon />, trait: 'ui.register' },
     { label: 'Storage', icon: <DescriptionIcon />, trait: 'ui.storage' },
     { label: 'Notifications', icon: <InboxIcon />, trait: 'ui.notifications' },
@@ -924,9 +926,10 @@ function AppContent() {
               {toolsTab === 10 && <MessagingConsole client={client!} />}
               {toolsTab === 11 && <CanonicalTools client={client!} />}
               {toolsTab === 12 && <PolicyInspector client={client!} />}
-              {toolsTab === 13 && <PluginRegister client={client!} />}
-              {toolsTab === 14 && <StorageBrowser client={client!} />}
-              {toolsTab === 15 && <NotificationsPanel client={client!} readOnly={!isAdmin} />}
+              {toolsTab === 13 && <MFA client={client!} readOnly={!isAdmin} />}
+              {toolsTab === 14 && <PluginRegister client={client!} />}
+              {toolsTab === 15 && <StorageBrowser client={client!} />}
+              {toolsTab === 16 && <NotificationsPanel client={client!} readOnly={!isAdmin} />}
             </Box>
           </Paper>
         </TabPanel>

@@ -110,7 +110,10 @@ async def startup_event():
         if canonical_service is None:
             canonical_service = CanonicalService(audit_service, policy_engine)
         if gateway_service is None:
-            gateway_service = GatewayService(audit_service, policy_engine)
+            # Pass config service for allowlist hydration
+            gateway_service = GatewayService(
+                audit_service, policy_engine, get_config_service()
+            )
         if notifications_service is None:
             notifications_service = NotificationsService(
                 audit_service, messaging_service, policy_engine
@@ -292,6 +295,68 @@ async def get_gateway_stats():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# Operator lane endpoint (RPC via core gateway)
+class OperatorRequestModel(BaseModel):
+    caller_plugin: str
+    payload: Dict[str, Any] | None = None
+    timeout: int | None = 30
+
+
+@app.post("/gateway/{target_plugin}/{operation}")
+async def operator_invoke(
+    target_plugin: str, operation: str, req: OperatorRequestModel
+):
+    """Route an operator (RPC) call from one plugin to another.
+
+    This minimal implementation forwards to the target plugin's declared endpoint
+    using the plugin registry's manifest endpoints mapping.
+    """
+    try:
+        # Resolve target plugin info
+        target = registry.plugins.get(target_plugin)
+        if not target or not isinstance(target, dict):
+            raise HTTPException(status_code=404, detail="Target plugin not found")
+
+        manifest = target.get("manifest") or {}
+        endpoints = manifest.get("endpoints") or {}
+
+        # Resolve endpoint by operation name or direct path
+        endpoint_path = endpoints.get(operation) or endpoints.get(
+            operation.replace("_", "-")
+        )
+        if not endpoint_path or not isinstance(endpoint_path, str):
+            raise HTTPException(
+                status_code=404, detail=f"Operation '{operation}' not found"
+            )
+
+        # Construct internal URL (docker/k8s service DNS) — default to plugin_id:8080
+        plugin_host = manifest.get("host") or target_plugin
+        plugin_port = manifest.get("port") or 8080
+        target_url = f"http://{plugin_host}:{plugin_port}{endpoint_path}"
+
+        # Forward request
+        import httpx
+
+        async with httpx.AsyncClient(timeout=req.timeout or 30) as client:
+            resp = await client.post(
+                target_url,
+                json=req.payload or {},
+                headers={
+                    "X-Caller-Plugin": req.caller_plugin,
+                    "X-Trace-Id": os.getenv("TRACE_ID", "system"),
+                    "Authorization": f"Bearer {registry.plugins.get(req.caller_plugin, {}).get('token', '')}",
+                },
+            )
+        if resp.status_code >= 400:
+            raise HTTPException(status_code=resp.status_code, detail=resp.text)
+        return resp.json()
+    except HTTPException:
+        raise
+    except Exception as e:  # noqa: BLE001
+        logger.exception("Operator call failed: %s", e)
+        raise HTTPException(status_code=500, detail="Internal gateway error")
+
+
 class HeartbeatModel(BaseModel):
     health: str | None = "healthy"
 
@@ -396,3 +461,43 @@ def _admin_ui_placeholder():
         "</head><body><h1>Vivified Admin UI</h1><p>Placeholder UI loaded.</p></body></html>"
     )
     return HTMLResponse(content=html, media_type="text/html")
+
+
+# Canonical Schemas stubs to satisfy Admin UI until registry is implemented
+class SchemaUpsertModel(BaseModel):
+    name: str
+    major: int
+    minor: int | None = 0
+    patch: int | None = 0
+    schema: Dict[str, Any] | None = None
+
+
+@app.get("/schemas/{name}")
+async def list_schemas(name: str):
+    """Stub: return empty version list for given schema name."""
+    return {"name": name, "versions": []}
+
+
+@app.get("/schemas/{name}/active/{major}")
+async def get_active_schema(name: str, major: int):
+    """Stub: return no active schema for now."""
+    return {"name": name, "major": major, "active": None}
+
+
+@app.post("/schemas")
+async def upsert_schema(payload: SchemaUpsertModel):
+    """Stub: accept schema upsert and return ok."""
+    return {"ok": True, "name": payload.name, "version": [payload.major, payload.minor or 0, payload.patch or 0]}
+
+
+class SchemaActivateModel(BaseModel):
+    name: str
+    major: int
+    minor: int | None = 0
+    patch: int | None = 0
+
+
+@app.post("/schemas/activate")
+async def activate_schema(payload: SchemaActivateModel):
+    """Stub: accept activation and return ok."""
+    return {"ok": True, "name": payload.name, "version": [payload.major, payload.minor or 0, payload.patch or 0]}

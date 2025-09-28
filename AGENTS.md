@@ -51,6 +51,40 @@ YAML
 pre-commit install -t pre-commit -t pre-push
 ```
 
+- Align local preflight with CI (enforce before push)
+      - Use existing pre-commit with pre-push pytest. Run:
+          - pre-commit install -t pre-commit -t pre-push
+      - Use make ci-local before every push. It mirrors CI jobs for Python (lint/
+  type/test).
+  - Add UI build smoke locally (optional but recommended)
+      - Add a Makefile target that, if node is available, runs:
+          - npm ci && npm run build in core/ui and core/admin_ui.
+      - Example: make ui-ci-local that exits non-zero on any UI build failure.
+  - Branch protection + required checks
+      - In GitHub settings for development (and your long-lived branches like claude-
+  test):
+          - Require status checks: Lint, Test, UI Build, Admin UI Build, Docker Core
+  Image.
+          - Require branches to be up to date before merging.
+          - Enable Merge Queue (so only the queue head is validated and merged).
+          - Dismiss stale approvals on new commits.
+  - Agent gating (don’t let agents move on until merge)
+      - Gate the agent runner to wait for PR merge before assigning the next task:
+          - Poll GitHub’s Checks/PR status; only continue when the commit is merged to
+  the integration branch.
+          - Alternatively: require the agent to call make ci-local and block on
+      - Use durable version selectors:
+          - Node: 20.x or lts/* instead of micro versions.
+  - Catch missing files in UI
+      - Turn on tsc --noEmit (already part of admin UI build) and ensure we never
+  reference components not committed.
+      - Consider a CI step to run git ls-files compared to rg import in admin UI for
+  basic missing import detection.
+
+  ''''
+  
+
+
 Common pitfalls that cause “THIS MANY ERRORS”:
 - Optional defaults: if a parameter default is `None`, type it as `T | None` (or `Optional[T]`). mypy rejects implicit Optional.
 - Mutable defaults: for dataclasses use `field(default_factory=list)` and for Pydantic use `Field(default_factory=list)`; do not use `= []` or `= None` for lists.
