@@ -230,7 +230,7 @@ function Dashboard({ client, onNavigate }: DashboardProps) {
               >
                 <CardContent sx={{ pb: { xs: 1, sm: 2 } }}>
                   <Typography variant="h6" component="h2" gutterBottom sx={{ fontSize: { xs: '1rem', sm: '1.25rem' } }}>
-                    Inbound Fax
+                    Inbound
                   </Typography>
                   <Chip
                     label={health.inbound_enabled ? 'Enabled' : 'Disabled'}

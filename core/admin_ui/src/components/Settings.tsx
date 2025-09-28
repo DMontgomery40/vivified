@@ -63,7 +63,7 @@ function Settings({ client, readOnly = false }: SettingsProps) {
   const isSmall = useMediaQuery('(max-width:900px)');
   const ctlStyle: React.CSSProperties = { background: 'transparent', color: 'inherit', borderColor: '#444', padding: '6px', borderRadius: 6, width: isSmall ? '100%' : 'auto', maxWidth: isSmall ? '100%' : undefined };
 
-  // Effective provider selections with hybrid fallback
+  // Effective integration selections with hybrid fallback
   const effectiveOutbound = (form.outbound_backend || settings?.hybrid?.outbound_backend || settings?.backend?.type) as string | undefined;
   const effectiveInbound = (form.inbound_backend || settings?.hybrid?.inbound_backend || settings?.backend?.type) as string | undefined;
 
@@ -179,14 +179,14 @@ function Settings({ client, readOnly = false }: SettingsProps) {
       if (form.feature_v3_plugins !== undefined) p.feature_v3_plugins = !!form.feature_v3_plugins;
       if (form.feature_plugin_install !== undefined) p.feature_plugin_install = !!form.feature_plugin_install;
 
-      // Provider-specific settings (traits-aware)
+      // Integration-specific settings (traits-aware)
       const methods = (traitValue('outbound', 'auth.methods') || []) as string[];
-      // Providers with basic-only auth (e.g., Phaxio-like)
+      // Integrations with basic-only auth (e.g., Phaxio-like)
       if (Array.isArray(methods) && methods.includes('basic') && !methods.includes('oauth2')) {
         if (form.phaxio_api_key) p.phaxio_api_key = form.phaxio_api_key;
         if (form.phaxio_api_secret) p.phaxio_api_secret = form.phaxio_api_secret;
       }
-      // Providers supporting OAuth2 (e.g., Sinch-like)
+      // Integrations supporting OAuth2 (e.g., Sinch-like)
       if (Array.isArray(methods) && methods.includes('oauth2')) {
         if (form.sinch_project_id) p.sinch_project_id = form.sinch_project_id;
         if (form.sinch_api_key) p.sinch_api_key = form.sinch_api_key;
@@ -332,18 +332,18 @@ function Settings({ client, readOnly = false }: SettingsProps) {
       ) : settings ? (
         <Box>
         <Stack spacing={3}>
-          {/* Backend Configuration */}
+          {/* Integrations & Connections */}
           <ResponsiveFormSection
-            title="Backend Configuration"
-            subtitle="Choose your fax transport providers (outbound and inbound)"
+            title="Integrations & Connections"
+            subtitle="Choose outbound/inbound integrations and configure connections"
             icon={<CloudIcon />}
           >
             <ResponsiveSettingItem
               icon={getStatusIcon(!settings.backend.disabled)}
-              label="Outbound Provider"
+              label="Outbound Integration"
               value={(effectiveOutbound || 'phaxio')}
               currentValue={(['sip','freeswitch'].includes((effectiveOutbound || '').toLowerCase()) ? 'Self-hosted' : 'Cloud-based')}
-              helperText="Outbound handles sending. Changing providers may require restart and provider-specific config."
+              helperText="Outbound handles send/egress operations. Changing integrations may require restart and integration-specific config."
               onChange={(value) => handleForm('outbound_backend', value)}
               type="select"
               options={[
@@ -360,10 +360,10 @@ function Settings({ client, readOnly = false }: SettingsProps) {
 
             <ResponsiveSettingItem
               icon={<CloudIcon />}
-              label="Inbound Provider"
+              label="Inbound Integration"
               value={(effectiveInbound || 'phaxio')}
               currentValue={(['sip','freeswitch'].includes((effectiveInbound || '').toLowerCase()) ? 'Self-hosted' : 'Cloud-based')}
-              helperText="Inbound handles receiving/callbacks. Choose 'SIP/Asterisk' for internal posting or a cloud provider for webhooks."
+              helperText="Inbound handles receiving/webhooks. Choose 'SIP/Asterisk' for internal posting or a cloud integration for webhooks."
               onChange={(value) => handleForm('inbound_backend', value)}
               type="select"
               options={[
@@ -376,7 +376,7 @@ function Settings({ client, readOnly = false }: SettingsProps) {
             />
             {(!form.inbound_backend && settings.hybrid && !settings.hybrid.inbound_explicit) && (
               <Chip
-                label="Mode: Single provider. Inbound follows outbound. You can optionally choose a separate inbound provider."
+                label="Mode: Single integration. Inbound follows outbound. You can optionally choose a separate inbound integration."
                 color="info"
                 size="small"
                 variant="outlined"
@@ -755,7 +755,7 @@ function Settings({ client, readOnly = false }: SettingsProps) {
                 sx={{ alignItems: 'flex-start', '& .MuiFormControlLabel-label': { mt: 0.5 } }}
               />
               <Typography variant="caption" color="text.secondary" sx={{ ml: 4, mb: 1 }}>
-                Activates the new modular plugin architecture for fax providers
+                Activates the modular plugin architecture for integrations
               </Typography>
               
               <FormControlLabel
@@ -938,7 +938,7 @@ function Settings({ client, readOnly = false }: SettingsProps) {
                   icon={settings.inbound?.sinch?.basic_auth_configured ? <CheckCircleIcon color="success" /> : <WarningIcon color="warning" />}
                   label="Inbound Basic Auth User"
                   value={settings.inbound?.sinch?.basic_auth_configured ? 'Configured' : 'Not configured'}
-                  helperText="Sinch webhooks are not provider‑signed. Enforce Basic auth on /sinch-inbound and prefer application/json content type (multipart also supported)."
+                  helperText="Some webhooks are not signed. Enforce Basic auth on your inbound endpoint and prefer application/json content type (multipart also supported)."
                   onChange={(value) => handleForm('sinch_inbound_basic_user', value)}
                   placeholder="SINCH_INBOUND_BASIC_USER"
                   showCurrentValue={false}

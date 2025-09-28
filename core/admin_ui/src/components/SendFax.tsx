@@ -19,11 +19,8 @@ import {
   Error as ErrorIcon,
 } from '@mui/icons-material';
 import AdminAPIClient from '../api/client';
-import {
-  ResponsiveTextField,
-  ResponsiveFileUpload,
-  ResponsiveFormSection,
-} from './common/ResponsiveFormFields';
+import { ResponsiveTextField, ResponsiveFileUpload, ResponsiveFormSection } from './common/ResponsiveFormFields';
+import HelpTip from './common/HelpTip';
 
 interface SendFaxProps {
   client: AdminAPIClient;
@@ -111,18 +108,17 @@ function SendFax({ client }: SendFaxProps) {
 
   return (
     <Box onKeyPress={handleKeyPress}>
-      <Typography variant="h4" component="h1" gutterBottom sx={{ mb: 3 }}>
-        Send Fax
-      </Typography>
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
+        <Typography variant="h4" component="h1" gutterBottom>
+          Demo Send
+        </Typography>
+        <HelpTip topic="messaging" />
+      </Box>
 
       <Box sx={{ maxWidth: { xs: '100%', md: 800 } }}>
         <Fade in timeout={300}>
           <Box>
-            <ResponsiveFormSection
-              title="New Fax Transmission"
-              subtitle="Send a fax to any phone number with PDF or TXT file attachment"
-              icon={<SendIcon />}
-            >
+            <ResponsiveFormSection title="Demo Transmission" subtitle="Example outbound action. In a real app, this could send an email, create a ticket, or notify a system." icon={<SendIcon />}>
               <Stack spacing={2}>
                 <ResponsiveTextField
                   label="Destination Number"

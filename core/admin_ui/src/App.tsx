@@ -334,8 +334,8 @@ function AppContent() {
     { label: 'Scripts & Tests', icon: <ScienceIcon />, trait: 'role.admin' },
     { label: 'Tunnels', icon: <VpnLockIcon />, trait: 'ui.monitoring' },
     { label: 'Audit', icon: <DescriptionIcon />, trait: 'ui.audit' },
-    { label: 'Gateway', icon: <AssessmentIcon />, trait: 'ui.gateway' },
-    { label: 'Gateway Allowlist', icon: <AssessmentIcon />, trait: 'ui.gateway' },
+                { label: 'HTTP Proxy', icon: <AssessmentIcon />, trait: 'ui.gateway' },
+    { label: 'HTTP Proxy Allowlist', icon: <AssessmentIcon />, trait: 'ui.gateway' },
     { label: 'Messaging', icon: <AssessmentIcon />, trait: 'ui.messaging' },
     { label: 'Canonical', icon: <AssessmentIcon />, trait: 'ui.canonical' },
     { label: 'Policy', icon: <AssessmentIcon />, trait: 'ui.policy' },
@@ -814,7 +814,7 @@ function AppContent() {
                       sx={{ borderRadius: 2 }}
                       disabled={!hasTrait('role.admin')}
                     >
-                      Provider Setup Wizard
+                      Integrations Wizard
                     </Button>
                   </Box>
                   <Settings client={client!} readOnly={!hasTrait('role.admin')} />
