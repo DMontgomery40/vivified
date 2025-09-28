@@ -10,6 +10,7 @@ from starlette.responses import FileResponse
 from .plugin_manager.registry import PluginRegistry
 from .api import admin_router, auth_router
 from .api.dependencies import require_auth
+from .identity.auth import rate_limit
 from .api.admin import configure_admin_api
 from .config.service import get_config_service
 from .identity.auth import dev_issue_admin_token
@@ -258,6 +259,7 @@ async def get_canonical_stats():
 
 # Gateway service endpoints
 @app.post("/gateway/proxy")
+@rate_limit(limit=120, window_seconds=60, key_fn=lambda *a, **k: f"proxy:{k.get('plugin_id','unknown')}")
 async def proxy_request(
     plugin_id: str,
     method: str,
@@ -303,6 +305,7 @@ class OperatorRequestModel(BaseModel):
 
 
 @app.post("/gateway/{target_plugin}/{operation}")
+@rate_limit(limit=240, window_seconds=60, key_fn=lambda *a, **k: f"rpc:{k.get('req').caller_plugin if k.get('req') else 'unknown'}")
 async def operator_invoke(
     target_plugin: str, operation: str, req: OperatorRequestModel
 ):
@@ -398,6 +401,7 @@ class DevLoginRequest(BaseModel):
 
 
 @app.post("/auth/dev-login")
+@rate_limit(limit=10, window_seconds=60, key="dev_login")
 async def dev_login(_: DevLoginRequest):
     """Issue a short-lived admin token for development when DEV_MODE is enabled."""
     try:

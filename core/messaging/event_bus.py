@@ -4,7 +4,12 @@ Event bus implementation for canonical communication.
 
 import asyncio
 import logging
-from typing import Dict, List, Optional, Callable
+from typing import Dict, List, Optional, Callable, Protocol, Any
+import os
+import json
+import asyncio
+import logging
+from contextlib import asynccontextmanager
 
 from .models import Event, Message, MessageDeliveryStatus
 from ..audit.service import AuditService, AuditLevel
@@ -13,10 +18,151 @@ from ..policy.engine import PolicyEngine, PolicyRequest, PolicyDecision
 logger = logging.getLogger(__name__)
 
 
+class BrokerClient(Protocol):
+    async def start(self) -> None: ...
+    async def stop(self) -> None: ...
+    async def publish(self, subject: str, data: bytes) -> None: ...
+    async def subscribe(self, subject: str, handler: Callable[[bytes], Any]) -> Any: ...
+
+
+class InMemoryBroker:
+    """Simple in-memory broker used by default and for tests."""
+
+    def __init__(self) -> None:
+        self._subs: Dict[str, List[Callable[[bytes], Any]]] = {}
+        self._running = False
+
+    async def start(self) -> None:
+        self._running = True
+
+    async def stop(self) -> None:
+        self._running = False
+        self._subs.clear()
+
+    async def publish(self, subject: str, data: bytes) -> None:
+        for handler in list(self._subs.get(subject, [])):
+            try:
+                await handler(data)
+            except Exception as e:  # noqa: BLE001
+                logger.exception("InMemoryBroker handler error: %s", e)
+
+    async def subscribe(self, subject: str, handler: Callable[[bytes], Any]) -> Any:
+        self._subs.setdefault(subject, []).append(handler)
+        return handler
+
+
+class NatsBroker:
+    """NATS broker adapter (uses nats-py)."""
+
+    def __init__(self, servers: str) -> None:
+        self._servers = servers
+        self._nc = None
+        self._subs: List[Any] = []
+
+    async def start(self) -> None:
+        import nats  # type: ignore
+
+        if self._nc is None:
+            self._nc = await nats.connect(servers=self._servers)
+
+    async def stop(self) -> None:
+        if self._nc is not None:
+            try:
+                for sub in self._subs:
+                    await sub.unsubscribe()
+            finally:
+                await self._nc.drain()
+                await self._nc.close()
+            self._nc = None
+
+    async def publish(self, subject: str, data: bytes) -> None:
+        assert self._nc is not None
+        await self._nc.publish(subject, data)
+
+    async def subscribe(self, subject: str, handler: Callable[[bytes], Any]) -> Any:
+        assert self._nc is not None
+
+        async def _wrapped(msg):
+            try:
+                await handler(msg.data)
+            except Exception as e:  # noqa: BLE001
+                logger.exception("NATS handler error: %s", e)
+
+        sub = await self._nc.subscribe(subject, cb=_wrapped)
+        self._subs.append(sub)
+        return sub
+
+
+class RedisBroker:
+    """Redis Pub/Sub adapter (uses redis asyncio client)."""
+
+    def __init__(self, url: str) -> None:
+        self._url = url
+        self._redis = None
+        self._pub = None
+        self._ps = None
+        self._tasks: List[asyncio.Task] = []
+
+    async def start(self) -> None:
+        import redis.asyncio as redis  # type: ignore
+
+        self._redis = redis.from_url(self._url)
+        self._pub = self._redis
+        self._ps = self._redis.pubsub()
+
+    async def stop(self) -> None:
+        for t in self._tasks:
+            t.cancel()
+        self._tasks.clear()
+        if self._ps is not None:
+            await self._ps.close()
+            self._ps = None
+        if self._redis is not None:
+            await self._redis.close()
+            self._redis = None
+
+    async def publish(self, subject: str, data: bytes) -> None:
+        assert self._pub is not None
+        await self._pub.publish(subject, data)
+
+    async def subscribe(self, subject: str, handler: Callable[[bytes], Any]) -> Any:
+        assert self._ps is not None
+        await self._ps.subscribe(subject)
+
+        async def _reader():
+            assert self._ps is not None
+            while True:
+                try:
+                    msg = await self._ps.get_message(ignore_subscribe_messages=True, timeout=1.0)
+                    if msg and msg.get("type") == "message":
+                        data = msg.get("data")
+                        if isinstance(data, (bytes, bytearray)):
+                            await handler(data)
+                except asyncio.CancelledError:
+                    break
+                except Exception as e:  # noqa: BLE001
+                    logger.exception("Redis handler error: %s", e)
+
+        task = asyncio.create_task(_reader())
+        self._tasks.append(task)
+        return task
+
+
+def _select_broker_from_env() -> BrokerClient:
+    backend = os.getenv("EVENT_BUS_BACKEND", "memory").lower()
+    if backend == "nats":
+        servers = os.getenv("NATS_SERVERS", "nats://127.0.0.1:4222")
+        return NatsBroker(servers)
+    if backend == "redis":
+        url = os.getenv("REDIS_URL", "redis://127.0.0.1:6379/0")
+        return RedisBroker(url)
+    return InMemoryBroker()
+
+
 class EventBus:
     """Event bus for canonical inter-plugin communication."""
 
-    def __init__(self, audit_service: AuditService, policy_engine: PolicyEngine):
+    def __init__(self, audit_service: AuditService, policy_engine: PolicyEngine, broker: Optional[BrokerClient] = None):
         self.audit_service = audit_service
         self.policy_engine = policy_engine
         self.subscribers: Dict[str, List[Callable]] = {}
@@ -24,6 +170,7 @@ class EventBus:
         self.delivery_tracking: Dict[str, MessageDeliveryStatus] = {}
         self._running = False
         self._processing_task: Optional[asyncio.Task] = None
+        self._broker: BrokerClient = broker or _select_broker_from_env()
 
     async def start(self):
         """Start the event bus processing."""
@@ -31,6 +178,7 @@ class EventBus:
             return
 
         self._running = True
+        await self._broker.start()
         self._processing_task = asyncio.create_task(self._process_messages())
         logger.info("Event bus started")
 
@@ -43,6 +191,7 @@ class EventBus:
                 await self._processing_task
             except asyncio.CancelledError:
                 pass
+        await self._broker.stop()
         logger.info("Event bus stopped")
 
     async def publish_event(self, event: Event, source_plugin: str) -> bool:
@@ -62,7 +211,13 @@ class EventBus:
                 )
                 return False
 
-            # Add to processing queue
+            # Publish to broker subject for fan-out and also enqueue locally
+            subject = f"events.{event.event_type}"
+            payload = json.dumps({
+                "event": event.dict(),
+                "source_plugin": source_plugin,
+            }).encode("utf-8")
+            await self._broker.publish(subject, payload)
             await self.message_queue.put(("event", event, source_plugin))
 
             await self.audit_service.log_event(
@@ -109,7 +264,13 @@ class EventBus:
                 )
                 return False
 
-            # Add to processing queue
+            # Publish to broker subject for direct messaging and enqueue locally
+            subject = f"messages.{message.target_plugin}"
+            payload = json.dumps({
+                "message": message.dict(),
+                "source_plugin": source_plugin,
+            }).encode("utf-8")
+            await self._broker.publish(subject, payload)
             await self.message_queue.put(("message", message, source_plugin))
 
             await self.audit_service.log_event(
@@ -148,10 +309,27 @@ class EventBus:
         self, plugin_id: str, event_types: List[str], callback: Callable
     ):
         """Subscribe a plugin to specific event types."""
+        async def _handler_factory(user_callback: Callable):
+            async def _wrapped(data: bytes):
+                try:
+                    obj = json.loads(data.decode("utf-8"))
+                    raw_event = obj.get("event") or {}
+                    evt = Event(**raw_event)
+                    source_plugin = obj.get("source_plugin", "unknown")
+                    await user_callback(evt, source_plugin)
+                except Exception as e:  # noqa: BLE001
+                    logger.exception("Subscriber callback error: %s", e)
+
+            return _wrapped
+
         for event_type in event_types:
             if event_type not in self.subscribers:
                 self.subscribers[event_type] = []
             self.subscribers[event_type].append(callback)
+            # Also subscribe at broker level
+            subject = f"events.{event_type}"
+            handler = await _handler_factory(callback)
+            await self._broker.subscribe(subject, handler)
 
         logger.info(f"Plugin {plugin_id} subscribed to events: {event_types}")
 

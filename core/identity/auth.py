@@ -10,6 +10,8 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Callable, Awaitable
+import asyncio
+import time
 import os
 import functools
 import logging
@@ -167,15 +169,101 @@ def require_auth(
     return _dep
 
 
-def rate_limit(limit: int = 60) -> Callable:
-    """No-op rate limit decorator placeholder for Phase 2.
+class _RateLimiterBackend:
+    async def allow(self, key: str, limit: int, window_seconds: int) -> bool:  # pragma: no cover - interface
+        raise NotImplementedError
 
-    In Phase 4, this should integrate with a real rate limiter (e.g., Redis).
+
+class _MemoryRateLimiter(_RateLimiterBackend):
+    def __init__(self) -> None:
+        self._lock = asyncio.Lock()
+        self._buckets: Dict[str, Dict[str, float | int]] = {}
+
+    async def allow(self, key: str, limit: int, window_seconds: int) -> bool:
+        now = time.monotonic()
+        async with self._lock:
+            bucket = self._buckets.get(key)
+            if not bucket:
+                self._buckets[key] = {"count": 1, "reset": now + window_seconds}
+                return True
+
+            reset = float(bucket.get("reset", now))
+            count = int(bucket.get("count", 0))
+            if now > reset:
+                # reset window
+                bucket["count"] = 1
+                bucket["reset"] = now + window_seconds
+                return True
+
+            if count < limit:
+                bucket["count"] = count + 1
+                return True
+
+            return False
+
+
+class _RedisRateLimiter(_RateLimiterBackend):
+    def __init__(self, url: str) -> None:
+        self._url = url
+        self._client = None
+
+    async def _client_lazy(self):
+        if self._client is None:
+            import redis.asyncio as redis  # type: ignore
+
+            self._client = redis.from_url(self._url)
+        return self._client
+
+    async def allow(self, key: str, limit: int, window_seconds: int) -> bool:
+        client = await self._client_lazy()
+        # Use atomic INCR with expiry as a sliding window approximation
+        pipe = client.pipeline()
+        pipe.incr(key)
+        pipe.expire(key, window_seconds)
+        try:
+            count, _ = await pipe.execute()
+        except Exception:  # noqa: BLE001
+            # Fallback soft-fail: allow
+            return True
+        return int(count) <= limit
+
+
+_RATE_BACKEND: Optional[_RateLimiterBackend] = None
+
+
+def _get_rate_backend() -> _RateLimiterBackend:
+    global _RATE_BACKEND
+    if _RATE_BACKEND is not None:
+        return _RATE_BACKEND
+    backend = os.getenv("RATE_LIMIT_BACKEND", "memory").lower()
+    if backend == "redis" and os.getenv("REDIS_URL"):
+        _RATE_BACKEND = _RedisRateLimiter(os.getenv("REDIS_URL", "redis://localhost:6379/0"))
+    else:
+        _RATE_BACKEND = _MemoryRateLimiter()
+    return _RATE_BACKEND
+
+
+def rate_limit(
+    limit: int = 60,
+    window_seconds: int = 60,
+    key: Optional[str] = None,
+    key_fn: Optional[Callable[[tuple, dict], str]] = None,
+) -> Callable:
+    """Rate limit decorator using memory or Redis backend.
+
+    - limit: max requests per window
+    - window_seconds: window length
+    - key: static key (e.g., "dev_login")
+    - key_fn: function receiving (args, kwargs) returning a dynamic key
     """
 
     def _decorator(func: Callable) -> Callable:
         @functools.wraps(func)
         async def _wrapper(*args, **kwargs):
+            k = key or (key_fn(*args, **kwargs) if key_fn else func.__name__)
+            allowed = await _get_rate_backend().allow(k, limit, window_seconds)
+            if not allowed:
+                raise HTTPException(status_code=429, detail="Rate limit exceeded")
             return await func(*args, **kwargs)
 
         return _wrapper
