@@ -55,7 +55,7 @@ import Diagnostics from './components/Diagnostics';
 import Audit from './components/Audit';
 import MCP from './components/MCP';
 import Logs from './components/Logs';
-import SendFax from './components/SendFax';
+import DemoSend from './components/DemoSend';
 import Inbound from './components/Inbound';
 import Terminal from './components/Terminal';
 import ScriptsTests from './components/ScriptsTests';
@@ -350,6 +350,9 @@ function AppContent() {
   const scriptsDisabled = !hasTrait('role.admin');
   const canSend = hasTrait('ui.send') || hasTrait('role.admin');
   const isAdmin = hasTrait('role.admin');
+  const allowSendDemo = hasTrait('ui.send_demo') || isAdmin;
+  const allowJobs = hasTrait('ui.jobs') || isAdmin;
+  const allowInboundDemo = hasTrait('ui.inbound_demo') || isAdmin;
 
   useEffect(() => {
     if (tabValue === 5) {

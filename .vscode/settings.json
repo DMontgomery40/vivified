@@ -1,5 +1,6 @@
 {
   "search.exclude": {
     "internal-plans": true
-  }
+  },
+  "explorer.excludeGitIgnore": false
 }

@@ -36,6 +36,7 @@ import {
 import AdminAPIClient from '../api/client';
 import PluginConfigDialog from './PluginConfigDialog';
 import { ResponsiveFormSection, ResponsiveTextField } from './common/ResponsiveFormFields';
+import HelpTip from './common/HelpTip';
 
 type Props = { client: AdminAPIClient; readOnly?: boolean };
 
