@@ -19,6 +19,115 @@ export const helpTopics: Record<string, HelpTopic> = {
     ],
     docSlug: 'diagnostics',
   },
+  plugins: {
+    id: 'plugins',
+    title: 'Plugins',
+    eli5: 'Plugins extend the platform with new capabilities. You can install and configure them here when enabled.',
+    dev: [
+      'List installed plugins via GET /plugins.',
+      'Load curated registry via marketplace endpoint when enabled.',
+      'Update plugin config via /plugins/{id}/config (persist to config).',
+    ],
+    docSlug: 'plugins',
+  },
+  marketplace: {
+    id: 'marketplace',
+    title: 'Plugin Marketplace',
+    eli5: 'Browse available plugins from a curated registry (when enabled).',
+    dev: [
+      'Enable marketplace via ADMIN_MARKETPLACE_ENABLED=true.',
+      'Fetch catalog via GET /admin/marketplace/plugins.',
+    ],
+    docSlug: 'admin/marketplace',
+  },
+  gateway: {
+    id: 'gateway',
+    title: 'Gateway & Proxy',
+    eli5: 'The gateway safely makes outbound HTTP calls on behalf of the system through an allowlist.',
+    dev: [
+      'Proxy endpoint: POST /gateway/proxy with method, url, headers, body.',
+      'Enforce outbound domains + paths via gateway allowlist per plugin.',
+      'Audit all proxy requests; avoid PHI in URLs/headers.',
+    ],
+    docSlug: 'gateway',
+  },
+  messaging: {
+    id: 'messaging',
+    title: 'Messaging / Event Bus',
+    eli5: 'Publish and subscribe to events so parts of the system can react asynchronously.',
+    dev: [
+      'Publish via POST /messaging/events { event_type, payload, source_plugin }.',
+      'Stats via GET /messaging/stats.',
+      'Avoid PHI in event payloads unless strictly required and tagged.',
+    ],
+    docSlug: 'messaging',
+  },
+  canonical: {
+    id: 'canonical',
+    title: 'Canonical Model',
+    eli5: 'A common shape for data so different plugins can understand each other.',
+    dev: [
+      'Normalize user: POST /canonical/normalize/user with source/target plugins.',
+      'Stats via GET /canonical/stats.',
+      'Maintain canonical schemas; validate in CI.',
+    ],
+    docSlug: 'canonical',
+  },
+  policy: {
+    id: 'policy',
+    title: 'Policy & Traits',
+    eli5: 'Traits enable or hide features. Policies control what actions are allowed.',
+    dev: [
+      'User traits returned by /admin/user/traits drive UI gating.',
+      'Backends should check traits/policies server-side for access control.',
+      'Log decisions to the audit trail.',
+    ],
+    docSlug: 'policy',
+  },
+  logs: {
+    id: 'logs',
+    title: 'Logs',
+    eli5: 'Logs show what the system is doing. Use filters to find events.',
+    dev: [
+      'Query application logs; avoid PHI in messages.',
+      'Enable audit logging in security settings for sensitive events.',
+      'Support ring buffer vs file tail; control size and wrap/follow.',
+    ],
+    docSlug: 'logs',
+  },
+  audit: {
+    id: 'audit',
+    title: 'Audit Trail',
+    eli5: 'Shows security-relevant actions for compliance and forensics.',
+    dev: [
+      'List via GET /admin/audit with pagination.',
+      'Every sensitive operation should produce an audit entry.',
+      'Retention and export should meet compliance requirements.',
+    ],
+    docSlug: 'audit',
+  },
+  configuration: {
+    id: 'configuration',
+    title: 'Configuration Manager',
+    eli5: 'View and change settings, with overrides per scope when allowed.',
+    dev: [
+      'Get effective config via GET /admin/config (current) or v4 endpoints when available.',
+      'Track edits with reasons; mask secrets by default.',
+      'Flush caches after changes when needed.',
+    ],
+    docSlug: 'config',
+  },
+  users: {
+    id: 'users',
+    title: 'User Management',
+    eli5: 'Create users and manage their roles. Roles grant traits that unlock features.',
+    dev: [
+      'Create user via POST /admin/users; set roles via PUT /admin/users/{id}/roles.',
+      'Require MFA and short-lived tokens for admins.',
+      'Never display or log credentials or PHI.',
+    ],
+    docSlug: 'users',
+  },
   settings: {
     id: 'settings',
     title: 'Settings',
@@ -117,4 +226,3 @@ export function resolveDocHref(docsBase: string | undefined, topicId: string): s
   const slug = t?.docSlug || topicId;
   return `${docsBase.replace(/\/$/, '')}/${slug}`;
 }
-

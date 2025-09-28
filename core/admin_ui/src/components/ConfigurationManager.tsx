@@ -290,6 +290,7 @@ const ConfigurationManager: React.FC<ConfigurationManagerProps> = ({ client }) =
         <Typography variant="h4" gutterBottom>
           Configuration Manager
         </Typography>
+        <HelpTip topic="configuration" />
         <Stack direction="row" spacing={2}>
           <Button
             variant="outlined"

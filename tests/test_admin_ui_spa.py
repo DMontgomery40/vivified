@@ -6,7 +6,9 @@ from fastapi.testclient import TestClient
 os.environ["DEV_MODE"] = "true"
 
 # Ensure SPA dist exists before importing app so routes are mounted
-_dist_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "core", "admin_ui", "dist"))
+_dist_dir = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "..", "core", "admin_ui", "dist")
+)
 os.makedirs(_dist_dir, exist_ok=True)
 _index_path = os.path.join(_dist_dir, "index.html")
 if not os.path.exists(_index_path):
@@ -50,9 +52,13 @@ def test_ui_config_etag_and_flags():
     assert isinstance(data.get("features", {}), dict)
     # Required flags present with safe defaults
     feats = data["features"]
-    assert "admin_console" in feats and isinstance(feats["admin_console"].get("enabled"), bool)
+    assert "admin_console" in feats and isinstance(
+        feats["admin_console"].get("enabled"), bool
+    )
     assert "plugins" in feats and isinstance(feats["plugins"].get("enabled"), bool)
-    assert "v3_plugins" in feats and isinstance(feats["v3_plugins"].get("enabled"), bool)
+    assert "v3_plugins" in feats and isinstance(
+        feats["v3_plugins"].get("enabled"), bool
+    )
     assert isinstance(feats.get("plugin_install"), bool)
     assert isinstance(feats.get("sessions_enabled"), bool)
     assert isinstance(feats.get("csrf_enabled"), bool)

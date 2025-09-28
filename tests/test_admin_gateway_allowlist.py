@@ -47,4 +47,3 @@ def test_gateway_allowlist_roundtrip():
     rule = items["api.example.com"]
     assert set(rule["allowed_methods"]) == {"GET", "POST"}
     assert set(rule["allowed_paths"]) == {"/v1/*", "/health"}
-

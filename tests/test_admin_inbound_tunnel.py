@@ -23,7 +23,9 @@ def test_inbound_tools_and_actions_and_tunnel():
     assert "callbacks" in r.json()
 
     # Simulate inbound
-    r = client.post("/admin/inbound/simulate", headers=auth, json={"status": "received"})
+    r = client.post(
+        "/admin/inbound/simulate", headers=auth, json={"status": "received"}
+    )
     assert r.status_code == 200
     assert r.json()["status"] == "received"
 
@@ -41,18 +43,25 @@ def test_inbound_tools_and_actions_and_tunnel():
     # Tunnel status
     r = client.get("/admin/tunnel/status", headers=auth)
     assert r.status_code == 200
-    
+
     # Set tunnel config
-    r = client.post("/admin/tunnel/config", headers=auth, json={"enabled": True, "provider": "cloudflare"})
+    r = client.post(
+        "/admin/tunnel/config",
+        headers=auth,
+        json={"enabled": True, "provider": "cloudflare"},
+    )
     assert r.status_code == 200
-    
+
     # Test tunnel
     r = client.post("/admin/tunnel/test", headers=auth)
     assert r.status_code == 200
-    
+
     # WG import + delete
-    r = client.post("/admin/tunnel/wg/import", headers=auth, json={"content": "[Interface]\nPrivateKey=...\n"})
+    r = client.post(
+        "/admin/tunnel/wg/import",
+        headers=auth,
+        json={"content": "[Interface]\nPrivateKey=...\n"},
+    )
     assert r.status_code == 200
     r = client.delete("/admin/tunnel/wg/conf", headers=auth)
     assert r.status_code == 200
-

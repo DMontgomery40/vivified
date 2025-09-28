@@ -39,7 +39,11 @@ def test_settings_flow_export_persist():
     assert "backend" in s and "security" in s
 
     # Update a setting
-    r = client.put("/admin/settings", headers=auth, json={"backend": "phaxio", "require_api_key": False})
+    r = client.put(
+        "/admin/settings",
+        headers=auth,
+        json={"backend": "phaxio", "require_api_key": False},
+    )
     assert r.status_code == 200
 
     # Export env
@@ -52,4 +56,3 @@ def test_settings_flow_export_persist():
     r = client.post("/admin/settings/persist", headers=auth, json={})
     assert r.status_code == 200
     assert r.json().get("ok") is True
-

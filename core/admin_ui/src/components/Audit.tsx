@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Typography, Paper, Alert, Table, TableHead, TableRow, TableCell, TableBody, TableContainer, TextField, Stack, Button } from '@mui/material'
+import { Typography, Paper, Alert, Table, TableHead, TableRow, TableCell, TableBody, TableContainer, TextField, Stack, Button, Box } from '@mui/material'
+import HelpTip from './common/HelpTip'
 import AdminAPIClient from '../api/client'
 
 type Props = { client: AdminAPIClient }
@@ -22,7 +23,10 @@ export default function Audit({ client }: Props){
 
   return (
     <Paper elevation={0} sx={{ p:{xs:2, md:3}, border:'1px solid', borderColor:'divider', borderRadius:2 }}>
-      <Typography variant="h6" gutterBottom>Audit Events</Typography>
+      <Box display="flex" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
+        <Typography variant="h6" gutterBottom>Audit Events</Typography>
+        <HelpTip topic="audit" />
+      </Box>
       {error && <Alert severity="warning" sx={{mb:2}}>{error}</Alert>}
       <Stack direction={{xs:'column', sm:'row'}} spacing={2} sx={{mb:2}}>
         <TextField size="small" label="Limit" type="number" value={limit} onChange={e=>setLimit(parseInt(e.target.value||'0')||100)} />

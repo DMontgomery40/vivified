@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Box, Card, CardContent, Typography, TextField, Button, CircularProgress, Table, TableHead, TableRow, TableCell, TableBody, TableContainer, Alert, Dialog, DialogTitle, DialogContent, DialogActions, FormControlLabel, Switch, MenuItem, Select, InputLabel, FormControl } from '@mui/material';
 import AdminAPIClient from '../api/client';
+import HelpTip from './common/HelpTip';
 
 interface LogsProps { client: AdminAPIClient; }
 
@@ -78,6 +79,7 @@ function Logs({ client }: LogsProps) {
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
         <Typography variant="h4">Logs</Typography>
         <Box display="flex" gap={1}>
+          <HelpTip topic="logs" />
           <Button variant="outlined" onClick={run} disabled={loading}>{loading ? <CircularProgress size={18} /> : 'Refresh'}</Button>
         </Box>
       </Box>

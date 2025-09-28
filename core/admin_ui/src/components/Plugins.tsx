@@ -205,14 +205,13 @@ export default function Plugins({ client, readOnly = false }: Props) {
 
   return (
     <Box sx={{ p: { xs: 2, sm: 0 } }}>
-      <Box sx={{ mb: 3 }}>
-        <Typography variant="h4" component="h1" gutterBottom>
-          Plugins
-        </Typography>
-        <Typography variant="body2" color="text.secondary">
-          Manage provider plugins. This preview lists installed providers; updates persist to the config file only. No live apply yet.
-        </Typography>
+      <Box sx={{ mb: 3, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Typography variant="h4" component="h1" gutterBottom>Plugins</Typography>
+        <HelpTip topic="plugins" />
       </Box>
+      <Typography variant="body2" color="text.secondary">
+          Manage provider plugins. This preview lists installed providers; updates persist to the config file only. No live apply yet.
+      </Typography>
 
       <Stack spacing={3}>
         {pluginsEnabled === false && (

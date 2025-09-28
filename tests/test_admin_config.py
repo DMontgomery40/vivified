@@ -25,7 +25,9 @@ def test_admin_config_roundtrip():
         "is_sensitive": False,
         "reason": "branding update",
     }
-    r = client.put("/admin/config", json=payload, headers={"Authorization": f"Bearer {token}"})
+    r = client.put(
+        "/admin/config", json=payload, headers={"Authorization": f"Bearer {token}"}
+    )
     assert r.status_code == 200, r.text
 
     # Read back
@@ -38,6 +40,8 @@ def test_admin_config_roundtrip():
 def test_admin_config_forbidden_without_traits():
     client = TestClient(app)
     # Create a non-admin token
-    token = get_auth_manager().generate_user_token("user-1", traits=["viewer"], expires_minutes=15)
+    token = get_auth_manager().generate_user_token(
+        "user-1", traits=["viewer"], expires_minutes=15
+    )
     r = client.get("/admin/config", headers={"Authorization": f"Bearer {token}"})
     assert r.status_code in (401, 403)

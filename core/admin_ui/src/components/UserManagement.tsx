@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Box, Typography, Paper, Alert, Button, TextField, Table, TableHead, TableRow, TableCell, TableBody, Stack, FormControl, InputLabel, Select, MenuItem } from '@mui/material';
+import HelpTip from './common/HelpTip';
 import AdminAPIClient from '../api/client';
 
 type Props = { client: AdminAPIClient };
@@ -70,7 +71,10 @@ export default function UserManagement({ client }: Props) {
 
   return (
     <Paper elevation={0} sx={{ p: { xs: 2, md: 3 }, border: '1px solid', borderColor: 'divider', borderRadius: 2 }}>
-      <Typography variant="h6" gutterBottom>User Management</Typography>
+      <Box display="flex" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
+        <Typography variant="h6" gutterBottom>User Management</Typography>
+        <HelpTip topic="users" />
+      </Box>
       {error && <Alert severity="warning" sx={{ mb: 2 }}>{error}</Alert>}
 
       <Box sx={{ mb: 3 }}>

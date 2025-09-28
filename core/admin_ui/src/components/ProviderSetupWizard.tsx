@@ -435,7 +435,7 @@ export default function ProviderSetupWizard({
                   label="Station ID"
                   value={config.fax_station_id || ''}
                   onChange={(value) => handleConfigChange('fax_station_id', value)}
-                  placeholder="My Faxbot"
+                  placeholder="My Vivified App"
                   helperText="Identifier shown on outbound faxes"
                 />
               </Stack>

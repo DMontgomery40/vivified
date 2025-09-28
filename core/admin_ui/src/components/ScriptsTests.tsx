@@ -298,10 +298,10 @@ const ScriptsTests: React.FC<Props> = ({ client, docsBase, readOnly = false, can
   const runSendTestImageFax = async () => {
     setError(''); setSendImgBusy(true);
     try {
-      const bytes = buildSimplePdf('Faxbot Test Image');
+      const bytes = buildSimplePdf('Admin Test Image');
       const ab = new ArrayBuffer(bytes.byteLength); new Uint8Array(ab).set(bytes);
       const blob = new Blob([ab], { type: 'application/pdf' });
-      const file = new File([blob], 'faxbot_test_image.pdf', { type: 'application/pdf' });
+      const file = new File([blob], 'admin_test_image.pdf', { type: 'application/pdf' });
       const result = await client.sendFax(toNumber, file);
       pushAuth(`[✓] Image Test queued: ${result.id} status=${result.status}`);
     } catch (e:any) {
@@ -312,10 +312,10 @@ const ScriptsTests: React.FC<Props> = ({ client, docsBase, readOnly = false, can
   const runSendTestPdfFax = async () => {
     setError(''); setSendPdfBusy(true);
     try {
-      const bytes = buildSimplePdf('Faxbot Test PDF');
+      const bytes = buildSimplePdf('Admin Test PDF');
       const ab = new ArrayBuffer(bytes.byteLength); new Uint8Array(ab).set(bytes);
       const blob = new Blob([ab], { type: 'application/pdf' });
-      const file = new File([blob], 'faxbot_test.pdf', { type: 'application/pdf' });
+      const file = new File([blob], 'admin_test.pdf', { type: 'application/pdf' });
       const result = await client.sendFax(toNumber, file);
       pushAuth(`[✓] PDF Test queued: ${result.id} status=${result.status}`);
     } catch (e:any) {

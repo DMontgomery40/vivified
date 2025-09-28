@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Box, Typography, TextField, InputAdornment, Grid, Card, CardContent, Alert, CircularProgress } from '@mui/material';
+import HelpTip from './common/HelpTip';
 import SearchIcon from '@mui/icons-material/Search';
 import { AdminAPIClient } from '../api/client';
 
@@ -44,9 +45,10 @@ export default function PluginMarketplace({ client, docsBase }: Props): JSX.Elem
 
   return (
     <Box sx={{ px: { xs: 1, sm: 2, md: 3 }, py: 2 }}>
-      <Typography variant="h4" sx={{ mb: 2 }}>
-        Plugin Marketplace
-      </Typography>
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+        <Typography variant="h4">Plugin Marketplace</Typography>
+        <HelpTip topic="marketplace" docsBase={docsBase} />
+      </Box>
 
       <TextField
         fullWidth

@@ -803,7 +803,7 @@ function AppContent() {
               </Tabs>
             </Box>
             <Box sx={{ p: { xs: 2, md: 3 } }}>
-              {settingsTab === 0 && <SetupWizard client={client!} onDone={() => handleTabChange(0)} docsBase={uiConfig?.docs_base || adminConfig?.branding?.docs_base} />}
+              {settingsTab === 0 && <SetupWizard client={client!} onDone={() => handleTabChange(0)} onNavigate={handleNavigate} docsBase={uiConfig?.docs_base || adminConfig?.branding?.docs_base} />} 
               {settingsTab === 1 && (
                 <Box>
                   <Box sx={{ mb: 3, display: 'flex', justifyContent: 'flex-end' }}>
