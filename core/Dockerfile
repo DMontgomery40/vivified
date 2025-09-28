@@ -6,7 +6,7 @@ COPY admin_ui/package*.json ./admin_ui/
 RUN cd admin_ui && npm ci --no-audit --progress=false
 # Copy UI source and build
 COPY admin_ui ./admin_ui
-RUN cd admin_ui && npm run build
+RUN cd admin_ui && npm run build:dist
 
 FROM python:3.11-alpine AS base
 
