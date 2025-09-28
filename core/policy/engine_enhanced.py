@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from enum import Enum
 from typing import Any, Dict, List, Optional, Set
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 import logging
 import json
@@ -59,15 +59,15 @@ class PolicyResult:
 
     decision: PolicyDecision
     reason: str
-    required_traits: List[str] = None
-    sanitize_fields: List[str] = None
+    required_traits: List[str] = field(default_factory=list)
+    sanitize_fields: List[str] = field(default_factory=list)
     audit_level: str = "standard"
 
 
 class EnhancedPolicyEngine:
     """Comprehensive trait-based policy engine."""
 
-    def __init__(self, trait_registry: TraitRegistry = None) -> None:
+    def __init__(self, trait_registry: Optional[TraitRegistry] = None) -> None:
         self.registry = trait_registry or TraitRegistry()
         self._cache: Dict[str, PolicyResult] = {}
         self._audit_logger = logging.getLogger("policy_audit")

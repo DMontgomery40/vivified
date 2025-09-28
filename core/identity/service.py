@@ -10,8 +10,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .models import User, Role, UserRole, Base, APIKey, AuthAudit
 from ..identity.auth import AuthManager
 
+from typing import Any as _Any
+
 try:  # Optional dependency in test env
-    import bcrypt as _bcrypt  # type: ignore
+    import bcrypt as _bcrypt_mod  # type: ignore
 except Exception:  # pragma: no cover - fallback for local tests
     import hashlib
     import os
@@ -35,7 +37,9 @@ except Exception:  # pragma: no cover - fallback for local tests
             except Exception:
                 return False
 
-    _bcrypt = _FallbackBcrypt()
+    _bcrypt: _Any = _FallbackBcrypt()
+else:
+    _bcrypt = _bcrypt_mod  # type: ignore[assignment]
 
 
 DEFAULT_ROLES = [
@@ -63,7 +67,7 @@ class IdentityService:
         for name, traits in DEFAULT_ROLES:
             role = await self.db.scalar(select(Role).where(Role.name == name))
             if not role:
-                role = Role(name=name, description=name, traits=traits)
+                role = Role(name=name, description=name, traits=traits)  # type: ignore[call-arg]
                 self.db.add(role)
         await self.db.commit()
 
@@ -76,12 +80,12 @@ class IdentityService:
         pw_hash = _bcrypt.hashpw(password.encode("utf-8"), _bcrypt.gensalt()).decode(
             "latin1"
         )
-        user = User(username=username, email=email, password_hash=pw_hash)
+        user = User(username=username, email=email, password_hash=pw_hash)  # type: ignore[call-arg]
         self.db.add(user)
         await self.db.flush()
         admin_role = await self.db.scalar(select(Role).where(Role.name == "admin"))
         if admin_role:
-            self.db.add(UserRole(user_id=user.id, role_id=admin_role.id))
+            self.db.add(UserRole(user_id=user.id, role_id=admin_role.id))  # type: ignore[call-arg]
         await self.db.commit()
 
     async def authenticate(
@@ -187,7 +191,7 @@ class IdentityService:
                 }
             )
         # Count
-        total = (await self.db.execute(select(User))).scalars().unique().count()
+        total = len((await self.db.execute(select(User))).scalars().unique().all())
         return {"users": items, "page": page, "page_size": page_size, "total": total}
 
     async def create_user(
@@ -215,7 +219,7 @@ class IdentityService:
                     f"Failed to generate MFA secret for user {username}"
                 )
 
-        user = User(
+        user = User(  # type: ignore[call-arg]
             username=username,
             email=email,
             password_hash=pw_hash,
@@ -228,7 +232,7 @@ class IdentityService:
         for rname in roles:
             role = await self.db.scalar(select(Role).where(Role.name == rname))
             if role:
-                self.db.add(UserRole(user_id=user.id, role_id=role.id))
+                self.db.add(UserRole(user_id=user.id, role_id=role.id))  # type: ignore[call-arg]
 
         await self.db.commit()
 
@@ -264,7 +268,7 @@ class IdentityService:
         for rn in role_names:
             role = await self.db.scalar(select(Role).where(Role.name == rn))
             if role:
-                self.db.add(UserRole(user_id=user_id, role_id=role.id))
+                self.db.add(UserRole(user_id=user_id, role_id=role.id))  # type: ignore[call-arg]
         await self.db.commit()
         return True
 
@@ -320,7 +324,7 @@ class IdentityService:
         ip_address: Optional[str] = None,
     ):
         """Log authentication events for audit trail."""
-        audit_entry = AuthAudit(
+        audit_entry = AuthAudit(  # type: ignore[call-arg]
             user_id=user_id,
             event_type=event_type,
             ip_address=ip_address,
@@ -387,7 +391,7 @@ class IdentityService:
         name: str,
         owner_id: Optional[str] = None,
         plugin_id: Optional[str] = None,
-        scopes: List[str] = None,
+        scopes: List[str] | None = None,
     ) -> str:
         """Create an API key for service-to-service authentication."""
         import secrets
@@ -397,7 +401,7 @@ class IdentityService:
         key = secrets.token_urlsafe(32)
         key_hash = hashlib.sha256(key.encode()).hexdigest()
 
-        api_key = APIKey(
+        api_key = APIKey(  # type: ignore[call-arg]
             key_hash=key_hash,
             name=name,
             owner_id=owner_id,

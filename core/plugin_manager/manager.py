@@ -106,6 +106,7 @@ class EnhancedPluginManager:
 
             # Create plugin info
             plugin_info = PluginInfo(
+                id=manifest.id,
                 manifest=manifest,
                 status=PluginStatus.REGISTERED,
                 health=initial_health,

@@ -48,8 +48,8 @@ class MessagingService:
         event_type: str,
         payload: Dict[str, Any],
         source_plugin: str,
-        data_traits: List[str] = None,
-        metadata: Dict[str, str] = None,
+        data_traits: List[str] | None = None,
+        metadata: Dict[str, str] | None = None,
     ) -> str:
         """Publish an event to the event bus."""
         event = Event(

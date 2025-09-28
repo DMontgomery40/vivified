@@ -43,6 +43,7 @@ class PluginManifest(BaseModel):
     endpoints: Dict[str, str] = Field(default_factory=dict)
     security: Dict[str, Any] = Field(default_factory=dict)
     compliance: Dict[str, Any] = Field(default_factory=dict)
+    health_check: Optional[str] = None
 
     class Config:
         use_enum_values = True
@@ -54,12 +55,13 @@ class PluginInfo(BaseModel):
     id: str
     manifest: PluginManifest
     status: PluginStatus
-    health: HealthStatus
+    health: "PluginHealth"
     registered_at: datetime
     last_heartbeat: Optional[datetime] = None
     last_error: Optional[str] = None
     consecutive_failures: int = 0
     metadata: Dict[str, Any] = Field(default_factory=dict)
+    token: Optional[str] = None
 
     class Config:
         use_enum_values = True
@@ -73,6 +75,9 @@ class PluginHealth(BaseModel):
     consecutive_failures: int = 0
     response_time_ms: Optional[int] = None
     error_message: Optional[str] = None
+    uptime_seconds: Optional[int] = None
+    memory_usage_mb: Optional[float] = None
+    cpu_usage_percent: Optional[float] = None
     metrics: Dict[str, Any] = Field(default_factory=dict)
 
     class Config:

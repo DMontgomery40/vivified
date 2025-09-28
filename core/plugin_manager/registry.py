@@ -5,7 +5,10 @@ import logging
 from fastapi import HTTPException
 
 try:
-    import jwt  # type: ignore
+    import jwt as _pyjwt  # type: ignore
+    from typing import Any as _Any  # local alias
+
+    jwt: _Any = _pyjwt  # type: ignore[assignment]
 except Exception:  # pragma: no cover - lightweight fallback for test envs
     import base64
     import json
@@ -16,7 +19,7 @@ except Exception:  # pragma: no cover - lightweight fallback for test envs
             # NOT SECURE: Only for local tests when PyJWT is unavailable
             return base64.urlsafe_b64encode(json.dumps(payload).encode()).decode()
 
-    jwt = _FallbackJWT()
+    jwt = _FallbackJWT()  # type: ignore[assignment]
 
 logger = logging.getLogger(__name__)
 

@@ -136,7 +136,7 @@ class ProxyHandler:
         # Check if path is allowed
         allowed_paths = allowlist_entry.get("allowed_paths", [])
         if allowed_paths and not any(
-            request.url.path.startswith(path) for path in allowed_paths
+            httpx.URL(str(request.url)).path.startswith(path) for path in allowed_paths
         ):
             return False
 

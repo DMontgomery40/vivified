@@ -64,7 +64,8 @@ def run_migrations_online() -> None:
 
     """
     # Use sync engine for migrations
-    sync_url = config.get_main_option("sqlalchemy.url").replace("+aiosqlite", "")
+    _url_opt = config.get_main_option("sqlalchemy.url") or ""
+    sync_url = _url_opt.replace("+aiosqlite", "")
     connectable = engine_from_config(
         {"sqlalchemy.url": sync_url},
         prefix="sqlalchemy.",

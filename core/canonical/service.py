@@ -8,7 +8,7 @@ from typing import Dict, Any, Optional, List
 from .models import CanonicalUser, CanonicalMessage, CanonicalEvent
 from .transformer import DataTransformer
 from ..audit.service import AuditService, AuditLevel
-from ..policy.engine import PolicyEngine, PolicyRequest, PolicyDecision
+from ..policy.engine import PolicyEngine, PolicyRequest, PolicyDecision, PolicyContext
 
 logger = logging.getLogger(__name__)
 
@@ -224,7 +224,7 @@ class CanonicalService:
         return self.canonical_store.get(key)
 
     async def list_canonical_data(
-        self, data_type: str = None, limit: int = 100, offset: int = 0
+        self, data_type: str | None = None, limit: int = 100, offset: int = 0
     ) -> List[Any]:
         """List canonical data with optional filtering."""
         items = list(self.canonical_store.values())
@@ -244,10 +244,15 @@ class CanonicalService:
         """Check if plugin can transform data."""
         # Create policy request
         request = PolicyRequest(
+            user_id=None,
+            resource_type="canonical",
+            resource_id=f"{source_plugin}->{target_plugin}",
+            action="transform_data",
+            traits=[],
+            context={"data_type": data_type},
+            policy_context=PolicyContext.PLUGIN_INTERACTION,
             source_plugin=source_plugin,
             target_plugin=target_plugin,
-            action="transform_data",
-            context={"data_type": data_type},
         )
 
         result = await self.policy_engine.evaluate_request(request)
@@ -259,7 +264,7 @@ class CanonicalService:
         transformation_history = self.transformer.get_transformation_history()
 
         # Count by data type
-        data_types = {}
+        data_types: Dict[str, int] = {}
         for key in self.canonical_store.keys():
             data_type = key.split(":")[0]
             data_types[data_type] = data_types.get(data_type, 0) + 1

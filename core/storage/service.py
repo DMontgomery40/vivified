@@ -219,7 +219,11 @@ class StorageService:
         if not await self._check_access_policy(user_id, metadata, "store"):
             await self.audit_service.log_event(
                 event_type="storage_access_denied",
-                user_id=user_id,
+                category="storage",
+                action="store",
+                result="denied",
+                description="Access denied by policy engine",
+                user_id=str(user_id),
                 level=AuditLevel.DETAILED,
                 details={
                     "action": "store",
@@ -254,9 +258,16 @@ class StorageService:
         )
         await self.audit_service.log_event(
             event_type="object_stored",
-            user_id=user_id,
+            category="storage",
+            action="store",
+            result="success",
+            description=f"Stored object {stored_metadata.object_key}",
+            user_id=str(user_id),
             level=audit_level,
-            phi_involved=stored_metadata.is_phi,
+            phi_involved=(
+                stored_metadata.data_classification.value
+                == DataClassification.PHI.value
+            ),
             details={
                 "object_key": stored_metadata.object_key,
                 "data_classification": stored_metadata.data_classification.value,
@@ -296,9 +307,15 @@ class StorageService:
         if not await self._check_access_policy(user_id, metadata, "retrieve"):
             await self.audit_service.log_event(
                 event_type="storage_access_denied",
-                user_id=user_id,
+                category="storage",
+                action="retrieve",
+                result="denied",
+                description="Access denied by policy engine",
+                user_id=str(user_id),
                 level=AuditLevel.DETAILED,
-                phi_involved=metadata.is_phi,
+                phi_involved=(
+                    metadata.data_classification.value == DataClassification.PHI.value
+                ),
                 details={
                     "action": "retrieve",
                     "object_key": object_key,
@@ -351,9 +368,15 @@ class StorageService:
         )
         await self.audit_service.log_event(
             event_type="object_retrieved",
-            user_id=user_id,
+            category="storage",
+            action="retrieve",
+            result="success",
+            description=f"Retrieved object {object_key}",
+            user_id=str(user_id),
             level=audit_level,
-            phi_involved=metadata.is_phi,
+            phi_involved=(
+                metadata.data_classification.value == DataClassification.PHI.value
+            ),
             details={
                 "object_key": object_key,
                 "data_classification": metadata.data_classification.value,
@@ -388,9 +411,15 @@ class StorageService:
         if not await self._check_access_policy(user_id, metadata, "delete"):
             await self.audit_service.log_event(
                 event_type="storage_access_denied",
-                user_id=user_id,
+                category="storage",
+                action="delete",
+                result="denied",
+                description="Access denied by policy engine",
+                user_id=str(user_id),
                 level=AuditLevel.DETAILED,
-                phi_involved=metadata.is_phi,
+                phi_involved=(
+                    metadata.data_classification.value == DataClassification.PHI.value
+                ),
                 details={
                     "action": "delete",
                     "object_key": object_key,
@@ -413,9 +442,15 @@ class StorageService:
             )
             await self.audit_service.log_event(
                 event_type="object_deleted",
-                user_id=user_id,
+                category="storage",
+                action="delete",
+                result="success",
+                description=f"Deleted object {object_key}",
+                user_id=str(user_id),
                 level=audit_level,
-                phi_involved=metadata.is_phi,
+                phi_involved=(
+                    metadata.data_classification.value == DataClassification.PHI.value
+                ),
                 details={
                     "object_key": object_key,
                     "data_classification": metadata.data_classification.value,
@@ -455,7 +490,11 @@ class StorageService:
         # Audit log (minimal for list operations)
         await self.audit_service.log_event(
             event_type="objects_listed",
-            user_id=user_id,
+            category="storage",
+            action="list",
+            result="success",
+            description="Listed objects",
+            user_id=str(user_id),
             level=AuditLevel.MINIMAL,
             details={
                 "query_filters": query.dict(exclude_none=True),
@@ -520,9 +559,16 @@ class StorageService:
                         # Audit log
                         await self.audit_service.log_event(
                             event_type="object_expired_cleanup",
+                            category="storage",
+                            action="cleanup_expired",
+                            result="success",
+                            description="Deleted expired object",
                             user_id=None,  # System operation
                             level=AuditLevel.STANDARD,
-                            phi_involved=metadata.is_phi,
+                            phi_involved=(
+                                metadata.data_classification.value
+                                == DataClassification.PHI.value
+                            ),
                             details={
                                 "object_key": metadata.object_key,
                                 "data_classification": metadata.data_classification.value,

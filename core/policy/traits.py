@@ -515,7 +515,7 @@ class TraitValidator:
         self.registry = registry
 
     def validate_user_traits(
-        self, traits: List[str], user_context: Dict[str, Any] = None
+        self, traits: List[str], user_context: Optional[Dict[str, Any]] = None
     ) -> Tuple[bool, List[str]]:
         """Validate traits for a user context."""
         errors = []
@@ -528,14 +528,13 @@ class TraitValidator:
             return False, errors
 
         # Context-specific validation
-        if user_context:
+        if user_context is not None:
             # Check for sensitive traits
-            sensitive_traits = [
-                t
-                for t in traits
-                if self.registry.get_trait(t)
-                and self.registry.get_trait(t).is_sensitive
-            ]
+            sensitive_traits = []
+            for t in traits:
+                trait = self.registry.get_trait(t)
+                if trait and trait.is_sensitive:
+                    sensitive_traits.append(t)
             if sensitive_traits and not user_context.get("admin_approved", False):
                 errors.append(
                     f"Sensitive traits require admin approval: {sensitive_traits}"
@@ -544,7 +543,7 @@ class TraitValidator:
         return len(errors) == 0, errors
 
     def validate_plugin_traits(
-        self, traits: List[str], plugin_context: Dict[str, Any] = None
+        self, traits: List[str], plugin_context: Optional[Dict[str, Any]] = None
     ) -> Tuple[bool, List[str]]:
         """Validate traits for a plugin context."""
         errors = []
@@ -557,16 +556,15 @@ class TraitValidator:
             return False, errors
 
         # Plugin-specific validation
-        if plugin_context:
+        if plugin_context is not None:
             plugin_type = plugin_context.get("type")
             if plugin_type:
                 # Check if plugin has appropriate type trait
-                type_traits = [
-                    t
-                    for t in traits
-                    if self.registry.get_trait(t)
-                    and self.registry.get_trait(t).category == TraitCategory.PLUGIN_TYPE
-                ]
+                type_traits: List[str] = []
+                for t in traits:
+                    trait = self.registry.get_trait(t)
+                    if trait and trait.category == TraitCategory.PLUGIN_TYPE:
+                        type_traits.append(t)
                 if not type_traits:
                     errors.append(
                         "Plugin must have a type trait (communication_plugin, storage_plugin, etc.)"
