@@ -21,6 +21,14 @@ Notes
 - UI is bundled into the Core image during build (multi-stage Node→Vite→static copy). No separate UI container is required.
 - CORS: Not needed for the default path because UI is same-origin under `/admin/ui`.
 
+### Docker Vite (hot reload)
+- Start only Core and the UI dev server:
+  - `docker compose up -d vivified-core admin-ui-dev`
+- Open http://localhost:5173 (Vite dev server)
+- The dev server proxies directly to Core via absolute base `VITE_CORE_URL=http://localhost:8000`.
+- Watch logs (first run installs deps):
+  - `docker logs -f vivified-admin-ui-dev-1`
+
 ## Dev Mode (hot reload / Vite)
 
 Prereqs

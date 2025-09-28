@@ -6,4 +6,3 @@ class AuditCategory(str, Enum):
     SECURITY = "security"
     COMPLIANCE = "compliance"
     USER_ACTION = "user_action"
-

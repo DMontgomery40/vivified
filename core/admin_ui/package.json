@@ -33,6 +33,10 @@
     "vite": "^5.0.8",
     "vitest": "^1.0.4"
   },
+  "engines": {
+    "node": ">=20.19.0 <21",
+    "npm": ">=9"
+  },
   "msw": {
     "workerDirectory": [
       "public"

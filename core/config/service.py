@@ -33,7 +33,11 @@ class ConfigItem:
 
 
 class ConfigService:
-    def __init__(self, db_session: Optional[AsyncSession] = None, encryption_key: Optional[str] = None):
+    def __init__(
+        self,
+        db_session: Optional[AsyncSession] = None,
+        encryption_key: Optional[str] = None,
+    ):
         self.db = db_session
         self._store: Dict[str, ConfigItem] = {}  # Fallback in-memory store
         self._cipher: Optional[Fernet] = (
@@ -69,32 +73,38 @@ class ConfigService:
             return {"error": "decryption_failed"}
 
     async def set(
-        self, 
-        key: str, 
-        value: Any, 
-        *, 
-        is_sensitive: bool, 
-        updated_by: Optional[str], 
+        self,
+        key: str,
+        value: Any,
+        *,
+        is_sensitive: bool,
+        updated_by: Optional[str],
         reason: Optional[str],
         plugin_id: Optional[str] = None,
-        environment: str = "default"
+        environment: str = "default",
     ) -> None:
         """Set configuration value with database persistence and audit trail."""
         if self.db:
-            await self._set_db(key, value, is_sensitive, updated_by, reason, plugin_id, environment)
+            await self._set_db(
+                key, value, is_sensitive, updated_by, reason, plugin_id, environment
+            )
         else:
             # Fallback to in-memory storage
             protected = self._protect(value, is_sensitive)
             self._store[key] = ConfigItem(
-                key=key, value=protected, is_sensitive=is_sensitive, updated_by=updated_by, reason=reason
+                key=key,
+                value=protected,
+                is_sensitive=is_sensitive,
+                updated_by=updated_by,
+                reason=reason,
             )
 
     async def get(
-        self, 
-        key: str, 
+        self,
+        key: str,
         reveal: bool = True,
         plugin_id: Optional[str] = None,
-        environment: str = "default"
+        environment: str = "default",
     ) -> Optional[Any]:
         """Get configuration value with hierarchical override."""
         if self.db:
@@ -104,9 +114,13 @@ class ConfigService:
             item = self._store.get(key)
             if not item:
                 return None
-            return self._unprotect(item.value, item.is_sensitive) if reveal else item.value
+            return (
+                self._unprotect(item.value, item.is_sensitive) if reveal else item.value
+            )
 
-    async def get_all(self, reveal: bool = True, plugin_id: Optional[str] = None) -> Dict[str, Any]:
+    async def get_all(
+        self, reveal: bool = True, plugin_id: Optional[str] = None
+    ) -> Dict[str, Any]:
         """Get all configuration values."""
         if self.db:
             return await self._get_all_db(reveal, plugin_id)
@@ -114,7 +128,11 @@ class ConfigService:
             # Fallback to in-memory storage
             result: Dict[str, Any] = {}
             for k, item in self._store.items():
-                result[k] = self._unprotect(item.value, item.is_sensitive) if reveal else item.value
+                result[k] = (
+                    self._unprotect(item.value, item.is_sensitive)
+                    if reveal
+                    else item.value
+                )
             return result
 
     async def _set_db(
@@ -125,7 +143,7 @@ class ConfigService:
         updated_by: Optional[str],
         reason: Optional[str],
         plugin_id: Optional[str],
-        environment: str
+        environment: str,
     ) -> None:
         """Set configuration value in database with audit trail."""
         # Get current value for history
@@ -133,16 +151,16 @@ class ConfigService:
             select(Configuration).where(
                 Configuration.key == key,
                 Configuration.plugin_id == plugin_id,
-                Configuration.environment == environment
+                Configuration.environment == environment,
             )
         )
-        
+
         # Encrypt sensitive values
         encrypted = False
         if is_sensitive and self._cipher:
             value = self._encrypt_value(value)
             encrypted = True
-        
+
         if current:
             # Update existing
             await self.db.execute(
@@ -154,17 +172,17 @@ class ConfigService:
                     is_sensitive=is_sensitive,
                     updated_at=datetime.utcnow(),
                     updated_by=updated_by,
-                    version=Configuration.version + 1
+                    version=Configuration.version + 1,
                 )
             )
-            
+
             # Add to history
             history_entry = ConfigHistory(
                 config_id=current.id,
                 old_value=current.value,
                 new_value=value,
                 changed_by=updated_by,
-                change_reason=reason
+                change_reason=reason,
             )
             self.db.add(history_entry)
         else:
@@ -176,36 +194,35 @@ class ConfigService:
                 environment=environment,
                 is_encrypted=encrypted,
                 is_sensitive=is_sensitive,
-                updated_by=updated_by
+                updated_by=updated_by,
             )
             self.db.add(config_entry)
             await self.db.flush()
-            
+
             # Add to history
             history_entry = ConfigHistory(
                 config_id=config_entry.id,
                 old_value=None,
                 new_value=value,
                 changed_by=updated_by,
-                change_reason=reason or "initial_configuration"
+                change_reason=reason or "initial_configuration",
             )
             self.db.add(history_entry)
-        
+
         await self.db.commit()
-        
-        logger.info(f"Configuration updated: {key}", extra={
-            "trace_id": updated_by,
-            "plugin_id": plugin_id,
-            "key": key,
-            "sensitive": is_sensitive
-        })
+
+        logger.info(
+            f"Configuration updated: {key}",
+            extra={
+                "trace_id": updated_by,
+                "plugin_id": plugin_id,
+                "key": key,
+                "sensitive": is_sensitive,
+            },
+        )
 
     async def _get_db(
-        self,
-        key: str,
-        reveal: bool,
-        plugin_id: Optional[str],
-        environment: str
+        self, key: str, reveal: bool, plugin_id: Optional[str], environment: str
     ) -> Optional[Any]:
         """Get configuration value from database with hierarchical override."""
         # Check database
@@ -213,42 +230,44 @@ class ConfigService:
             select(Configuration).where(
                 Configuration.key == key,
                 Configuration.plugin_id == plugin_id,
-                Configuration.environment == environment
+                Configuration.environment == environment,
             )
         )
-        
+
         if result:
             value = result.value
             if result.is_encrypted and reveal and self._cipher:
                 value = self._decrypt_value(value)
             return value
-        
+
         # Check environment variable override
         env_key = f"{plugin_id or 'CORE'}_{key}".upper().replace(".", "_")
         if env_value := os.getenv(env_key):
             return env_value
-        
+
         # Fall back to defaults
         if plugin_id:
             return self.defaults.get("plugins", {}).get(plugin_id, {}).get(key)
         return self._get_nested_default(key)
 
-    async def _get_all_db(self, reveal: bool, plugin_id: Optional[str]) -> Dict[str, Any]:
+    async def _get_all_db(
+        self, reveal: bool, plugin_id: Optional[str]
+    ) -> Dict[str, Any]:
         """Get all configuration values from database."""
         query = select(Configuration)
         if plugin_id:
             query = query.where(Configuration.plugin_id == plugin_id)
-        
+
         result = await self.db.execute(query)
         configs = result.scalars().all()
-        
+
         items = {}
         for config in configs:
             value = config.value
             if config.is_encrypted and reveal and self._cipher:
                 value = self._decrypt_value(value)
             items[config.key] = value
-        
+
         return items
 
     def _get_nested_default(self, key: str) -> Any:
@@ -272,4 +291,3 @@ def get_config_service() -> ConfigService:
         enc = os.getenv("CONFIG_ENC_KEY")
         _CONFIG_SERVICE = ConfigService(encryption_key=enc)
     return _CONFIG_SERVICE
-

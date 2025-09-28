@@ -1,5 +1,3 @@
-version: '3.8'
-
 networks:
   vivified-net:
     driver: bridge
@@ -49,8 +47,10 @@ services:
       ADMIN_USERNAME: admin
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin-pass-change-me}
       LOG_LEVEL: INFO
+      USE_TLS: "true"
     ports:
       - "8000:8000"
+      - "8443:8443"
     depends_on:
       postgres:
         condition: service_healthy
@@ -58,11 +58,52 @@ services:
         condition: service_healthy
     networks:
       - vivified-net
+    volumes:
+      - ./tls:/certs:ro
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: ["CMD", "curl", "-fk", "https://localhost:8443/health"]
       interval: 30s
       timeout: 10s
       retries: 3
+
+  admin-ui-dev:
+    image: node:20.19.5
+    # Dev-only: run as root for reliable volume writes
+    working_dir: /workspace
+    environment:
+      VITE_CORE_URL: http://localhost:8000
+      NODE_ENV: development
+      CHOKIDAR_USEPOLLING: "true"
+      WATCHPACK_POLLING: "true"
+    command: >-
+      bash -lc "set -e;
+      npm ci --no-audit --progress=false;
+      (for i in $(seq 1 120); do
+        if (echo > /dev/tcp/127.0.0.1/5173) >/dev/null 2>&1; then
+          echo 'admin-ui-dev: Vite ready at http://localhost:5173';
+          break;
+        else
+          echo 'admin-ui-dev: waiting for Vite...';
+          sleep 1;
+        fi;
+      done) &
+      exec npm run dev -- --host 0.0.0.0 --port 5173"
+    volumes:
+      - ./core/admin_ui:/workspace
+      - admin_ui_node_modules:/workspace/node_modules
+    ports:
+      - "5173:5173"
+    depends_on:
+      vivified-core:
+        condition: service_started
+    networks:
+      - vivified-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "bash -lc 'echo > /dev/tcp/127.0.0.1/5173'"]
+      interval: 10s
+      timeout: 2s
+      retries: 5
 
   user-management-plugin:
     build: ./plugins/user_management
@@ -78,3 +119,4 @@ services:
 
 volumes:
   postgres_data:
+  admin_ui_node_modules:

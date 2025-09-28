@@ -41,7 +41,9 @@ class AuthManager:
 
     def __init__(self, jwt_secret: str):
         if not jwt_secret or jwt_secret == "change-this-secret":
-            logger.warning("Using default/weak JWT secret. Set JWT_SECRET in production.")
+            logger.warning(
+                "Using default/weak JWT secret. Set JWT_SECRET in production."
+            )
         self.jwt_secret = jwt_secret
 
     def generate_user_token(
@@ -104,23 +106,43 @@ async def get_current_user(
     if DEV_MODE:
         bootstrap = "bootstrap_admin_only"
         if (x_api_key and x_api_key == bootstrap) or (
-            authorization and authorization.lower().startswith("bearer ") and authorization.split(" ", 1)[1] == bootstrap
+            authorization
+            and authorization.lower().startswith("bearer ")
+            and authorization.split(" ", 1)[1] == bootstrap
         ):
-            traits = ["admin", "config_manager", "plugin_manager", "audit_viewer", "viewer"]
-            return {"id": "dev-admin", "traits": traits, "claims": {"sub": "dev-admin", "type": "user", "traits": traits}}
+            traits = [
+                "admin",
+                "config_manager",
+                "plugin_manager",
+                "audit_viewer",
+                "viewer",
+            ]
+            return {
+                "id": "dev-admin",
+                "traits": traits,
+                "claims": {"sub": "dev-admin", "type": "user", "traits": traits},
+            }
 
     if not authorization or not authorization.lower().startswith("bearer "):
-        raise HTTPException(status_code=401, detail="Missing or invalid Authorization header")
+        raise HTTPException(
+            status_code=401, detail="Missing or invalid Authorization header"
+        )
 
     token = authorization.split(" ", 1)[1]
     claims = get_auth_manager().verify_token(token)
     if not claims or claims.get("type") != "user":
         raise HTTPException(status_code=401, detail="Invalid token")
 
-    return {"id": str(claims.get("sub")), "traits": claims.get("traits", []), "claims": claims}
+    return {
+        "id": str(claims.get("sub")),
+        "traits": claims.get("traits", []),
+        "claims": claims,
+    }
 
 
-def require_auth(required_traits: Optional[List[str]] = None) -> Callable[[Dict[str, Any]], Awaitable[None]]:
+def require_auth(
+    required_traits: Optional[List[str]] = None,
+) -> Callable[[Dict[str, Any]], Awaitable[None]]:
     """Returns a dependency that enforces presence of required traits.
 
     Usage in FastAPI routes:
@@ -135,7 +157,9 @@ def require_auth(required_traits: Optional[List[str]] = None) -> Callable[[Dict[
         if "admin" in utraits:
             return
         if not any(trait in utraits for trait in required_traits):
-            raise HTTPException(status_code=403, detail="Forbidden: insufficient traits")
+            raise HTTPException(
+                status_code=403, detail="Forbidden: insufficient traits"
+            )
 
     return _dep
 
@@ -179,4 +203,6 @@ def dev_issue_admin_token() -> str:
     if not DEV_MODE:
         raise PermissionError("Dev login disabled")
     traits = ["admin", "config_manager", "plugin_manager", "audit_viewer", "viewer"]
-    return get_auth_manager().generate_user_token("dev-admin", traits, expires_minutes=30)
+    return get_auth_manager().generate_user_token(
+        "dev-admin", traits, expires_minutes=30
+    )

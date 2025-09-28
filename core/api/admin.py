@@ -31,7 +31,9 @@ def configure_admin_api(*, config_service, registry) -> None:
 
 
 @admin_router.get("/config")
-async def get_effective_config(_: Dict = Depends(require_auth(["admin", "config_manager"]))):
+async def get_effective_config(
+    _: Dict = Depends(require_auth(["admin", "config_manager"]))
+):
     if _CONFIG_SVC is None:
         raise HTTPException(status_code=500, detail="Config service not available")
     return await _CONFIG_SVC.get_all(reveal=True)
@@ -70,7 +72,9 @@ async def list_plugins(_: Dict = Depends(require_auth(["admin", "plugin_manager"
 
 @admin_router.post("/plugins/{plugin_id}/enable")
 @audit_log("plugin_enabled")
-async def enable_plugin(plugin_id: str, _: Dict = Depends(require_auth(["admin", "plugin_manager"]))):
+async def enable_plugin(
+    plugin_id: str, _: Dict = Depends(require_auth(["admin", "plugin_manager"]))
+):
     if _REGISTRY is None:
         raise HTTPException(status_code=500, detail="Plugin registry not available")
     plugin = _REGISTRY.plugins.get(plugin_id)
@@ -85,7 +89,7 @@ async def enable_plugin(plugin_id: str, _: Dict = Depends(require_auth(["admin",
 async def disable_plugin(
     plugin_id: str,
     reason: Optional[str] = None,
-    _: Dict = Depends(require_auth(["admin", "plugin_manager"]))
+    _: Dict = Depends(require_auth(["admin", "plugin_manager"])),
 ):
     if _REGISTRY is None:
         raise HTTPException(status_code=500, detail="Plugin registry not available")
@@ -100,8 +104,7 @@ async def disable_plugin(
 
 @admin_router.get("/users")
 async def list_users(
-    _: Dict = Depends(require_auth(["admin"])),
-    session=Depends(get_session)
+    _: Dict = Depends(require_auth(["admin"])), session=Depends(get_session)
 ):
     ids = IdentityService(session, get_auth_manager())
     return await ids.list_users(page=1, page_size=100)
@@ -112,9 +115,10 @@ async def list_users(
 async def create_user(
     payload: UserCreateRequest,
     _: Dict = Depends(require_auth(["admin"])),
-    session=Depends(get_session)
+    session=Depends(get_session),
 ):
-    # Basic role mapping: if admin trait present, assign admin; if config/plugin manager present, assign operator; else viewer
+    # Basic role mapping: if admin trait present, assign admin; if config/plugin
+    # manager present, assign operator; else viewer
     tset = set(payload.traits or [])
     roles: list[str] = []
     if "admin" in tset:
@@ -125,7 +129,9 @@ async def create_user(
         roles.append("viewer")
 
     ids = IdentityService(session, get_auth_manager())
-    ok, user_id = await ids.create_user(payload.username, payload.email, payload.password, roles)
+    ok, user_id = await ids.create_user(
+        payload.username, payload.email, payload.password, roles
+    )
     if not ok:
         raise HTTPException(status_code=400, detail=str(user_id))
     return {"id": user_id, "roles": roles}
@@ -154,32 +160,27 @@ async def list_audit(
 async def get_user_traits(user: Dict = Depends(get_current_user)):
     """Get user traits with enhanced trait mapping."""
     from core.policy.engine_enhanced import enhanced_policy_engine
-    
+
     user_traits = user.get("traits", [])
-    
+
     # Use enhanced policy engine to get UI traits
     ui_traits = enhanced_policy_engine.get_user_ui_traits(user_traits)
-    
+
     # DEV-only traits to enable broader UI exploration without hitting unimplemented endpoints
     DEV_MODE = os.getenv("DEV_MODE", "false").lower() in {"1", "true", "yes"}
     if DEV_MODE:
         # Add development-only traits (but not risky ones by default)
-        dev_traits = [
-            "ui.monitoring",
-            "ui.plugins",
-            "ui.config",
-            "ui.audit"
-        ]
+        dev_traits = ["ui.monitoring", "ui.plugins", "ui.config", "ui.audit"]
         ui_traits.extend(dev_traits)
-    
+
     # De-duplicate and sort
     ui_traits = sorted(list(set(ui_traits)))
-    
+
     return {
-        "schema_version": 1, 
-        "user": {"id": user.get("id")}, 
+        "schema_version": 1,
+        "user": {"id": user.get("id")},
         "traits": ui_traits,
-        "backend_traits": user_traits
+        "backend_traits": user_traits,
     }
 
 
@@ -215,7 +216,9 @@ async def get_ui_config(
             csrf = await _CONFIG_SVC.get("ui.csrf.enabled")
             if isinstance(csrf, bool):
                 csrf_enabled = csrf
-            db = await _CONFIG_SVC.get("branding.docs_base") or await _CONFIG_SVC.get("ui.docs.base")
+            db = await _CONFIG_SVC.get("branding.docs_base") or await _CONFIG_SVC.get(
+                "ui.docs.base"
+            )
             if isinstance(db, str) and db:
                 docs_base = db
     except Exception:
@@ -287,17 +290,26 @@ async def patch_user(
 
 
 @admin_router.get("/roles")
-async def list_roles(_: Dict = Depends(require_auth(["admin"])) , session=Depends(get_session)):
+async def list_roles(
+    _: Dict = Depends(require_auth(["admin"])), session=Depends(get_session)
+):
     ids = IdentityService(session, get_auth_manager())
     return {"roles": await ids.list_roles()}
 
 
 @admin_router.put("/users/{user_id}/roles")
 @audit_log("user_roles_updated")
-async def set_user_roles(user_id: str, payload: Dict[str, Any], _: Dict = Depends(require_auth(["admin"])), session=Depends(get_session)):
+async def set_user_roles(
+    user_id: str,
+    payload: Dict[str, Any],
+    _: Dict = Depends(require_auth(["admin"])),
+    session=Depends(get_session),
+):
     roles = payload.get("roles")
     if not isinstance(roles, list):
-        raise HTTPException(status_code=400, detail="roles must be a list of role names")
+        raise HTTPException(
+            status_code=400, detail="roles must be a list of role names"
+        )
     ids = IdentityService(session, get_auth_manager())
     ok = await ids.set_user_roles(user_id, [str(r) for r in roles])
     if not ok:

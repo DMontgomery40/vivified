@@ -113,9 +113,9 @@ class StorageMetadata(BaseModel):
     def is_sensitive(self) -> bool:
         """Check if the data is sensitive based on classification."""
         return self.data_classification in [
-            DataClassification.PHI, 
-            DataClassification.PII, 
-            DataClassification.CONFIDENTIAL
+            DataClassification.PHI,
+            DataClassification.PII,
+            DataClassification.CONFIDENTIAL,
         ]
 
     class Config:

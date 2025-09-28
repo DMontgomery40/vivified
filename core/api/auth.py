@@ -29,4 +29,3 @@ async def login(payload: LoginRequest, session=Depends(get_session)):
 @auth_router.get("/me")
 async def me(user: Dict = Depends(get_current_user)):
     return {"id": user.get("id"), "traits": user.get("traits", [])}
-
