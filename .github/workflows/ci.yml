@@ -24,7 +24,7 @@ jobs:
           python-version: '3.11'
       - name: Python lint
         run: |
-          pip install black flake8 mypy
+          pip install black flake8 mypy sqlalchemy
           black --check core/
           flake8 core/
           mypy --config-file mypy.ini core/
@@ -101,9 +101,5 @@ jobs:
         if: always()
         run: |
           docker rm -f vivified-core-ci || true
-      - name: Install deps
-        run: npm ci || npm i
-      - name: Build Admin UI
-        env:
-          VITE_CORE_URL: http://localhost:8000
-        run: npm run build
+      # The Admin UI build is validated in the admin-ui-build job above.
+      # No additional npm steps are needed here.
