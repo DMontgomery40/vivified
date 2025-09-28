@@ -52,7 +52,7 @@ class AuditService:
     async def log_event(
         self,
         event_type: str,
-        category: AuditCategory,
+        category: Any,
         action: str,
         result: str,
         description: str,
@@ -65,9 +65,15 @@ class AuditService:
         details: Optional[Dict[str, Any]] = None,
     ) -> None:
         # IMPORTANT: Do not log PHI/PII content; only meta-information
+        # Normalize category to string without assuming Enum
+        try:
+            category_str = category.value if isinstance(category, AuditCategory) else str(category)
+        except Exception:  # noqa: BLE001
+            category_str = "unknown"
+
         payload = {
             "type": event_type,
-            "category": category.value,
+            "category": category_str,
             "action": action,
             "result": result,
             "level": level.value,

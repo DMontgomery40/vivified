@@ -288,6 +288,14 @@ volumes:
   "name": "vivified-admin",
   "version": "1.0.0",
   "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "lint": "eslint src/",
+    "security-scan": "npm audit --audit-level=moderate"
+  },
   "dependencies": {
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
@@ -302,25 +310,14 @@ volumes:
     "@reduxjs/toolkit": "^1.9.0",
     "react-redux": "^8.0.0"
   },
-  "scripts": {
-    "start": "react-scripts start",
-    "build": "GENERATE_SOURCEMAP=false react-scripts build",
-    "test": "react-scripts test",
-    "eject": "react-scripts eject",
-    "lint": "eslint src/",
-    "security-scan": "npm audit --audit-level=moderate"
-  },
   "devDependencies": {
     "@types/react": "^18.0.0",
     "@types/react-dom": "^18.0.0",
-    "typescript": "^4.9.0",
-    "react-scripts": "5.0.1",
+    "typescript": "^5.0.0",
+    "vite": "^5.0.0",
+    "@vitejs/plugin-react": "^4.0.0",
     "eslint": "^8.0.0",
     "prettier": "^2.8.0"
-  },
-  "browserslist": {
-    "production": [">0.2%", "not dead", "not op_mini all"],
-    "development": ["last 1 chrome version"]
   }
 }
 ```
@@ -995,29 +992,14 @@ class ComplianceAuditService:
 
 #### 5.1 Kubernetes Security Manifests
 ```yaml
-# k8s/security/pod-security-policy.yaml
-apiVersion: policy/v1beta1
-kind: PodSecurityPolicy
+# Pod Security Admission labels — enforce restricted profile on namespace
+apiVersion: v1
+kind: Namespace
 metadata:
-  name: vivified-restricted
-spec:
-  privileged: false
-  allowPrivilegeEscalation: false
-  requiredDropCapabilities:
-    - ALL
-  volumes:
-    - 'configMap'
-    - 'emptyDir'
-    - 'projected'
-    - 'secret'
-    - 'persistentVolumeClaim'
-  runAsUser:
-    rule: 'MustRunAsNonRoot'
-  seLinux:
-    rule: 'RunAsAny'
-  fsGroup:
-    rule: 'RunAsAny'
-  readOnlyRootFilesystem: true
+  name: vivified
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest
 
 ---
 # k8s/security/network-policy.yaml

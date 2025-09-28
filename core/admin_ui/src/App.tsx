@@ -372,7 +372,7 @@ function AppContent() {
                 >
                   <img
                     src={muiTheme.palette.mode === 'dark' ? '/admin/ui/faxbot_mini_banner_dark.png' : '/admin/ui/faxbot_mini_banner_light.png'}
-                    alt="Faxbot"
+                    alt="Vivified"
                     onError={(e) => {
                       console.error('Logo failed to load:', e);
                       (e.target as HTMLImageElement).style.display = 'none';
@@ -550,7 +550,7 @@ function AppContent() {
           <Box
             component="img"
             src={muiTheme.palette.mode === 'dark' ? '/admin/ui/faxbot_mini_banner_dark.png' : '/admin/ui/faxbot_mini_banner_light.png'}
-            alt="Faxbot"
+            alt="Vivified"
             onClick={() => setTabValue(0)}
             onError={(e) => {
               console.error('Header logo failed to load:', e);

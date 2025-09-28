@@ -419,6 +419,28 @@ class PolicyEngine:
         
         return False, f"unauthorized_{action}"
     
+    def evaluate_data_access(
+        self,
+        consumer_traits: List[str],
+        data_traits: List[str]
+    ) -> Tuple[str, str]:
+        """Evaluate if a consumer with given traits may access data with given traits.
+        Returns (decision, reason) where decision is one of: allow, deny, sanitize.
+        """
+        consumer = set(consumer_traits or [])
+        data = set(data_traits or [])
+        
+        # PHI requires handles_phi
+        if "phi" in data and "handles_phi" not in consumer:
+            return "deny", "unauthorized_phi_access"
+        
+        # PII requires handles_pii
+        if "pii" in data and "handles_pii" not in consumer:
+            return "deny", "unauthorized_pii_access"
+        
+        # Default allow
+        return "allow", "allowed"
+    
     def _rule_applies(
         self,
         rule: PolicyRule,
@@ -577,6 +599,24 @@ class ConfigurationService:
         if plugin_id:
             return self.defaults.get("plugins", {}).get(plugin_id, {}).get(key)
         return self._get_nested_default(key)
+    
+    async def get_all_config(
+        self,
+        plugin_id: Optional[str] = None,
+        environment: str = "default"
+    ) -> Dict[str, Any]:
+        """Get all configuration key-values for a plugin (or core) in an environment."""
+        result: Dict[str, Any] = {}
+        rows = await self.db.fetch(
+            "SELECT key, value, is_encrypted FROM configurations WHERE plugin_id = %s AND environment = %s",
+            (plugin_id, environment)
+        )
+        for row in rows:
+            value = row["value"]
+            if row["is_encrypted"] and self.cipher:
+                value = self._decrypt_value(value)
+            result[row["key"]] = value
+        return result
     
     async def set_config(
         self,
@@ -857,6 +897,25 @@ import logging
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 logger = logging.getLogger(__name__)
+
+def mask_sensitive_config(config):
+    """Mask sensitive values in config response (best-effort example)."""
+    sensitive_keys = {"secret", "password", "token", "key"}
+    def _mask(obj):
+        if isinstance(obj, dict):
+            masked = {}
+            for k, v in obj.items():
+                if any(s in k.lower() for s in sensitive_keys):
+                    masked[k] = "***"
+                else:
+                    masked[k] = _mask(v)
+            return masked
+        if isinstance(obj, list):
+            return [_mask(v) for v in obj]
+        if isinstance(obj, str):
+            return obj if len(obj) <= 4 else f"{obj[:2]}***{obj[-2:]}"
+        return obj
+    return _mask(config)
 
 @router.get("/plugins")
 @require_auth(traits=["admin", "operator"])

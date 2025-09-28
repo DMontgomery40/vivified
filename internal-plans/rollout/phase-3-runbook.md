@@ -372,6 +372,9 @@ class EventBus:
 # core/gateway/rpc_gateway.py
 import httpx
 from typing import Dict, Any, Optional
+import uuid
+import jwt
+from fastapi import HTTPException
 import json
 import asyncio
 from datetime import datetime
@@ -535,6 +538,49 @@ class RPCGateway:
         plugin_port = plugin_info.get("port", 8080)
         
         return f"http://{plugin_host}:{plugin_port}{endpoint_path}"
+
+    async def _authenticate_plugin(self, token: str) -> Optional[Dict]:
+        """Decode plugin token without verifying signature (example) to get plugin_id."""
+        try:
+            payload = jwt.decode(token, options={"verify_signature": False})
+            plugin_id = payload.get("plugin_id") or payload.get("sub")
+            if plugin_id:
+                return {"id": plugin_id, "traits": payload.get("traits", [])}
+        except Exception:
+            return None
+        return None
+    
+    async def _is_plugin_healthy(self, plugin_id: str) -> bool:
+        """Placeholder health check; integrate with manager/registry health."""
+        return True
+    
+    async def _get_inter_plugin_token(self) -> str:
+        """Return a core-signed internal token for inter-plugin calls (placeholder)."""
+        return "core-internal"
+    
+    async def _sanitize_rpc_response(self, response: Dict, target_traits: list, caller_traits: list) -> Dict:
+        """Optionally sanitize RPC response; example returns as-is."""
+        return response
+    
+    async def _audit_rpc_blocked(self, caller: str, target: str, action: str, reason: str):
+        try:
+            await self.audit.log_event(
+                event_type="rpc_blocked",
+                details={"caller": caller, "target": target, "action": action, "reason": reason},
+                trace_id=None,
+            )
+        except Exception:
+            pass
+    
+    async def _audit_rpc_success(self, caller: str, target: str, action: str, latency: float, trace_id: str):
+        try:
+            await self.audit.log_event(
+                event_type="rpc_success",
+                details={"caller": caller, "target": target, "action": action, "latency": latency},
+                trace_id=trace_id,
+            )
+        except Exception:
+            pass
     
     def _is_circuit_open(self, plugin_id: str) -> bool:
         """Check if circuit breaker is open for a plugin."""

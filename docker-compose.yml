@@ -38,10 +38,13 @@ services:
   vivified-core:
     build: ./core
     environment:
-      DATABASE_URL: postgresql://vivified:${DB_PASSWORD:-changeme}@postgres:5432/vivified
+      DATABASE_URL: postgresql+asyncpg://vivified:${DB_PASSWORD:-changeme}@postgres:5432/vivified
       NATS_URL: nats://nats:4222
       JWT_SECRET: ${JWT_SECRET:-change-this-secret}
+      # When UI is served from the same origin (/admin/ui), CORS is not needed.
+      # Keep dev Vite origin allowed if using the dev server.
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:5173}
+      DEV_MODE: "true"
       DB_INIT: "true"
       ADMIN_USERNAME: admin
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin-pass-change-me}

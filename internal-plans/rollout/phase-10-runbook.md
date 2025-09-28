@@ -453,15 +453,24 @@ class AccessControlAuditor:
             "actions": []
         }
         
-        # Check database encryption
-        db_encryption = await self.db.fetchone(
-            "SELECT current_setting('block_encryption_type') as encryption"
+        # In-transit encryption (TLS) check — server-side SSL on
+        ssl_setting = await self.db.fetchone(
+            "SELECT current_setting('ssl') as ssl"
         )
-        
-        if not db_encryption or db_encryption["encryption"] == "none":
+        if not ssl_setting or ssl_setting.get("ssl") != "on":
             finding["compliant"] = False
-            finding["issues"].append("Database encryption not enabled")
-            finding["actions"].append("Enable transparent data encryption (TDE)")
+            finding["issues"].append("Database server SSL not enforced")
+            finding["actions"].append("Require TLS for all DB connections (ssl=on, sslmode=require)")
+        
+        # At-rest encryption guidance — verify pgcrypto availability for column-level encryption
+        pgcrypto = await self.db.fetchone(
+            """
+            SELECT installed_version FROM pg_available_extensions 
+            WHERE name = 'pgcrypto' AND installed_version IS NOT NULL
+            """
+        )
+        if not pgcrypto:
+            finding["issues"].append("pgcrypto not installed — consider column-level encryption for sensitive fields")
         
         # Check for unencrypted PHI in logs
         unencrypted = await self._scan_logs_for_phi()
@@ -470,7 +479,7 @@ class AccessControlAuditor:
             finding["issues"].append(f"Found {len(unencrypted)} instances of unencrypted PHI in logs")
             finding["actions"].append("Review and remediate logging to prevent PHI exposure")
         
-        # Verify encryption key rotation
+        # Verify encryption key rotation (application-managed KMS)
         key_age = await self._check_key_rotation()
         if key_age > 90:  # Days
             finding["compliant"] = False

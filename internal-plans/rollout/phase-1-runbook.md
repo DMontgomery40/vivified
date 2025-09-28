@@ -455,6 +455,20 @@ class PluginRegistry:
             "plugin_id": plugin_id
         }
     
+    def get_plugin(self, plugin_id: str) -> Optional[Dict]:
+        """Retrieve a registered plugin by ID."""
+        return self.plugins.get(plugin_id)
+    
+    def list_plugins(self, status: Optional[str] = None) -> List[Dict]:
+        """List registered plugins, optionally filtered by status."""
+        items = []
+        for pid, info in self.plugins.items():
+            if status and info.get("status") != status:
+                continue
+            item = {"id": pid, **info}
+            items.append(item)
+        return items
+    
     def _validate_manifest(self, manifest: Dict) -> bool:
         """Validate plugin manifest against schema."""
         # Implement JSON schema validation

@@ -1,5 +1,9 @@
 from typing import Dict, Any, Optional
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Header
+from fastapi.responses import JSONResponse
+import hashlib
+import json
+import os
 
 from core.api.models import ConfigSetRequest, UserCreateRequest
 from core.api.dependencies import get_current_user, require_auth
@@ -30,7 +34,7 @@ def configure_admin_api(*, config_service, registry) -> None:
 async def get_effective_config(_: Dict = Depends(require_auth(["admin", "config_manager"]))):
     if _CONFIG_SVC is None:
         raise HTTPException(status_code=500, detail="Config service not available")
-    return _CONFIG_SVC.get_all(reveal=True)
+    return await _CONFIG_SVC.get_all(reveal=True)
 
 
 @admin_router.put("/config")
@@ -41,7 +45,7 @@ async def set_config(
 ):
     if _CONFIG_SVC is None:
         raise HTTPException(status_code=500, detail="Config service not available")
-    _CONFIG_SVC.set(
+    await _CONFIG_SVC.set(
         payload.key,
         payload.value,
         is_sensitive=bool(payload.is_sensitive),
@@ -148,37 +152,119 @@ async def list_audit(
 
 @admin_router.get("/user/traits")
 async def get_user_traits(user: Dict = Depends(get_current_user)):
-    # Map Vivified traits to Faxbot UI trait names for compatibility
-    traits = set(user.get("traits", []))
-    ui_traits: list[str] = []
-    if "admin" in traits:
-        ui_traits.append("role.admin")
-    # Additional UI flags can be added later
-    return {"schema_version": 1, "user": {"id": user.get("id")}, "traits": ui_traits}
+    """Get user traits with enhanced trait mapping."""
+    from core.policy.engine_enhanced import enhanced_policy_engine
+    
+    user_traits = user.get("traits", [])
+    
+    # Use enhanced policy engine to get UI traits
+    ui_traits = enhanced_policy_engine.get_user_ui_traits(user_traits)
+    
+    # DEV-only traits to enable broader UI exploration without hitting unimplemented endpoints
+    DEV_MODE = os.getenv("DEV_MODE", "false").lower() in {"1", "true", "yes"}
+    if DEV_MODE:
+        # Add development-only traits (but not risky ones by default)
+        dev_traits = [
+            "ui.monitoring",
+            "ui.plugins",
+            "ui.config",
+            "ui.audit"
+        ]
+        ui_traits.extend(dev_traits)
+    
+    # De-duplicate and sort
+    ui_traits = sorted(list(set(ui_traits)))
+    
+    return {
+        "schema_version": 1, 
+        "user": {"id": user.get("id")}, 
+        "traits": ui_traits,
+        "backend_traits": user_traits
+    }
 
 
 @admin_router.get("/ui-config")
-async def get_ui_config(_: Dict = Depends(require_auth(["admin", "viewer"]))):
+async def get_ui_config(
+    _: Dict = Depends(require_auth(["admin", "viewer"])),
+    if_none_match: Optional[str] = Header(default=None, alias="If-None-Match"),
+):
     enabled = True
     plugins_enabled = True
+    v3_plugins_enabled = False
+    plugin_install_enabled = False
+    sessions_enabled = False
+    csrf_enabled = False
+    docs_base: Optional[str] = None
     try:
-      if _CONFIG_SVC is not None:
-          v = _CONFIG_SVC.get("ui.admin_console.enabled")
-          if isinstance(v, bool):
-              enabled = v
-          v2 = _CONFIG_SVC.get("ui.plugins.enabled")
-          if isinstance(v2, bool):
-              plugins_enabled = v2
+        if _CONFIG_SVC is not None:
+            v = await _CONFIG_SVC.get("ui.admin_console.enabled")
+            if isinstance(v, bool):
+                enabled = v
+            v2 = await _CONFIG_SVC.get("ui.plugins.enabled")
+            if isinstance(v2, bool):
+                plugins_enabled = v2
+            v3 = await _CONFIG_SVC.get("ui.v3_plugins.enabled")
+            if isinstance(v3, bool):
+                v3_plugins_enabled = v3
+            pin = await _CONFIG_SVC.get("ui.plugin_install.enabled")
+            if isinstance(pin, bool):
+                plugin_install_enabled = pin
+            ses = await _CONFIG_SVC.get("ui.sessions.enabled")
+            if isinstance(ses, bool):
+                sessions_enabled = ses
+            csrf = await _CONFIG_SVC.get("ui.csrf.enabled")
+            if isinstance(csrf, bool):
+                csrf_enabled = csrf
+            db = await _CONFIG_SVC.get("branding.docs_base") or await _CONFIG_SVC.get("ui.docs.base")
+            if isinstance(db, str) and db:
+                docs_base = db
     except Exception:
-      pass
-    return {
+        pass
+    payload = {
         "schema_version": 1,
         "features": {
             "admin_console": {"enabled": enabled},
             "plugins": {"enabled": plugins_enabled},
+            "v3_plugins": {"enabled": v3_plugins_enabled},
+            "plugin_install": bool(plugin_install_enabled),
+            "sessions_enabled": bool(sessions_enabled),
+            "csrf_enabled": bool(csrf_enabled),
         },
         "endpoints": {},
     }
+    if docs_base:
+        payload["docs_base"] = docs_base
+    # Compute a weak ETag for simple client caching
+    body = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+    etag = f'W/"{hashlib.sha256(body).hexdigest()[:16]}"'
+    if if_none_match and if_none_match.strip() == etag:
+        return JSONResponse(status_code=304, content=None)
+    return JSONResponse(content=payload, headers={"ETag": etag})
+
+
+# Phase 1 stubs to avoid 404s in UI when traits/flags expose surfaces
+@admin_router.get("/marketplace/plugins")
+async def get_marketplace_plugins(_: Dict = Depends(require_auth(["admin", "viewer"]))):
+    return {"plugins": []}
+
+
+@admin_router.get("/health-status")
+async def get_health_status(_: Dict = Depends(require_auth(["admin", "viewer"]))):
+    # Minimal, non-PHI health summary compatible with UI expectations
+    return {
+        "backend_healthy": True,
+        "backend": "core",
+        "jobs": {"queued": 0, "in_progress": 0, "recent_failures": 0},
+        "plugins_ok": True,
+        "timestamp": __import__("datetime").datetime.utcnow().isoformat() + "Z",
+    }
+
+
+@admin_router.post("/diagnostics/run")
+@audit_log("diagnostics_run")
+async def run_diagnostics(_: Dict = Depends(require_auth(["admin", "viewer"]))):
+    # Return a safe, empty diagnostics structure so the UI does not error
+    return {"checks": {}, "summary": {"ok": True}}
 
 
 @admin_router.patch("/users/{user_id}")

@@ -13,6 +13,7 @@ from sqlalchemy import (
     Table,
     UniqueConstraint,
     JSON,
+    Integer,
 )
 from sqlalchemy.orm import declarative_base, relationship, Mapped, mapped_column
 
@@ -27,7 +28,12 @@ class User(Base):
     username: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    mfa_secret: Mapped[str] = mapped_column(String(255), nullable=True)
+    mfa_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    last_login: Mapped[datetime] = mapped_column(DateTime, nullable=True)
+    failed_login_attempts: Mapped[int] = mapped_column(Integer, default=0)
+    locked_until: Mapped[datetime] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
@@ -57,4 +63,32 @@ class UserRole(Base):
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), primary_key=True)
     role_id: Mapped[str] = mapped_column(ForeignKey("roles.id"), primary_key=True)
     assigned_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class APIKey(Base):
+    __tablename__ = "api_keys"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    key_hash: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    owner_id: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=True)
+    plugin_id: Mapped[str] = mapped_column(String(255), nullable=True)
+    scopes: Mapped[list] = mapped_column(JSON, default=list)
+    last_used: Mapped[datetime] = mapped_column(DateTime, nullable=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class AuthAudit(Base):
+    __tablename__ = "auth_audit"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=True)
+    event_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    ip_address: Mapped[str] = mapped_column(String(45), nullable=True)  # IPv6 max length
+    user_agent: Mapped[str] = mapped_column(String(1000), nullable=True)
+    success: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    details: Mapped[dict] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
