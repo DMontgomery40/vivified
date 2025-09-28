@@ -19,6 +19,7 @@ from core.policy.engine import policy_engine
 from core.storage.models import StorageQuery, DataClassification, StorageConfig
 from core.storage.service import StorageService
 from core.security.encryption import get_phi_encryption, rotate_phi_encryption
+from core.security.tls_config import create_tls_context
 from core.policy.traits import registry as trait_registry
 from core.identity.models import User, APIKey
 from sqlalchemy import select, update
@@ -401,6 +402,89 @@ async def encryption_rotate(
             new_master_key = km
     new_version = rotate_phi_encryption(new_master_key)
     return {"ok": True, "new_version": new_version}
+
+
+# Security → TLS admin endpoints
+@admin_router.get("/security/tls/status")
+async def tls_status(_: Dict = Depends(require_auth(["admin", "security_admin"]))):
+    import ssl
+
+    status: Dict[str, Any] = {
+        "min_version": "TLSv1_3",
+        "ciphers": "ECDHE+AESGCM:ECDHE+CHACHA20",
+    }
+    try:
+        ctx = create_tls_context(cert_dir=os.getenv("TLS_CERT_DIR", "/certs"))
+        status["configured"] = True
+        status["minimum_version_enum"] = getattr(
+            ctx, "minimum_version", ssl.TLSVersion.TLSv1_3
+        ).name
+    except Exception:
+        status["configured"] = False
+    return status
+
+
+@admin_router.post("/security/tls/self-signed")
+@audit_log("security_tls_self_signed")
+async def tls_generate_self_signed(
+    payload: Optional[Dict[str, Any]] = None,
+    _: Dict = Depends(require_auth(["admin", "security_admin"])),
+):
+    from datetime import datetime, timedelta
+    from pathlib import Path
+    from cryptography import x509
+    from cryptography.x509.oid import NameOID
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.asymmetric import rsa
+
+    cfg = payload or {}
+    hostname = str(cfg.get("hostname") or "localhost")
+    out_dir = Path(str(cfg.get("out_dir") or "/tmp/vivified-tls"))
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    subject = issuer = x509.Name(
+        [
+            x509.NameAttribute(NameOID.COUNTRY_NAME, "US"),
+            x509.NameAttribute(NameOID.ORGANIZATION_NAME, "Vivified"),
+            x509.NameAttribute(NameOID.COMMON_NAME, hostname),
+        ]
+    )
+    cert = (
+        x509.CertificateBuilder()
+        .subject_name(subject)
+        .issuer_name(issuer)
+        .public_key(key.public_key())
+        .serial_number(x509.random_serial_number())
+        .not_valid_before(datetime.utcnow())
+        .not_valid_after(datetime.utcnow() + timedelta(days=365))
+        .add_extension(
+            x509.SubjectAlternativeName(
+                [x509.DNSName(hostname), x509.DNSName("localhost")]
+            ),
+            critical=False,
+        )
+        .sign(key, hashes.SHA256())
+    )
+
+    cert_pem = cert.public_bytes(serialization.Encoding.PEM)
+    key_pem = key.private_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.TraditionalOpenSSL,
+        encryption_algorithm=serialization.NoEncryption(),
+    )
+
+    cert_path = out_dir / "core.crt"
+    key_path = out_dir / "core.key"
+    cert_path.write_bytes(cert_pem)
+    key_path.write_bytes(key_pem)
+
+    return {
+        "ok": True,
+        "cert_path": str(cert_path),
+        "key_path": str(key_path),
+        "note": "Self-signed certificate generated for development",
+    }
 
 
 @admin_router.patch("/users/{user_id}")
