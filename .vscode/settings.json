@@ -1,0 +1,5 @@
+{
+  "files.exclude": {
+    "internal-plans": true
+  }
+}

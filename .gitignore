@@ -24,7 +24,9 @@ bin/
 secrets/
 
 # IDE
-.vscode/
+.vscode/*
+!.vscode/
+!.vscode/settings.json
 .idea/
 .DS_Store
 
