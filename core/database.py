@@ -7,8 +7,11 @@ from __future__ import annotations
 import os
 from typing import AsyncGenerator
 
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.ext.asyncio import (
+    AsyncSession,
+    create_async_engine,
+    async_sessionmaker,
+)
 
 
 def _default_db_url() -> str:
@@ -21,9 +24,8 @@ def get_engine():
     return create_async_engine(url, future=True, echo=False)
 
 
-async_session_factory = sessionmaker(
-    bind=get_engine(), class_=AsyncSession, expire_on_commit=False
-)
+# Use SQLAlchemy 2.0 async_sessionmaker for accurate typing with mypy
+async_session_factory = async_sessionmaker(get_engine(), expire_on_commit=False)
 
 
 async def get_session() -> AsyncGenerator[AsyncSession, None]:

@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from enum import Enum
 from typing import Any, Dict, List, Optional
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 import logging
 import json
@@ -59,8 +59,8 @@ class PolicyResult:
 
     decision: PolicyDecision
     reason: str
-    required_traits: List[str] = None
-    sanitize_fields: List[str] = None
+    required_traits: List[str] = field(default_factory=list)
+    sanitize_fields: List[str] = field(default_factory=list)
     audit_level: str = "standard"
 
 

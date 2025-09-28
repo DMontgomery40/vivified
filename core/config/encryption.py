@@ -38,7 +38,7 @@ class ConfigEncryption:
 
     def encrypt_dict(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """Encrypt all string values in a dictionary."""
-        encrypted = {}
+        encrypted: Dict[str, Any] = {}
         for key, value in data.items():
             if isinstance(value, str):
                 encrypted[key] = self.encrypt(value)
@@ -50,7 +50,7 @@ class ConfigEncryption:
 
     def decrypt_dict(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """Decrypt all string values in a dictionary."""
-        decrypted = {}
+        decrypted: Dict[str, Any] = {}
         for key, value in data.items():
             if isinstance(value, str):
                 try:

@@ -4,7 +4,7 @@ from pydantic import BaseModel
 import logging
 from datetime import datetime
 import os
-from typing import Dict, Any, List
+from typing import Dict, Any
 from starlette.responses import FileResponse
 
 from .plugin_manager.registry import PluginRegistry
@@ -18,6 +18,7 @@ from .canonical.service import CanonicalService
 from .gateway.service import GatewayService
 from .audit.service import get_audit_service
 from .policy.engine import policy_engine
+from .monitoring.metrics import metrics_router
 
 
 class AddTraceIdFilter(logging.Filter):
@@ -64,6 +65,7 @@ storage_service = None  # Will be initialized when needed
 configure_admin_api(config_service=get_config_service(), registry=registry)
 app.include_router(admin_router)
 app.include_router(auth_router)
+app.include_router(metrics_router)
 
 
 class ManifestModel(BaseModel):
@@ -177,8 +179,8 @@ async def publish_event(
     event_type: str,
     payload: Dict[str, Any],
     source_plugin: str,
-    data_traits: List[str] = None,
-    metadata: Dict[str, str] = None,
+    data_traits: list[str] | None = None,
+    metadata: dict[str, str] | None = None,
 ):
     """Publish an event to the event bus."""
     try:
@@ -245,8 +247,8 @@ async def proxy_request(
     plugin_id: str,
     method: str,
     url: str,
-    headers: Dict[str, str] = None,
-    body: bytes = None,
+    headers: dict[str, str] | None = None,
+    body: bytes | None = None,
     timeout: int = 30,
 ):
     """Proxy a request to an external API."""

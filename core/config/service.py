@@ -43,6 +43,8 @@ class ConfigService:
         self._cipher: Optional[Fernet] = (
             Fernet(encryption_key.encode()) if encryption_key else None
         )
+        # Structured defaults loaded from file (if present)
+        self.defaults: Dict[str, Any] = {}
         self._load_defaults()
 
     def _load_defaults(self) -> None:
@@ -51,6 +53,9 @@ class ConfigService:
             if os.path.exists(defaults_file):
                 with open(defaults_file, "r", encoding="utf-8") as f:
                     data = json.load(f)
+                    # Keep raw defaults for nested lookups
+                    if isinstance(data, dict):
+                        self.defaults = data
                     for k, v in data.items():
                         self._store[k] = ConfigItem(key=k, value=v, is_sensitive=False)
         except Exception as e:  # noqa: BLE001
@@ -71,6 +76,13 @@ class ConfigService:
         except Exception:  # noqa: BLE001
             # Return marker if decryption fails
             return {"error": "decryption_failed"}
+
+    # Backwards-compat wrappers to satisfy type hints in callers
+    def _encrypt_value(self, value: Any) -> Any:
+        return self._protect(value, True)
+
+    def _decrypt_value(self, value: Any) -> Any:
+        return self._unprotect(value, True)
 
     async def set(
         self,
@@ -146,8 +158,10 @@ class ConfigService:
         environment: str,
     ) -> None:
         """Set configuration value in database with audit trail."""
+        db = self.db
+        assert db is not None
         # Get current value for history
-        current = await self.db.scalar(
+        current = await db.scalar(
             select(Configuration).where(
                 Configuration.key == key,
                 Configuration.plugin_id == plugin_id,
@@ -163,7 +177,7 @@ class ConfigService:
 
         if current:
             # Update existing
-            await self.db.execute(
+            await db.execute(
                 update(Configuration)
                 .where(Configuration.id == current.id)
                 .values(
@@ -177,17 +191,17 @@ class ConfigService:
             )
 
             # Add to history
-            history_entry = ConfigHistory(
+            history_entry = ConfigHistory(  # type: ignore[call-arg]
                 config_id=current.id,
                 old_value=current.value,
                 new_value=value,
                 changed_by=updated_by,
                 change_reason=reason,
             )
-            self.db.add(history_entry)
+            db.add(history_entry)
         else:
             # Insert new
-            config_entry = Configuration(
+            config_entry = Configuration(  # type: ignore[call-arg]
                 key=key,
                 value=value,
                 plugin_id=plugin_id,
@@ -196,20 +210,20 @@ class ConfigService:
                 is_sensitive=is_sensitive,
                 updated_by=updated_by,
             )
-            self.db.add(config_entry)
-            await self.db.flush()
+            db.add(config_entry)
+            await db.flush()
 
             # Add to history
-            history_entry = ConfigHistory(
+            history_entry = ConfigHistory(  # type: ignore[call-arg]
                 config_id=config_entry.id,
                 old_value=None,
                 new_value=value,
                 changed_by=updated_by,
                 change_reason=reason or "initial_configuration",
             )
-            self.db.add(history_entry)
+            db.add(history_entry)
 
-        await self.db.commit()
+        await db.commit()
 
         logger.info(
             f"Configuration updated: {key}",
@@ -226,7 +240,9 @@ class ConfigService:
     ) -> Optional[Any]:
         """Get configuration value from database with hierarchical override."""
         # Check database
-        result = await self.db.scalar(
+        db = self.db
+        assert db is not None
+        result = await db.scalar(
             select(Configuration).where(
                 Configuration.key == key,
                 Configuration.plugin_id == plugin_id,
@@ -254,11 +270,13 @@ class ConfigService:
         self, reveal: bool, plugin_id: Optional[str]
     ) -> Dict[str, Any]:
         """Get all configuration values from database."""
+        db = self.db
+        assert db is not None
         query = select(Configuration)
         if plugin_id:
             query = query.where(Configuration.plugin_id == plugin_id)
 
-        result = await self.db.execute(query)
+        result = await db.execute(query)
         configs = result.scalars().all()
 
         items = {}

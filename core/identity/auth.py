@@ -15,7 +15,10 @@ import functools
 import logging
 
 try:
-    import jwt  # type: ignore
+    import jwt as _pyjwt  # type: ignore
+    from typing import Any as _Any  # local alias to avoid polluting module scope
+
+    jwt: _Any = _pyjwt  # type: ignore[assignment]
 except Exception:  # pragma: no cover - lightweight fallback for test envs
     import base64
     import json
@@ -30,7 +33,7 @@ except Exception:  # pragma: no cover - lightweight fallback for test envs
             data = base64.urlsafe_b64decode(token.encode() + b"==").decode()
             return json.loads(data)
 
-    jwt = _FallbackJWT()
+    jwt = _FallbackJWT()  # type: ignore[assignment]
 from fastapi import Depends, Header, HTTPException
 
 logger = logging.getLogger(__name__)
