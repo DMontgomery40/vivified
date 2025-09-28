@@ -48,7 +48,15 @@ jobs:
           OPENAI_MODEL: ${{ github.event.inputs.model_override || 'gpt-5-mini-2025-08-07' }}
         run: |
           echo "Using GPT-5 model: $OPENAI_MODEL"
-          python tools/scripts/docs_autopilot_enhanced.py
+          # Use --full-scan flag to generate docs from entire codebase
+          # This is especially important for initial runs and catch-up
+          if [ "${{ github.event.inputs.regenerate_all }}" == "true" ]; then
+            echo "🔄 Full regeneration requested - scanning entire repository"
+            python tools/scripts/docs_autopilot_enhanced.py --full-scan
+          else
+            echo "📝 Generating docs based on recent changes"
+            python tools/scripts/docs_autopilot_enhanced.py --base origin/development
+          fi
           
       - name: Create PR with documentation updates
         if: github.event_name != 'pull_request'

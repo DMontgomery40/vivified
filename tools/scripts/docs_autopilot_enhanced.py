@@ -77,7 +77,7 @@ class EnhancedDocsAutopilot:
             "search.share",
         ]
         
-    def gather_comprehensive_context(self, base_ref: str = "origin/development") -> DocumentationContext:
+    def gather_comprehensive_context(self, base_ref: str = None) -> DocumentationContext:
         """Gather comprehensive context from the entire codebase"""
         
         # Get AGENTS.md for high-level understanding
@@ -274,15 +274,33 @@ class EnhancedDocsAutopilot:
         
         return '\n\n'.join(canonical_content)
     
-    def _get_git_changes(self, base_ref: str) -> List[str]:
-        """Get list of changed files"""
+    def _get_git_changes(self, base_ref: str = None) -> List[str]:
+        """Get list of changed files or all files if base_ref is None"""
         try:
-            cmd = f"git diff --name-only {shlex.quote(base_ref)}..HEAD"
-            result = subprocess.run(cmd, shell=True, capture_output=True, text=True, cwd=self.repo_root)
-            if result.returncode == 0:
-                return [line.strip() for line in result.stdout.splitlines() if line.strip()]
-        except Exception:
-            pass
+            if base_ref is None:
+                # Full scan mode - get all tracked files in the repository
+                cmd = "git ls-files"
+                result = subprocess.run(cmd, shell=True, capture_output=True, text=True, cwd=self.repo_root)
+                if result.returncode == 0:
+                    all_files = [line.strip() for line in result.stdout.splitlines() if line.strip()]
+                    # Filter to only important code files
+                    important_extensions = {'.py', '.ts', '.tsx', '.js', '.jsx', '.go', '.proto', '.md', '.yml', '.yaml', '.json'}
+                    important_files = []
+                    for f in all_files:
+                        if any(f.endswith(ext) for ext in important_extensions):
+                            # Skip test files and node_modules
+                            if 'node_modules' not in f and 'test' not in f.lower() and '__pycache__' not in f:
+                                important_files.append(f)
+                    print(f"  📂 Found {len(important_files)} important files in repository")
+                    return important_files[:500]  # Limit to avoid overwhelming context
+            else:
+                # Diff mode - get only changed files
+                cmd = f"git diff --name-only {shlex.quote(base_ref)}..HEAD"
+                result = subprocess.run(cmd, shell=True, capture_output=True, text=True, cwd=self.repo_root)
+                if result.returncode == 0:
+                    return [line.strip() for line in result.stdout.splitlines() if line.strip()]
+        except Exception as e:
+            print(f"  ⚠️ Error getting file list: {e}")
         return []
     
     def _analyze_existing_docs(self) -> Dict[str, str]:
@@ -358,6 +376,9 @@ Example features to use:
     def _create_user_prompt(self, context: DocumentationContext) -> str:
         """Create the user prompt with full context"""
         
+        # Check if this is a full scan or just recent changes
+        is_full_scan = len(context.recent_changes) > 100
+        
         # Build a comprehensive prompt
         prompt_parts = [
             "Generate comprehensive documentation for the Vivified platform based on the following context:",
@@ -365,9 +386,24 @@ Example features to use:
             "## Platform Overview (from AGENTS.md)",
             context.agents_md[:5000],
             "",
-            "## Recent Changes",
-            "The following files have been modified recently:",
-            *[f"- {change}" for change in context.recent_changes[:30]],
+        ]
+        
+        if is_full_scan:
+            prompt_parts.extend([
+                "## Full Repository Documentation Request",
+                "This is a COMPLETE DOCUMENTATION GENERATION from the entire codebase.",
+                f"The repository contains {len(context.recent_changes)} important files.",
+                "Create comprehensive documentation covering ALL aspects of the platform.",
+                "",
+            ])
+        else:
+            prompt_parts.extend([
+                "## Recent Changes",
+                "The following files have been modified recently:",
+                *[f"- {change}" for change in context.recent_changes[:30]],
+            ])
+        
+        prompt_parts.extend([
             "",
             "## Core Services Available",
             *[f"### {name}\n{desc[:500]}" for name, desc in list(context.core_services.items())[:10]],
@@ -877,10 +913,16 @@ def main():
     parser = argparse.ArgumentParser(description="Enhanced Docs Autopilot")
     parser.add_argument("--base", default="origin/development", help="Base branch for comparison")
     parser.add_argument("--dry-run", action="store_true", help="Don't write files, just show what would be done")
-    parser.add_argument("--regenerate-all", action="store_true", help="Regenerate all documentation")
+    parser.add_argument("--regenerate-all", action="store_true", help="Regenerate all documentation from entire codebase")
+    parser.add_argument("--full-scan", action="store_true", help="Scan entire repository, not just changes")
     args = parser.parse_args()
     
     autopilot = EnhancedDocsAutopilot()
+    
+    # Force full repository scan if regenerate-all or full-scan
+    if args.regenerate_all or args.full_scan:
+        print("🔄 Full repository scan mode - generating docs from entire codebase...")
+        args.base = None  # This will make it scan everything
     
     print("Gathering comprehensive context...")
     context = autopilot.gather_comprehensive_context(args.base)
