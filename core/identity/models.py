@@ -5,12 +5,10 @@ from datetime import datetime
 from typing import List
 
 from sqlalchemy import (
-    Column,
     String,
     Boolean,
     DateTime,
     ForeignKey,
-    Table,
     UniqueConstraint,
     JSON,
     Integer,
@@ -24,7 +22,9 @@ Base = declarative_base()
 class User(Base):
     __tablename__ = "users"
 
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=lambda: str(uuid.uuid4())
+    )
     username: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -45,7 +45,9 @@ class User(Base):
 class Role(Base):
     __tablename__ = "roles"
 
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=lambda: str(uuid.uuid4())
+    )
     name: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
     description: Mapped[str] = mapped_column(String(255), default="")
     traits: Mapped[list] = mapped_column(JSON, default=list)
@@ -68,7 +70,9 @@ class UserRole(Base):
 class APIKey(Base):
     __tablename__ = "api_keys"
 
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=lambda: str(uuid.uuid4())
+    )
     key_hash: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     owner_id: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=True)
@@ -83,12 +87,15 @@ class APIKey(Base):
 class AuthAudit(Base):
     __tablename__ = "auth_audit"
 
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=lambda: str(uuid.uuid4())
+    )
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=True)
     event_type: Mapped[str] = mapped_column(String(50), nullable=False)
-    ip_address: Mapped[str] = mapped_column(String(45), nullable=True)  # IPv6 max length
+    ip_address: Mapped[str] = mapped_column(
+        String(45), nullable=True
+    )  # IPv6 max length
     user_agent: Mapped[str] = mapped_column(String(1000), nullable=True)
     success: Mapped[bool] = mapped_column(Boolean, nullable=False)
     details: Mapped[dict] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-

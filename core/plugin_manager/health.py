@@ -2,12 +2,12 @@
 
 import asyncio
 import time
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Dict, Optional, List, Any
 import httpx
 import logging
 
-from .models import PluginHealth, HealthStatus, PluginStatus
+from .models import PluginHealth, HealthStatus
 from core.audit.models import AuditCategory
 
 logger = logging.getLogger(__name__)

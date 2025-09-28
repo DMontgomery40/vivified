@@ -67,7 +67,9 @@ class AuditService:
         # IMPORTANT: Do not log PHI/PII content; only meta-information
         # Normalize category to string without assuming Enum
         try:
-            category_str = category.value if isinstance(category, AuditCategory) else str(category)
+            category_str = (
+                category.value if isinstance(category, AuditCategory) else str(category)
+            )
         except Exception:  # noqa: BLE001
             category_str = "unknown"
 
@@ -99,7 +101,12 @@ class AuditService:
         items = list(_EVENT_BUFFER)
         items.reverse()
         slice_ = items[offset : offset + limit]
-        return {"items": slice_, "total": len(_EVENT_BUFFER), "limit": limit, "offset": offset}
+        return {
+            "items": slice_,
+            "total": len(_EVENT_BUFFER),
+            "limit": limit,
+            "offset": offset,
+        }
 
 
 def audit_log(event_type: str = "action") -> Callable:

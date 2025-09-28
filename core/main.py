@@ -16,7 +16,6 @@ from .identity.auth import dev_issue_admin_token
 from .messaging.service import MessagingService
 from .canonical.service import CanonicalService
 from .gateway.service import GatewayService
-from .storage.service import StorageService
 from .audit.service import get_audit_service
 from .policy.engine import policy_engine
 
@@ -93,7 +92,7 @@ async def health_check():
 @app.on_event("startup")
 async def startup_event():
     logger.info("Vivified Core Platform starting")
-    
+
     # Start core services
     try:
         # Resolve audit service and initialize dependent services lazily
@@ -113,7 +112,7 @@ async def startup_event():
         logger.info("Core services started successfully")
     except Exception as e:
         logger.error(f"Failed to start core services: {e}")
-    
+
     # Optional DB bootstrap for Identity
     if os.getenv("DB_INIT", "false").lower() in {"1", "true", "yes"}:
         try:
@@ -141,7 +140,7 @@ async def startup_event():
 @app.on_event("shutdown")
 async def shutdown_event():
     logger.info("Vivified Core Platform shutting down")
-    
+
     # Stop core services
     try:
         if messaging_service is not None:
@@ -179,7 +178,7 @@ async def publish_event(
     payload: Dict[str, Any],
     source_plugin: str,
     data_traits: List[str] = None,
-    metadata: Dict[str, str] = None
+    metadata: Dict[str, str] = None,
 ):
     """Publish an event to the event bus."""
     try:
@@ -190,7 +189,7 @@ async def publish_event(
             payload=payload,
             source_plugin=source_plugin,
             data_traits=data_traits,
-            metadata=metadata
+            metadata=metadata,
         )
         return {"event_id": event_id, "status": "published"}
     except Exception as e:
@@ -212,9 +211,7 @@ async def get_messaging_stats():
 # Canonical service endpoints
 @app.post("/canonical/normalize/user")
 async def normalize_user(
-    user_data: Dict[str, Any],
-    source_plugin: str,
-    target_plugin: str
+    user_data: Dict[str, Any], source_plugin: str, target_plugin: str
 ):
     """Normalize user data to canonical format."""
     try:
@@ -223,7 +220,7 @@ async def normalize_user(
         canonical_user = await canonical_service.normalize_user(
             user_data=user_data,
             source_plugin=source_plugin,
-            target_plugin=target_plugin
+            target_plugin=target_plugin,
         )
         return canonical_user.dict()
     except Exception as e:
@@ -250,7 +247,7 @@ async def proxy_request(
     url: str,
     headers: Dict[str, str] = None,
     body: bytes = None,
-    timeout: int = 30
+    timeout: int = 30,
 ):
     """Proxy a request to an external API."""
     try:
@@ -262,7 +259,7 @@ async def proxy_request(
             url=url,
             headers=headers,
             body=body,
-            timeout=timeout
+            timeout=timeout,
         )
         return response.dict()
     except Exception as e:
@@ -301,7 +298,7 @@ class PluginConfigModel(BaseModel):
 @app.get("/plugins/{plugin_id}/config")
 async def get_plugin_config(
     plugin_id: str,  # noqa: ARG001 - reserved for future use
-    _: Dict = Depends(require_auth(["admin", "plugin_manager"]))
+    _: Dict = Depends(require_auth(["admin", "plugin_manager"])),
 ):
     # Phase 1 stub: return a safe, empty config
     return {"enabled": True, "settings": {}}
@@ -311,7 +308,7 @@ async def get_plugin_config(
 async def set_plugin_config(
     plugin_id: str,  # noqa: ARG001 - reserved for future use
     payload: PluginConfigModel,
-    _: Dict = Depends(require_auth(["admin", "plugin_manager"]))
+    _: Dict = Depends(require_auth(["admin", "plugin_manager"])),
 ):
     # Phase 1 stub: accept payload but do not persist; respond shape-compatible
     return {"ok": True, "path": "in-memory"}

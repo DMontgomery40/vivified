@@ -3,40 +3,40 @@ Configuration encryption utilities.
 """
 
 import os
+from typing import Any, Dict, Optional
+
 from cryptography.fernet import Fernet
-from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
-import base64
 
 
 class ConfigEncryption:
     """Encryption utilities for configuration values."""
-    
-    def __init__(self, key: str = None):
+
+    def __init__(self, key: Optional[str] = None):
         """Initialize with encryption key."""
+        self.key: bytes
         if key:
             self.key = key.encode()
         else:
             # Generate or load key from environment
-            key = os.getenv("CONFIG_ENC_KEY")
-            if key:
-                self.key = key.encode()
+            env_key = os.getenv("CONFIG_ENC_KEY")
+            if env_key:
+                self.key = env_key.encode()
             else:
                 # Generate a new key (not recommended for production)
                 self.key = Fernet.generate_key()
-        
+
         # Create cipher
         self.cipher = Fernet(self.key)
-    
+
     def encrypt(self, value: str) -> str:
         """Encrypt a configuration value."""
         return self.cipher.encrypt(value.encode()).decode()
-    
+
     def decrypt(self, encrypted_value: str) -> str:
         """Decrypt a configuration value."""
         return self.cipher.decrypt(encrypted_value.encode()).decode()
-    
-    def encrypt_dict(self, data: dict) -> dict:
+
+    def encrypt_dict(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """Encrypt all string values in a dictionary."""
         encrypted = {}
         for key, value in data.items():
@@ -47,8 +47,8 @@ class ConfigEncryption:
             else:
                 encrypted[key] = value
         return encrypted
-    
-    def decrypt_dict(self, data: dict) -> dict:
+
+    def decrypt_dict(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """Decrypt all string values in a dictionary."""
         decrypted = {}
         for key, value in data.items():
