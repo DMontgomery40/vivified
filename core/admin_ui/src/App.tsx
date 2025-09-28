@@ -835,7 +835,7 @@ function AppContent() {
                 scrollButtons={isMobile ? 'auto' : false}
                 sx={{ px: 2 }}
               >
-                {toolsItems.map((item, idx) => (
+                {toolsItems.map((item) => (
                   <Tab 
                     key={item.label} 
                     icon={item.icon} 

@@ -319,7 +319,7 @@ export class AdminAPIClient {
   
 
   // User traits (admin-only)
-  async getUserTraits(): Promise<{ schema_version: number; user: { id: string }; traits: string[] }>{
+  async getUserTraits(): Promise<{ schema_version: number; user: { id: string }; traits: string[]; backend_traits?: string[] }>{
     const res = await this.fetch('/admin/user/traits');
     return res.json();
   }
