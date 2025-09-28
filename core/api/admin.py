@@ -6,6 +6,7 @@ import json
 import os
 
 from core.api.models import ConfigSetRequest, UserCreateRequest
+import httpx
 from core.api.dependencies import get_current_user, require_auth
 from core.audit.service import audit_log
 from core.database import get_session
@@ -170,7 +171,18 @@ async def get_user_traits(user: Dict = Depends(get_current_user)):
     DEV_MODE = os.getenv("DEV_MODE", "false").lower() in {"1", "true", "yes"}
     if DEV_MODE:
         # Add development-only traits (but not risky ones by default)
-        dev_traits = ["ui.monitoring", "ui.plugins", "ui.config", "ui.audit"]
+        dev_traits = [
+            "ui.monitoring",
+            "ui.plugins",
+            "ui.config",
+            "ui.audit",
+            "ui.gateway",
+            "ui.messaging",
+            "ui.canonical",
+            "ui.policy",
+            "ui.register",
+            "ui.users",
+        ]
         ui_traits.extend(dev_traits)
 
     # De-duplicate and sort
@@ -254,11 +266,33 @@ async def get_marketplace_plugins(_: Dict = Depends(require_auth(["admin", "view
 @admin_router.get("/health-status")
 async def get_health_status(_: Dict = Depends(require_auth(["admin", "viewer"]))):
     # Minimal, non-PHI health summary compatible with UI expectations
+    # Enriched for Phase 4 UI parity
+    tls_enabled = os.getenv("USE_TLS", "false").lower() in {"1", "true", "yes"}
+    db_url = os.getenv("DATABASE_URL", "")
+    db_ssl_required = "sslmode=require" in (db_url or "")
+
+    # Plugin counts
+    total_plugins = len(_REGISTRY.plugins) if _REGISTRY else 0
+    active_plugins = sum(1 for p in (_REGISTRY.plugins.values() if _REGISTRY else []) if p.get("status") == "active")
+
+    # NATS varz reachability (best-effort, internal only)
+    nats_ok = False
+    try:
+        async with httpx.AsyncClient(timeout=1.5) as client:
+            r = await client.get("http://nats:8222/varz")
+            nats_ok = r.status_code == 200
+    except Exception:
+        nats_ok = False
+
     return {
         "backend_healthy": True,
         "backend": "core",
+        "tls_enabled": tls_enabled,
+        "db_ssl_required": db_ssl_required,
+        "nats_ok": nats_ok,
+        "plugins": {"active": active_plugins, "total": total_plugins},
         "jobs": {"queued": 0, "in_progress": 0, "recent_failures": 0},
-        "plugins_ok": True,
+        "plugins_ok": active_plugins == total_plugins if total_plugins else True,
         "timestamp": __import__("datetime").datetime.utcnow().isoformat() + "Z",
     }
 
