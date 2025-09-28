@@ -487,6 +487,41 @@ async def tls_generate_self_signed(
     }
 
 
+# Security → MFA admin endpoints
+@admin_router.post("/security/mfa/setup")
+async def mfa_setup(
+    payload: Dict[str, Any],
+    _: Dict = Depends(require_auth(["admin", "security_admin"])),
+    session=Depends(get_session),
+):
+    user_id = str(payload.get("user_id") or "").strip()
+    if not user_id:
+        raise HTTPException(status_code=400, detail="user_id is required")
+    await _ensure_identity_schema(session)
+    ids = IdentityService(session, get_auth_manager())
+    result = await ids.setup_mfa(user_id)
+    return result
+
+
+@admin_router.post("/security/mfa/enable")
+@audit_log("security_mfa_enabled")
+async def mfa_enable(
+    payload: Dict[str, Any],
+    _: Dict = Depends(require_auth(["admin", "security_admin"])),
+    session=Depends(get_session),
+):
+    user_id = str(payload.get("user_id") or "").strip()
+    token = str(payload.get("token") or "").strip()
+    if not user_id or not token:
+        raise HTTPException(status_code=400, detail="user_id and token are required")
+    await _ensure_identity_schema(session)
+    ids = IdentityService(session, get_auth_manager())
+    ok = await ids.enable_mfa(user_id, token)
+    if not ok:
+        raise HTTPException(status_code=400, detail="invalid token or user")
+    return {"ok": True}
+
+
 @admin_router.patch("/users/{user_id}")
 @audit_log("user_updated")
 async def patch_user(
@@ -746,12 +781,11 @@ async def storage_download_object(
 @admin_router.get("/inbound/callbacks")
 async def inbound_callbacks(_: Dict = Depends(require_auth(["admin", "viewer"]))):
     base = os.getenv("PUBLIC_API_URL", "http://localhost:8000")
-    return {
-        "callbacks": [
-            {"provider": "phaxio", "url": f"{base}/phaxio-inbound"},
-            {"provider": "sinch", "url": f"{base}/sinch-inbound"},
-        ]
-    }
+    return {"callbacks": [{"provider": "phaxio", "url": f"{base}/phaxio-inbound"}, {"provider": "sinch", "url": f"{base}/sinch-inbound"}]}
+
+@admin_router.get("/inbound/endpoints")
+async def inbound_endpoints(_: Dict = Depends(require_auth(["admin", "viewer"]))):
+    return await inbound_callbacks(_)
 
 
 @admin_router.delete("/inbound/purge-by-sid")
