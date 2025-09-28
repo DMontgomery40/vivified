@@ -1,0 +1,6 @@
+fastapi
+uvicorn
+httpx
+# Optional: apprise is only used when available; plugin runs in dry-run without it
+apprise
+

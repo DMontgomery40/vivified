@@ -108,6 +108,13 @@ class TraitRegistry:
                 requires=["admin"],
             ),
             Trait(
+                name="handles_notifications",
+                description="Can handle notification events and sends",
+                category=TraitCategory.CAPABILITY,
+                ui_label="Notifications Handler",
+                ui_icon="notifications",
+            ),
+            Trait(
                 name="plugin_manager",
                 description="Can manage plugins and extensions",
                 category=TraitCategory.CAPABILITY,
@@ -372,6 +379,13 @@ class TraitRegistry:
                 category=TraitCategory.SECURITY,
                 ui_label="Encryption Required",
                 ui_icon="lock",
+            ),
+            Trait(
+                name="requires_config",
+                description="Plugin requires configuration before activation",
+                category=TraitCategory.SECURITY,
+                ui_label="Requires Configuration",
+                ui_icon="build",
             ),
             Trait(
                 name="external_service",
