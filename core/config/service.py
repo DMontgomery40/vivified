@@ -7,7 +7,7 @@ for sensitive values and comprehensive audit logging.
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional, List
+from typing import Any, Dict, Optional
 from dataclasses import dataclass
 import os
 import json
@@ -15,7 +15,7 @@ import logging
 from datetime import datetime
 
 from cryptography.fernet import Fernet
-from sqlalchemy import select, update, insert
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .models import Configuration, ConfigHistory

@@ -4,7 +4,7 @@ Storage service with encryption, audit logging, and HIPAA compliance.
 
 import logging
 from datetime import datetime
-from typing import Dict, List, Optional, BinaryIO
+from typing import Dict, List, Optional
 from uuid import UUID, uuid4
 
 from ..audit.service import AuditService, AuditLevel

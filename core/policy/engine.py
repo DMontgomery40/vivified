@@ -12,13 +12,13 @@ This engine provides:
 from __future__ import annotations
 
 from enum import Enum
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional
 from dataclasses import dataclass
 from datetime import datetime, timezone
 import logging
 import json
 
-from .traits import TraitRegistry, trait_validator, TraitCategory
+# Note: Minimal engine variant does not require trait registry imports
 
 logger = logging.getLogger(__name__)
 
