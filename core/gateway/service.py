@@ -195,7 +195,9 @@ class GatewayService:
             )
             raise
 
-    async def get_allowlist(self, plugin_id: Optional[str] = None) -> List[DomainAllowlist]:
+    async def get_allowlist(
+        self, plugin_id: Optional[str] = None
+    ) -> List[DomainAllowlist]:
         """Get domain allowlist entries."""
         if plugin_id:
             return [

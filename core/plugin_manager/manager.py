@@ -460,7 +460,9 @@ class EnhancedPluginManager:
                 "target": target,
                 "data": data or {},
                 "data_classification": (data or {}).get("data_classification", ""),
-                "has_appropriate_traits": (data or {}).get("has_appropriate_traits", False),
+                "has_appropriate_traits": (data or {}).get(
+                    "has_appropriate_traits", False
+                ),
             }
 
             # Use security validator (single implementation)
