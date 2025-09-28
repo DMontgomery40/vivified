@@ -39,7 +39,7 @@ jobs:
       - name: Run tests
         run: |
           pip install -r core/requirements.txt pytest pytest-cov
-          PYTHONPATH=$PWD pytest --cov=core --cov-report=xml
+          PYTHONPATH=$PWD:$PWD/sdk/python/src pytest --cov=core --cov-report=xml
       - name: Check coverage
         run: |
           pip install coverage
