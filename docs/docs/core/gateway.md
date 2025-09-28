@@ -1,50 +1,92 @@
-!!! tip "Gateway responsibilities"
-    The Gateway provides secure external access. It is the recommended integration point for external services and third-party systems.
+<div class='grid cards' markdown>
 
-# Gateway Service :globe_with_meridians: 
+-   :material-gateway:{ .lg .middle } **External Gateway**
+    
+    ---
+    Secure ingress, transformations, rate limiting, allowlists
 
-The Gateway mediates external API access and performs request/response transformation, security validation, and rate limiting.
+-   :material-shield-check:{ .lg .middle } **Security & Validation**
+    
+    ---
+    Request validation, authentication, and PII-safe proxies
 
-## User-facing features
+-   :material-speed:{ .lg .middle } **Monitoring & Rate Limiting**
+    
+    ---
+    Per-client throttling and observability
 
-- Domain allowlists and request validation
-- Request and response transformation (e.g., normalize to Canonical models)
-- Rate limiting, monitoring, and logging
-- Proxying external APIs with PHI protections
+</div>
 
-## Common scenarios
+!!! tip "Use Gateway for All External Traffic"
+    Never expose internal services directly. Route all external access through the Gateway to enforce global policies.
 
-- Proxy external provider APIs while masking PHI
-- Accept incoming webhooks and transform into canonical messages
-- Apply domain allowlists for outgoing requests
+!!! warning "Allowlist Important Domains"
+    Configure domain allowlists for upstreams and validate outbound destinations.
 
-Mermaid: external proxy flow
+!!! note "Transformation Hooks"
+    The Gateway supports request/response transforms; keep transformations idempotent and auditable.
+
+## Gateway Capabilities
+
+| Feature | Description | Status | HIPAA |
+|---------|-------------|--------|-------|
+| Domain allowlist | Only allow configured upstreams | Active | Compliant |
+| Rate limiting | Per-client and global quotas | Active | N/A |
+| Request transform | Map external shapes to internal APIs | Active | Compliant |
+
+
+## Example: Proxying External API
+
+=== "Python"
+    ```python
+    # (1) Proxy a request through the gateway
+    import requests
+    r = requests.get('https://gateway.example.com/proxy/external-api/resource', headers={'X-Api-Key':'KEY'})
+    print(r.status_code, r.text)
+    ```
+
+=== "Node.js"
+    ```javascript
+    // (1) Node example calling gateway
+    const fetch = require('node-fetch')
+    fetch('https://gateway.example.com/proxy/external-api/resource', { headers:{'X-Api-Key':'KEY'} }).then(r=>r.text()).then(console.log)
+    ```
+
+=== "curl"
+    ```bash
+    # (1) curl proxy
+    curl -H 'X-Api-Key: KEY' https://gateway.example.com/proxy/external-api/resource
+    ```
+
+1. The gateway authenticates and transforms the request before sending to internal services
+
+
+## Gateway Flow
 
 ```mermaid
-sequenceDiagram
-  External->>Gateway: incoming webhook
-  Gateway->>Canonical: transform
-  Gateway->>Messaging: publish(canonical)
-  Gateway->>AdminAPI: log_request
+graph LR
+  Client -->|HTTPS| Gateway[Gateway]
+  Gateway --> Auth[Auth Service]
+  Gateway --> Policy[Policy Engine]
+  Policy -->|allow/deny| Backend[Internal API]
+  Gateway -->|transformed| Backend
 ```
 
-## Example: webhook to canonical
 
-```bash
-curl -X POST https://gateway.example.com/webhooks/provider \
-  -H "Content-Type: application/json" \
-  -d '{"event": "message.received", "payload": {...}}'
-```
+## Configuration Options
 
-## Security and Rate Limiting
+| Option | Description | Default | HIPAA |
+|--------|-------------|---------|-------|
+| gateway.domain_allowlist | Domains allowed for upstreams | [] | Compliant |
+| gateway.rate_limit_per_min | Requests per minute per client | 600 | N/A |
+| gateway.transform_logging | Log transforms for audits | true | Compliant |
 
-- Configure allowlists for outgoing domains in the Admin Console.
-- Configure per-client rate limits and alerts.
 
-!!! warning "Sensitive routes"
-    Gateways that accept inbound requests should be registered in the Admin Console and kept behind encryption and authentication.
+## Operational Checklist
 
-## Troubleshooting
+- [x] Configure domain_allowlist before enabling external proxying
+- [x] Enable transform_logging for auditability
+- [ ] Monitor rate limits and adjust per SLA
 
-- Transformation failures: inspect the Gateway logs in the Admin Console and validate incoming payloads against expected schemas.
-- Rate-limited traffic: review rate limit dashboards and consider whitelisting trusted clients or adjusting limits.
+??? note "Debugging Gateway Rules"
+    If a request is denied, check ++Policy Engine++ decisions in the logs and confirm the client's RBAC scope.
