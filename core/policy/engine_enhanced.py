@@ -12,13 +12,13 @@ This engine provides:
 from __future__ import annotations
 
 from enum import Enum
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Set
 from dataclasses import dataclass
 from datetime import datetime, timezone
 import logging
 import json
 
-from .traits import TraitRegistry, trait_validator, TraitCategory
+from .traits import TraitRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -96,7 +96,6 @@ class EnhancedPolicyEngine:
         traits = set(request.traits or [])
         context = request.context or {}
         resource_type = request.resource_type
-        action = request.action
 
         # 1. ADMIN OVERRIDE - Highest priority
         if "admin" in traits:

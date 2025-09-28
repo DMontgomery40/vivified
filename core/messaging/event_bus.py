@@ -85,7 +85,7 @@ class EventBus:
                 category="messaging",
                 action="publish_event",
                 result="failed",
-                description=f"Failed to publish event: {str(e)}",
+                description="Failed to publish event",
                 plugin_id=source_plugin,
                 level=AuditLevel.STANDARD,
                 details={"error": str(e)},
@@ -117,10 +117,7 @@ class EventBus:
                 category="messaging",
                 action="send_message",
                 result="success",
-                description=(
-                    f"Message sent from {source_plugin} "
-                    f"to {message.target_plugin}"
-                ),
+                description=(f"Message sent from {source_plugin} to {message.target_plugin}"),
                 plugin_id=source_plugin,
                 level=AuditLevel.STANDARD,
                 details={
@@ -160,7 +157,8 @@ class EventBus:
         """Unsubscribe a plugin from specific event types."""
         for event_type in event_types:
             if event_type in self.subscribers:
-                # Remove callbacks for this plugin (simplified - in real implementation would track plugin-specific callbacks)
+                # Remove callbacks for this plugin (simplified - in real
+                # implementation would track plugin-specific callbacks)
                 self.subscribers[event_type] = []
 
         logger.info(f"Plugin {plugin_id} unsubscribed from events: {event_types}")

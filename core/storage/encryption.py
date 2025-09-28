@@ -4,7 +4,6 @@ Storage encryption for PHI/PII data with HIPAA compliance.
 
 import hashlib
 import hmac
-import os
 from typing import Optional, Tuple
 
 from cryptography.fernet import Fernet
