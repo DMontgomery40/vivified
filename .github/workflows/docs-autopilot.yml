@@ -2,7 +2,7 @@ name: Docs Autopilot
 
 on:
   push:
-    branches: ["development", "claude-test"]
+    branches: ["development"]
   workflow_dispatch:
 
 permissions:
