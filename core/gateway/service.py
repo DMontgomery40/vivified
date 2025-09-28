@@ -228,16 +228,12 @@ class GatewayService:
         return self.stats
 
     async def _ensure_allowlist_loaded(self, plugin_id: str) -> None:
-        """Load allowlist for a plugin from config if not already loaded.
+        """(Re)load allowlist for a plugin from ConfigService.
 
-        Config structure is expected to be stored at key
-        `gateway.allowlist.{plugin_id}` as:
+        Config structure is expected at key `gateway.allowlist.{plugin_id}`:
           { "example.com": { "allowed_methods": ["GET", "POST"], "allowed_paths": ["/v1/"] } }
         """
         if self._config_service is None:
-            return
-        # If we already have any entries for this plugin, skip
-        if any(e.plugin_id == plugin_id for e in self.domain_allowlists.values()):
             return
         key = f"gateway.allowlist.{plugin_id}"
         try:
@@ -246,6 +242,15 @@ class GatewayService:
             data = None
         if not isinstance(data, dict):
             return
+        # Remove existing entries for this plugin
+        for domain in list(self.domain_allowlists.keys()):
+            try:
+                if self.domain_allowlists[domain].plugin_id == plugin_id:  # type: ignore[attr-defined]
+                    self.domain_allowlists.pop(domain, None)
+            except Exception:
+                # If structure differs, be conservative and leave it
+                pass
+
         # Normalize and materialize DomainAllowlist entries
         for domain, rules in data.items():
             if not isinstance(rules, dict):

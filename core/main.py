@@ -469,7 +469,7 @@ class SchemaUpsertModel(BaseModel):
     major: int
     minor: int | None = 0
     patch: int | None = 0
-    schema: Dict[str, Any] | None = None
+    schema_data: Dict[str, Any] | None = None
 
 
 @app.get("/schemas/{name}")
@@ -487,7 +487,11 @@ async def get_active_schema(name: str, major: int):
 @app.post("/schemas")
 async def upsert_schema(payload: SchemaUpsertModel):
     """Stub: accept schema upsert and return ok."""
-    return {"ok": True, "name": payload.name, "version": [payload.major, payload.minor or 0, payload.patch or 0]}
+    return {
+        "ok": True,
+        "name": payload.name,
+        "version": [payload.major, payload.minor or 0, payload.patch or 0],
+    }
 
 
 class SchemaActivateModel(BaseModel):
@@ -500,4 +504,8 @@ class SchemaActivateModel(BaseModel):
 @app.post("/schemas/activate")
 async def activate_schema(payload: SchemaActivateModel):
     """Stub: accept activation and return ok."""
-    return {"ok": True, "name": payload.name, "version": [payload.major, payload.minor or 0, payload.patch or 0]}
+    return {
+        "ok": True,
+        "name": payload.name,
+        "version": [payload.major, payload.minor or 0, payload.patch or 0],
+    }
