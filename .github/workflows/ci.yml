@@ -70,6 +70,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20.19.5'
+      - name: Install deps
+        run: npm ci || npm i
+      - name: Build Admin UI
+        run: npm run build
   
   docker-core-image:
     name: Build Core Docker image (with UI)

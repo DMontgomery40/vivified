@@ -61,6 +61,7 @@ import Terminal from './components/Terminal';
 import ScriptsTests from './components/ScriptsTests';
 import TunnelSettings from './components/TunnelSettings';
 import GatewayTester from './components/GatewayTester';
+import GatewayAllowlist from './components/GatewayAllowlist';
 import MessagingConsole from './components/MessagingConsole';
 import CanonicalTools from './components/CanonicalTools';
 import PolicyInspector from './components/PolicyInspector';
@@ -327,6 +328,7 @@ function AppContent() {
     { label: 'Tunnels', icon: <VpnLockIcon />, trait: 'ui.monitoring' },
     { label: 'Audit', icon: <DescriptionIcon />, trait: 'ui.audit' },
     { label: 'Gateway', icon: <AssessmentIcon />, trait: 'ui.gateway' },
+    { label: 'Gateway Allowlist', icon: <AssessmentIcon />, trait: 'ui.gateway' },
     { label: 'Messaging', icon: <AssessmentIcon />, trait: 'ui.messaging' },
     { label: 'Canonical', icon: <AssessmentIcon />, trait: 'ui.canonical' },
     { label: 'Policy', icon: <AssessmentIcon />, trait: 'ui.policy' },
@@ -877,11 +879,12 @@ function AppContent() {
               )}
               {toolsTab === 7 && <Audit client={client!} />}
               {toolsTab === 8 && <GatewayTester client={client!} />}
-              {toolsTab === 9 && <MessagingConsole client={client!} />}
-              {toolsTab === 10 && <CanonicalTools client={client!} />}
-              {toolsTab === 11 && <PolicyInspector client={client!} />}
-              {toolsTab === 12 && <PluginRegister client={client!} />}
-              {toolsTab === 13 && <StorageBrowser client={client!} />}
+              {toolsTab === 9 && <GatewayAllowlist client={client!} />}
+              {toolsTab === 10 && <MessagingConsole client={client!} />}
+              {toolsTab === 11 && <CanonicalTools client={client!} />}
+              {toolsTab === 12 && <PolicyInspector client={client!} />}
+              {toolsTab === 13 && <PluginRegister client={client!} />}
+              {toolsTab === 14 && <StorageBrowser client={client!} />}
             </Box>
           </Paper>
         </TabPanel>

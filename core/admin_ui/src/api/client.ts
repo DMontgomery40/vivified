@@ -111,6 +111,19 @@ export class AdminAPIClient {
     return res.json();
   }
 
+  async getGatewayAllowlist(pluginId: string): Promise<{ plugin_id: string; items: Record<string, { allowed_methods: string[]; allowed_paths: string[] }> }>{
+    const res = await this.fetch(`/admin/gateway/allowlist?plugin_id=${encodeURIComponent(pluginId)}`);
+    return res.json();
+  }
+
+  async setGatewayAllowlist(payload: { plugin_id: string; allowlist: Record<string, { allowed_methods: string[]; allowed_paths: string[] }> }): Promise<{ ok: boolean; plugin_id: string }>{
+    const res = await this.fetch('/admin/gateway/allowlist', {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    });
+    return res.json();
+  }
+
   // Canonical
   async getCanonicalStats(): Promise<any> {
     const res = await this.fetch('/canonical/stats');

@@ -1,3 +1,4 @@
+pyproject.toml
 setup.py
 vivified_cli/__init__.py
 vivified_cli/main.py
