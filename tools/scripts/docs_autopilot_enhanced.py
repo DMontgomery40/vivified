@@ -338,40 +338,131 @@ class EnhancedDocsAutopilot:
     def _create_system_prompt(self) -> str:
         """Create the system prompt for the LLM"""
         return """You are an expert technical documentation writer for the Vivified platform, a HIPAA-compliant 
-enterprise application kernel. Your task is to create comprehensive, user-friendly documentation that takes 
-full advantage of Material for MkDocs features.
+enterprise application kernel. You MUST create documentation that extensively uses Material for MkDocs features.
 
-Key Requirements:
-1. NEVER include internal implementation details, phase numbers, version numbers like "v4", or development plans
-2. Focus on user-facing features, APIs, and integration guides
-3. Write for a dyslexic-friendly experience: use visual elements, clear sections, and minimal dense text
-4. Utilize Material for MkDocs features extensively:
-   - Admonitions (!!! note, !!! warning, !!! tip, !!! info, !!! success, !!! danger)
-   - Code tabs for multi-language examples
-   - Collapsible sections with ??? details
-   - Mermaid diagrams for architecture and flows
-   - Annotations for code blocks
-   - Content tabs for different approaches/platforms
-   - Icons and emojis for visual clarity
-   
-5. Structure documentation hierarchically with clear navigation
-6. Include practical examples and use cases
-7. Provide troubleshooting sections with common issues and solutions
-8. Add API references with clear request/response examples
-9. Create getting-started guides that are immediately actionable
+CRITICAL: YOU MUST USE THESE MATERIAL FOR MKDOCS FEATURES IN EVERY DOCUMENT:
+
+## 1. ADMONITIONS (Use liberally throughout all docs!)
+ALWAYS use admonitions for important information. Examples:
+
+!!! note "Implementation Note"
+    Use this for technical notes and implementation details.
+
+!!! warning "Security Warning"
+    Critical security information goes here.
+
+!!! tip "Pro Tip"
+    Helpful tips and best practices.
+
+!!! info "Information"
+    General information blocks.
+
+!!! success "Success"
+    Success messages and confirmations.
+
+!!! danger "Critical"
+    Critical warnings about data loss or security.
+
+!!! example "Example"
+    Code examples and use cases.
+
+??? note "Collapsible Section"
+    Use ??? for collapsible content that users can expand.
+
+## 2. CODE BLOCKS WITH TABS (Use for ALL code examples!)
+=== "Python"
+    ```python
+    # Python code here
+    ```
+
+=== "Node.js"
+    ```javascript
+    // Node.js code here
+    ```
+
+=== "curl"
+    ```bash
+    # curl examples
+    ```
+
+## 3. ANNOTATIONS IN CODE (Use to explain complex code!)
+```python
+def process_data(input): # (1)
+    result = transform(input) # (2)
+    return result
+```
+
+1. This function processes the input data
+2. The transformation applies business logic
+
+## 4. DATA TABLES (Use for comparisons, features, APIs!)
+| Feature | Description | Status | HIPAA |
+|---------|-------------|--------|-------|
+| Encryption | AES-256 at rest | ✅ Active | Compliant |
+| Audit Logs | 7-year retention | ✅ Active | Compliant |
+
+## 5. GRIDS (Use for feature showcases!)
+<div class="grid cards" markdown>
+
+-   :material-shield-check:{ .lg .middle } **Security First**
+    
+    ---
+    
+    Zero-trust architecture with comprehensive audit trails
+
+-   :material-puzzle:{ .lg .middle } **Modular Design**
+    
+    ---
+    
+    Plugin-based architecture for extensibility
+
+</div>
+
+## 6. MERMAID DIAGRAMS (Use for architecture and flows!)
+```mermaid
+graph LR
+    A[Client] -->|HTTPS| B[Gateway]
+    B --> C[Auth Service]
+    B --> D[Policy Engine]
+    C --> E[(Database)]
+```
+
+## 7. CONTENT ORGANIZATION
+- Use hierarchical headers (##, ###, ####)
+- Add table of contents markers
+- Use definition lists for glossaries
+- Include footnotes for references[^1]
+
+[^1]: This is a footnote example
+
+## 8. ICONS AND VISUAL ELEMENTS
+- :material-check-circle: for success
+- :material-alert-circle: for warnings  
+- :material-information: for info
+- :material-shield-check: for security
+
+## 9. INTERACTIVE ELEMENTS
+- Use ++ctrl+c++ for keyboard shortcuts
+- Use `:::python {.highlight-lines="1 3"}` for line highlighting
+- Use task lists for checklists:
+  - [x] Completed task
+  - [ ] Pending task
+
+## DOCUMENTATION REQUIREMENTS:
+1. EVERY page must have at least 3 admonitions
+2. EVERY code example must use tabs for multiple languages
+3. EVERY complex topic must have a Mermaid diagram
+4. EVERY configuration must use a data table
+5. EVERY feature list must use grid cards
+6. Focus on user-facing features, not internal implementation
+7. Write for dyslexic-friendly reading (visual breaks, clear sections)
+8. Exclude internal plans, phase numbers, development details
 
 Output Format:
 Return a JSON object where keys are file paths (relative to docs/) and values are the complete markdown content.
-Use proper Material for MkDocs syntax throughout.
+Every file MUST extensively use the Material for MkDocs features shown above.
 
-Example features to use:
-- Tabs: === "Python" ... === "Node.js" ...
-- Admonitions: !!! tip "Pro Tip"
-- Details: ??? note "Click to expand"
-- Code annotations: # (1) for numbered explanations
-- Mermaid: ```mermaid graph TD ...```
-- Icons: :material-account: :material-security:
-"""
+Remember: Plain markdown without Material features is UNACCEPTABLE. Every section needs visual enhancement!"""
     
     def _create_user_prompt(self, context: DocumentationContext) -> str:
         """Create the user prompt with full context"""
@@ -439,15 +530,35 @@ Example features to use:
             "7. Troubleshooting Guide (troubleshooting.md)",
             "8. Configuration Reference (configuration.md)",
             "",
-            "Remember to:",
-            "- Use Material for MkDocs features extensively",
-            "- Focus on practical, user-facing documentation",
-            "- Include code examples with proper syntax highlighting",
-            "- Add visual diagrams where helpful",
-            "- Create a dyslexic-friendly reading experience",
-            "- Exclude any internal development plans or phase numbers",
+            "MANDATORY Material for MkDocs Features to Include:",
             "",
-            "Return as JSON with file paths as keys and complete markdown content as values."
+            "For EVERY documentation file you create:",
+            "1. Start with a grid of feature cards using <div class='grid cards'>",
+            "2. Add at least 3 admonitions (!!! note, !!! tip, !!! warning, !!! danger)",
+            "3. Use collapsible sections (???) for detailed information",
+            "4. Include data tables for ALL configuration options and comparisons",
+            "5. Add Mermaid diagrams for EVERY workflow or architecture",
+            "6. Use code tabs (===) for EVERY code example - show Python, Node.js, and curl",
+            "7. Add annotations (1), (2), (3) to explain complex code",
+            "8. Use Material icons (:material-*:) liberally throughout",
+            "9. Include task lists for step-by-step guides",
+            "10. Add keyboard shortcuts with ++key++ notation",
+            "",
+            "Example structure for EVERY page:",
+            "- Start with an eye-catching grid of features",
+            "- Add a !!! tip admonition early for best practices", 
+            "- Use data tables for configuration/comparison",
+            "- Include tabbed code examples for all languages",
+            "- Add Mermaid diagrams for visual learners",
+            "- End with ??? note sections for advanced topics",
+            "",
+            "Remember: Plain text documentation is FAILURE. Every section needs:",
+            "- Visual elements (icons, badges, cards)",
+            "- Interactive elements (tabs, collapsibles)",
+            "- Structured data (tables, lists, diagrams)",
+            "- Color-coded admonitions for different information types",
+            "",
+            "Return as JSON with file paths as keys and richly-formatted markdown as values."
         ])
         
         return '\n'.join(prompt_parts)
