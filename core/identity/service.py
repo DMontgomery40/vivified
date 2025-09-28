@@ -420,3 +420,81 @@ class IdentityService:
         )
 
         return key  # Return the plain key only once
+
+    async def get_webauthn_registration_options(self, user_id: str, rp_id: str, rp_name: str, origin: str) -> Dict:
+        from webauthn.helpers import options_to_json
+        from webauthn import generate_registration_options
+        user = await self.db.get(User, user_id)
+        if not user:
+            raise ValueError("user not found")
+        options = generate_registration_options(
+            rp_id=rp_id,
+            rp_name=rp_name,
+            user_id=user.id.encode(),
+            user_name=user.username,
+        )
+        return json.loads(options_to_json(options))
+
+    async def verify_webauthn_registration(self, user_id: str, rp_id: str, origin: str, attestation: Dict) -> bool:
+        from webauthn import verify_registration_response
+        from webauthn.helpers.structs import RegistrationCredential
+        from base64 import urlsafe_b64decode
+
+        cred = RegistrationCredential.parse_raw(json.dumps(attestation))
+        verification = verify_registration_response(
+            credential=cred,
+            expected_rp_id=rp_id,
+            expected_origin=origin,
+            require_user_verification=True,
+        )
+        # Persist credential
+        pk = verification.credential_public_key
+        cid = verification.credential_id
+        await self.db.execute(
+            insert(WebAuthnCredential).values(
+                user_id=user_id,
+                credential_id=base64.urlsafe_b64encode(cid).decode(),
+                public_key=base64.urlsafe_b64encode(pk).decode(),
+                sign_count=int(verification.sign_count or 0),
+            )
+        )
+        await self.db.commit()
+        return True
+
+    async def get_webauthn_assertion_options(self, user_id: str, rp_id: str) -> Dict:
+        from webauthn.helpers import options_to_json
+        from webauthn import generate_authentication_options
+        user = await self.db.get(User, user_id)
+        if not user:
+            raise ValueError("user not found")
+        options = generate_authentication_options(rp_id=rp_id, user_verification="required")
+        return json.loads(options_to_json(options))
+
+    async def verify_webauthn_assertion(self, user_id: str, rp_id: str, origin: str, assertion: Dict) -> bool:
+        from webauthn import verify_authentication_response
+        from webauthn.helpers.structs import AuthenticationCredential
+        from base64 import urlsafe_b64decode
+
+        cred = AuthenticationCredential.parse_raw(json.dumps(assertion))
+        # Load stored public key by credential id
+        cid = base64.urlsafe_b64encode(cred.raw_id).decode()
+        row = await self.db.execute(select(WebAuthnCredential).where(WebAuthnCredential.credential_id == cid))
+        stored = row.scalar_one_or_none()
+        if not stored:
+            return False
+        verification = verify_authentication_response(
+            credential=cred,
+            expected_rp_id=rp_id,
+            expected_origin=origin,
+            credential_public_key=base64.urlsafe_b64decode(stored.public_key.encode()),
+            credential_current_sign_count=stored.sign_count,
+            require_user_verification=True,
+        )
+        # Update sign count
+        await self.db.execute(
+            update(WebAuthnCredential)
+            .where(WebAuthnCredential.id == stored.id)
+            .values(sign_count=int(verification.new_sign_count or stored.sign_count))
+        )
+        await self.db.commit()
+        return True

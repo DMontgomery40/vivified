@@ -522,6 +522,82 @@ async def mfa_enable(
     return {"ok": True}
 
 
+@admin_router.post("/security/webauthn/registration-options")
+async def webauthn_registration_options(
+    payload: Dict[str, Any],
+    _: Dict = Depends(require_auth(["admin", "security_admin"])),
+    session=Depends(get_session),
+):
+    user_id = str(payload.get("user_id") or "").strip()
+    rp_id = str(payload.get("rp_id") or "localhost").strip()
+    rp_name = str(payload.get("rp_name") or "Vivified").strip()
+    origin = str(payload.get("origin") or "http://localhost:8000").strip()
+    if not user_id:
+        raise HTTPException(status_code=400, detail="user_id is required")
+    await _ensure_identity_schema(session)
+    ids = IdentityService(session, get_auth_manager())
+    options = await ids.get_webauthn_registration_options(user_id, rp_id, rp_name, origin)
+    return options
+
+
+@admin_router.post("/security/webauthn/register")
+@audit_log("security_webauthn_register")
+async def webauthn_register(
+    payload: Dict[str, Any],
+    _: Dict = Depends(require_auth(["admin", "security_admin"])),
+    session=Depends(get_session),
+):
+    user_id = str(payload.get("user_id") or "").strip()
+    rp_id = str(payload.get("rp_id") or "localhost").strip()
+    origin = str(payload.get("origin") or "http://localhost:8000").strip()
+    attestation = payload.get("attestation") or {}
+    if not user_id or not isinstance(attestation, dict):
+        raise HTTPException(status_code=400, detail="user_id and attestation required")
+    await _ensure_identity_schema(session)
+    ids = IdentityService(session, get_auth_manager())
+    ok = await ids.verify_webauthn_registration(user_id, rp_id, origin, attestation)
+    if not ok:
+        raise HTTPException(status_code=400, detail="registration failed")
+    return {"ok": True}
+
+
+@admin_router.post("/security/webauthn/assertion-options")
+async def webauthn_assertion_options(
+    payload: Dict[str, Any],
+    _: Dict = Depends(require_auth(["admin", "security_admin"])),
+    session=Depends(get_session),
+):
+    user_id = str(payload.get("user_id") or "").strip()
+    rp_id = str(payload.get("rp_id") or "localhost").strip()
+    if not user_id:
+        raise HTTPException(status_code=400, detail="user_id is required")
+    await _ensure_identity_schema(session)
+    ids = IdentityService(session, get_auth_manager())
+    options = await ids.get_webauthn_assertion_options(user_id, rp_id)
+    return options
+
+
+@admin_router.post("/security/webauthn/assert")
+@audit_log("security_webauthn_assert")
+async def webauthn_assert(
+    payload: Dict[str, Any],
+    _: Dict = Depends(require_auth(["admin", "security_admin"])),
+    session=Depends(get_session),
+):
+    user_id = str(payload.get("user_id") or "").strip()
+    rp_id = str(payload.get("rp_id") or "localhost").strip()
+    origin = str(payload.get("origin") or "http://localhost:8000").strip()
+    assertion = payload.get("assertion") or {}
+    if not user_id or not isinstance(assertion, dict):
+        raise HTTPException(status_code=400, detail="user_id and assertion required")
+    await _ensure_identity_schema(session)
+    ids = IdentityService(session, get_auth_manager())
+    ok = await ids.verify_webauthn_assertion(user_id, rp_id, origin, assertion)
+    if not ok:
+        raise HTTPException(status_code=400, detail="assertion failed")
+    return {"ok": True}
+
+
 @admin_router.patch("/users/{user_id}")
 @audit_log("user_updated")
 async def patch_user(
@@ -781,7 +857,13 @@ async def storage_download_object(
 @admin_router.get("/inbound/callbacks")
 async def inbound_callbacks(_: Dict = Depends(require_auth(["admin", "viewer"]))):
     base = os.getenv("PUBLIC_API_URL", "http://localhost:8000")
-    return {"callbacks": [{"provider": "phaxio", "url": f"{base}/phaxio-inbound"}, {"provider": "sinch", "url": f"{base}/sinch-inbound"}]}
+    return {
+        "callbacks": [
+            {"provider": "phaxio", "url": f"{base}/phaxio-inbound"},
+            {"provider": "sinch", "url": f"{base}/sinch-inbound"},
+        ]
+    }
+
 
 @admin_router.get("/inbound/endpoints")
 async def inbound_endpoints(_: Dict = Depends(require_auth(["admin", "viewer"]))):
