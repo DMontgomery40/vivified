@@ -19,6 +19,8 @@ from .gateway.service import GatewayService
 from .audit.service import get_audit_service
 from .policy.engine import policy_engine
 from .monitoring.metrics import metrics_router
+from .notifications.service import NotificationsService
+from .api.notifications import notifications_router, configure_notifications_api
 
 
 class AddTraceIdFilter(logging.Filter):
@@ -59,6 +61,7 @@ audit_service = None  # Will be resolved on startup
 messaging_service = None  # Will be initialized on startup
 canonical_service = None  # Will be initialized on startup
 gateway_service = None  # Will be initialized on startup
+notifications_service = None  # Will be initialized on startup
 storage_service = None  # Will be initialized when needed
 
 # Wire admin API dependencies
@@ -66,6 +69,7 @@ configure_admin_api(config_service=get_config_service(), registry=registry)
 app.include_router(admin_router)
 app.include_router(auth_router)
 app.include_router(metrics_router)
+app.include_router(notifications_router)
 
 
 class ManifestModel(BaseModel):
@@ -98,7 +102,7 @@ async def startup_event():
     # Start core services
     try:
         # Resolve audit service and initialize dependent services lazily
-        global audit_service, messaging_service, canonical_service, gateway_service
+        global audit_service, messaging_service, canonical_service, gateway_service, notifications_service
         audit_service = await get_audit_service()
 
         if messaging_service is None:
@@ -107,10 +111,16 @@ async def startup_event():
             canonical_service = CanonicalService(audit_service, policy_engine)
         if gateway_service is None:
             gateway_service = GatewayService(audit_service, policy_engine)
+        if notifications_service is None:
+            notifications_service = NotificationsService(
+                audit_service, messaging_service, policy_engine
+            )
 
         await messaging_service.start()
         await canonical_service.start()
         await gateway_service.start()
+        await notifications_service.start()
+        configure_notifications_api(svc=notifications_service)
         logger.info("Core services started successfully")
     except Exception as e:
         logger.error(f"Failed to start core services: {e}")
@@ -151,6 +161,8 @@ async def shutdown_event():
             await canonical_service.stop()
         if gateway_service is not None:
             await gateway_service.stop()
+        if notifications_service is not None:
+            await notifications_service.stop()
         logger.info("Core services stopped successfully")
     except Exception as e:
         logger.error(f"Error stopping core services: {e}")

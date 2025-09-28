@@ -108,6 +108,21 @@ class TraitRegistry:
                 requires=["admin"],
             ),
             Trait(
+                name="handles_notifications",
+                description="Can handle notification events and sends",
+                category=TraitCategory.CAPABILITY,
+                ui_label="Notifications Handler",
+                ui_icon="notifications",
+            ),
+            Trait(
+                name="notification_manager",
+                description="Can manage notifications, inbox, and sends",
+                category=TraitCategory.CAPABILITY,
+                ui_label="Notification Manager",
+                ui_icon="notifications_active",
+                requires=["admin"],
+            ),
+            Trait(
                 name="plugin_manager",
                 description="Can manage plugins and extensions",
                 category=TraitCategory.CAPABILITY,
@@ -187,6 +202,30 @@ class TraitRegistry:
                 ui_label="Admin UI",
                 ui_icon="admin_panel_settings",
                 requires=["admin"],
+            ),
+            Trait(
+                name="ui.notifications",
+                description="Access to notifications surfaces",
+                category=TraitCategory.UI_FEATURE,
+                ui_label="Notifications",
+                ui_icon="notifications",
+                requires=["notification_manager"],
+            ),
+            Trait(
+                name="ui.notifications_inbox",
+                description="Access to notifications inbox",
+                category=TraitCategory.UI_FEATURE,
+                ui_label="Notifications Inbox",
+                ui_icon="inbox",
+                requires=["notification_manager"],
+            ),
+            Trait(
+                name="ui.notifications_send",
+                description="Access to notifications send",
+                category=TraitCategory.UI_FEATURE,
+                ui_label="Send Notification",
+                ui_icon="send",
+                requires=["notification_manager"],
             ),
             Trait(
                 name="ui.config",
@@ -284,6 +323,38 @@ class TraitRegistry:
                 ui_icon="folder",
                 requires=["admin"],
             ),
+            Trait(
+                name="ui.send_demo",
+                description="Access to demo send flow",
+                category=TraitCategory.UI_FEATURE,
+                ui_label="Demo Send",
+                ui_icon="send",
+                requires=["admin"],
+            ),
+            Trait(
+                name="ui.inbound_demo",
+                description="Access to inbound demo view",
+                category=TraitCategory.UI_FEATURE,
+                ui_label="Inbound Demo",
+                ui_icon="inbox",
+                requires=["admin"],
+            ),
+            Trait(
+                name="ui.jobs",
+                description="Access to jobs view",
+                category=TraitCategory.UI_FEATURE,
+                ui_label="Jobs",
+                ui_icon="list",
+                requires=["admin", "system_monitor"],
+            ),
+            Trait(
+                name="ui.dashboard",
+                description="Access to dashboard",
+                category=TraitCategory.UI_FEATURE,
+                ui_label="Dashboard",
+                ui_icon="dashboard",
+                requires=["viewer"],
+            ),
         ]
 
         # PLUGIN TYPE TRAITS - Plugin categories
@@ -340,6 +411,13 @@ class TraitRegistry:
                 category=TraitCategory.SECURITY,
                 ui_label="Encryption Required",
                 ui_icon="lock",
+            ),
+            Trait(
+                name="requires_config",
+                description="Plugin requires configuration before activation",
+                category=TraitCategory.SECURITY,
+                ui_label="Requires Configuration",
+                ui_icon="build",
             ),
             Trait(
                 name="external_service",
@@ -499,6 +577,13 @@ class TraitRegistry:
             "ui.policy": "ui.policy",
             "ui.register": "ui.register",
             "ui.storage": "ui.storage",
+            "ui.send_demo": "ui.send_demo",
+            "ui.inbound_demo": "ui.inbound_demo",
+            "ui.jobs": "ui.jobs",
+            "ui.dashboard": "ui.dashboard",
+            "ui.notifications": "ui.notifications",
+            "ui.notifications_inbox": "ui.notifications_inbox",
+            "ui.notifications_send": "ui.notifications_send",
         }
 
         self._ui_mapping.update(ui_mappings)

@@ -25,6 +25,32 @@ export class AdminAPIClient {
     }
   }
 
+  // Notifications
+  async getNotificationsInbox(limit: number = 50, offset: number = 0): Promise<{ items: any[] }>{
+    const res = await this.fetch(`/admin/notifications?limit=${encodeURIComponent(String(limit))}&offset=${encodeURIComponent(String(offset))}`);
+    return res.json();
+  }
+
+  async sendNotification(payload: { title?: string; body: string; targets?: string[]; priority?: string; channel?: string; metadata?: Record<string, any> }): Promise<{ status: string; notification_id: string; queued: boolean }>{
+    const res = await this.fetch('/admin/notifications/send', { method: 'POST', body: JSON.stringify(payload) });
+    return res.json();
+  }
+
+  async getNotificationsSettings(): Promise<Record<string, any>> {
+    const res = await this.fetch('/admin/notifications/settings');
+    return res.json();
+  }
+
+  async setNotificationsSettings(settings: Record<string, any>): Promise<Record<string, any>> {
+    const res = await this.fetch('/admin/notifications/settings', { method: 'PUT', body: JSON.stringify(settings) });
+    return res.json();
+  }
+
+  async getNotificationsHelp(): Promise<{ links: Record<string, string> }>{
+    const res = await this.fetch('/admin/notifications/help');
+    return res.json();
+  }
+
   private async fetch(path: string, options: RequestInit = {}): Promise<Response> {
     const url = `${this.baseURL}${path}`;
     if ((import.meta as any)?.env?.DEV) {

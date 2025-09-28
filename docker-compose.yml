@@ -117,6 +117,38 @@ services:
       - vivified-net
     restart: unless-stopped
 
+  apprise-notifier-plugin:
+    build: ./plugins/apprise_notifier
+    environment:
+      CORE_URL: http://vivified-core:8000
+      LOG_LEVEL: INFO
+      # Comma-separated Apprise target URLs (e.g., mailto://you@example.com)
+      APPRISE_TARGET_URLS: ${APPRISE_TARGET_URLS:-}
+      # Default to dry-run unless explicitly disabled
+      APPRISE_DRY_RUN: ${APPRISE_DRY_RUN:-true}
+    depends_on:
+      vivified-core:
+        condition: service_healthy
+    networks:
+      - vivified-net
+    restart: unless-stopped
+
+  pushover-notifier-plugin:
+    build: ./plugins/pushover_notifier
+    environment:
+      CORE_URL: http://vivified-core:8000
+      LOG_LEVEL: INFO
+      PUSHOVER_API_TOKEN: ${PUSHOVER_API_TOKEN:-}
+      PUSHOVER_USER_KEY: ${PUSHOVER_USER_KEY:-}
+      # Set to true to allow request.user_key override
+      ALLOW_USER_OVERRIDE: ${ALLOW_USER_OVERRIDE:-false}
+    depends_on:
+      vivified-core:
+        condition: service_healthy
+    networks:
+      - vivified-net
+    restart: unless-stopped
+
 volumes:
   postgres_data:
   admin_ui_node_modules:
