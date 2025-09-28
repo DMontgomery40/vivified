@@ -1,97 +1,116 @@
-!!! info "Canonical Service — Purpose"
-    The Canonical Service centralizes data normalization and transformation so that multiple plugins can interoperate safely with PHI/PII. It provides transformation rules, audit logging, and compatibility utilities.
+<div class='grid cards' markdown>
 
-# Canonical Service :arrows_clockwise: 
+-   :material-format-list-bulleted:{ .lg .middle } **Canonical Service**
+    
+    ---
+    Normalize plugin payloads to shared models
 
-Short summary:
+-   :material-sync:{ .lg .middle } **Transformations**
+    
+    ---
+    PHI/PII-aware transformations with audit logging
 
-- Normalizes incoming data into canonical models
-- Applies PHI/PII transformation and masking rules
-- Emits audit entries for each transformation
-- Makes canonical models available to other services via the Admin API and the event bus
+-   :material-auto-fix:{ .lg .middle } **Compatibility**
+    
+    ---
+    Cross-plugin compatibility layer and backward-compatible adapters
 
-## Key concepts
+</div>
 
-- Canonical Models — standard schemas for users, messages, and records used across plugins
-- Transformations — deterministic conversions (normalization, redaction, enrichment)
-- Audit Logs — immutable records of every transformation
+!!! tip "Use Canonical Models"
+    Always convert incoming plugin data to canonical models before downstream processing.
 
-!!! tip "Consistency matters"
-    Use canonical models when exchanging data between plugins. This prevents duplication of transform logic and reduces risk when handling PHI.
+!!! note "Audit Each Transform"
+    Every transformation must produce an audit record: before, after, and transformation metadata.
 
-## Canonical Models (examples)
+!!! danger "Do Not Store Raw PHI"
+    The canonical layer should not persist raw PHI outside of encrypted storage. Use ephemeral buffers only.
 
-- CanonicalUser
-  - id, username, email, roles, traits, created_at, attributes
+## Canonical Models (example)
 
-- CanonicalMessage
-  - id, from_user, to_user, content_type, content, data_traits, sent_at, metadata
+| Model | Summary | Key Fields | PHI |
+|-------|---------|------------|-----|
+| CanonicalUser | User representation | id, username, email, roles | email is PHI if personal |
+| CanonicalMessage | Messaging envelope | id, from_user, to_user, content | content may be PHI |
 
-??? details "Canonical model example (trimmed)"
-    ```json
-    {
-      "id": "user-123",
-      "username": "alice",
-      "email": "alice@example.com",
-      "roles": ["clinician"],
-      "created_at": "2025-01-01T00:00:00Z"
+
+### CanonicalUser (example Pydantic)
+
+=== "Python"
+    ```python
+    # (1) Pydantic canonical user
+    from pydantic import BaseModel, Field
+    from datetime import datetime
+    from typing import List, Dict
+
+    class CanonicalUser(BaseModel):
+        id: str
+        username: str
+        email: str
+        roles: List[str] = Field(default_factory=list)
+        traits: List[str] = Field(default_factory=list)
+        created_at: datetime
+        attributes: Dict[str, str] = Field(default_factory=dict)
+    ```
+
+=== "Node.js"
+    ```javascript
+    // (1) TypeScript interface for canonical user
+    interface CanonicalUser {
+      id: string
+      username: string
+      email: string
+      roles: string[]
+      traits: string[]
+      created_at: string
+      attributes: Record<string,string>
     }
     ```
 
-## Typical workflows
+=== "curl"
+    ```bash
+    # (1) POST example to convert raw to canonical
+    curl -X POST https://localhost:8443/api/canonical/normalize \
+      -H 'Content-Type: application/json' \
+      -d '{"plugin":"acme","payload":{}}'
+    ```
 
-1. Gateway or Plugin submits raw input to the Canonical Service.
-2. Canonical Service normalizes fields and applies redaction rules for PHI.
-3. A canonical object is stored and a transformation audit is written.
-4. Other services or plugins subscribe to canonical objects or query them via Admin API.
+1. CanonicalUser centralizes types used across plugins
 
-Mermaid flow for normalization:
+
+## Transformation Flow
 
 ```mermaid
 sequenceDiagram
-  Plugin->>Canonical: submit_raw(data)
-  Canonical->>Canonical: normalize & mask
-  Canonical->>Storage: store_canonical(entry)
-  Canonical->>Messaging: emit_event(canonical.created)
-  Canonical->>AdminAPI: log_audit(record)
+  participant Plugin
+  participant Canonical
+  participant Audit
+
+  Plugin->>Canonical: send raw payload
+  Canonical->>Audit: record before state
+  Canonical->>Canonical: normalize & transform
+  Canonical->>Audit: record after state
+  Canonical->>Storage: (encrypted) store references
 ```
 
-## Integration examples
 
-=== "Python example: normalize a user"
+## Best Practices
 
-```python
-# (1) Submit raw user payload and receive canonical user
-payload = {"username": "alice", "email": "alice@example.com"}
+- Validate plugin input strictly
+- Use Field(default_factory=list) for lists to avoid mutable defaults
+- Avoid import-time side effects in plugin adapters
 
-resp = client.post('/canonical/users', json=payload)  # (2)
-print(resp.json())
 
-# (1) Example input
-# (2) Admin API endpoint — requires auth
-```
+### Configuration
 
-=== "Node.js example"
+| Option | Description | Default | HIPAA |
+|--------|-------------|---------|-------|
+| canonical.enforce_types | Strict type enforcement | true | N/A |
+| canonical.audit_enabled | Emit transformation audit logs | true | Compliant |
 
-```javascript
-// (1) POST to canonical users endpoint
-const res = await fetch(`${BASE}/canonical/users`, {
-  method: 'POST',
-  headers: { Authorization: `Bearer ${TOKEN}`, 'Content-Type': 'application/json' },
-  body: JSON.stringify({ username: 'alice', email: 'alice@example.com' })
-});
-const data = await res.json();
-```
 
-## Audit & Compliance
+- [x] Ensure canonical.audit_enabled is true in production
+- [x] Do not log raw content in plaintext
 
-- Every normalization writes a tamper-evident audit record.
-- Audit records are queryable via Admin API with role-based access.
-
-!!! success "Compliance"
-    The Canonical Service is designed to make auditing and review straightforward: every transformation is recorded and linked to its origin.
-
-## Troubleshooting
-
-- If fields are missing after normalization: check transformation rules in the Admin Console under "Policies -> Transformations".
-- If audit entries are not seen: verify your account role and the Audit Log retention configuration in Storage.
+??? note "Advanced Transformations"
+    For complex mapping rules, implement rule sets that are versioned and auditable.

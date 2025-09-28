@@ -1,56 +1,99 @@
-!!! info "Messaging: Inter-plugin communication"
-    The Messaging Service provides an event bus and message routing for plugins. It ensures message-level protections for PHI/PII and writes audit logs for message flows.
+<div class='grid cards' markdown>
 
-# Messaging Service :speech_balloon: 
+-   :material-forum:{ .lg .middle } **Messaging (Event Bus)**
+    
+    ---
+    HIPAA-aware routing, filtering, and audit for inter-plugin events
 
-Core responsibilities:
+-   :material-filter:{ .lg .middle } **Routing & Filters**
+    
+    ---
+    Topic and attribute-based routing with PII filters
 
-- Publish/subscribe event bus for canonical messages
-- Message routing, filtering, and delivery guarantees
-- PHI-aware filtering and redaction policies
-- Audit logging for each message lifecycle
+-   :material-history:{ .lg .middle } **Guaranteed Delivery**
+    
+    ---
+    Exactly-once semantics where supported; durable queues
 
-## How it works (user perspective)
+</div>
 
-- Plugins publish canonical messages to topics or channels.
-- Messaging routes messages to subscribed plugins, applying filters and protections.
-- Delivery is recorded in the audit log, and retries are observed in the Admin Console.
+!!! note "PII-safe Messaging"
+    Strip or encrypt PII in transit according to plugin contract. Use canonical models to minimize PII exposure.
 
-Mermaid: message flow
+!!! tip "Audit Every Event"
+    Emit an audit record for message ingress and egress to support traceability.
+
+!!! warning "Do Not Bypass Filters"
+    Plugins must not bypass message filters. Bypassing can result in PHI leakage.
+
+## Messaging Concepts
+
+| Concept | Description | Behavior | HIPAA |
+|---------|-------------|----------|-------|
+| Topic | Named channel for events | Subscribed by plugins | N/A |
+| Filter | Attribute-based filter | Drops or transforms payload | Compliant |
+| Audit | Event audit trail | Immutable record | Compliant |
+
+
+## Example Publish/Subscribe
+
+=== "Python"
+    ```python
+    # (1) Publish an event
+    import requests
+    evt = {'topic':'messages.new','payload':{'from':'user1','to':'user2','content':'...'}}
+    r = requests.post('https://localhost:8443/messaging/publish', json=evt)
+    print(r.status_code)
+    ```
+
+=== "Node.js"
+    ```javascript
+    // (1) Publish with fetch
+    const fetch = require('node-fetch')
+    fetch('https://localhost:8443/messaging/publish', { method:'POST', body:JSON.stringify(evt), headers:{'Content-Type':'application/json'} })
+    ```
+
+=== "curl"
+    ```bash
+    # (1) curl publish
+    curl -X POST https://localhost:8443/messaging/publish -H 'Content-Type: application/json' -d '{"topic":"messages.new","payload":{}}'
+    ```
+
+1. Publishing creates an audit entry and routes message to subscribers
+
+
+## Message Flow
 
 ```mermaid
 sequenceDiagram
-  PluginA->>Messaging: publish(canonical.message)
-  Messaging->>Canonical: validate & enrich
-  Messaging->>PluginB: deliver(message)
-  PluginB->>Messaging: ack
-  Messaging->>AdminAPI: log_delivery(event)
+  PluginA->>Messaging: publish(topic, payload)
+  Messaging->>Audit: record ingress
+  Messaging->>Filter: apply filters
+  alt allowed
+    Messaging->>SubscriberB: deliver(payload)
+    SubscriberB->>Audit: record processing
+  else blocked
+    Messaging->>Audit: record blocked
+  end
 ```
 
-## Typical operations
 
-- Subscribe to a topic via plugin manifest or Admin Console
-- Publish messages via API or SDK
-- Inspect delivery status in the Admin Console
+## Configuration
 
-=== "Publish example (curl)"
+| Option | Description | Default | HIPAA |
+|--------|-------------|---------|-------|
+| messaging.max_payload_size | Max bytes per message | 1MB | Compliant |
+| messaging.filter_mode | fail-open / fail-closed | fail-closed | Compliant |
+| messaging.audit_enabled | Persist audit events | true | Compliant |
 
-```bash
-curl -X POST "https://api.example.com/messaging/publish" \
-  -H "Authorization: Bearer <KEY>" \
-  -H "Content-Type: application/json" \
-  -d '{"topic": "canonical.messages", "message": {"from_user": "user-1", "to_user": "user-2", "content": "SGVsbG8=", "content_type": "text/plain"}}'
-```
 
-## Filters and Privacy
+## Best Practices
 
-- Message routing supports rule-based filters; use the Admin Console to define filters that strip or mask sensitive fields before delivery.
-- Use data traits to flag messages that require special handling (e.g., high-sensitivity).
+- Keep messages small and reference large blobs via storage IDs
+- Encrypt sensitive payload fields before publishing
+- Use canonical models for payloads to ensure consistent filtering
 
-!!! warning "Do not bypass filters"
-    Filters and protections are enforced system-wide; bypassing them exposes PHI and may violate compliance rules.
+- [x] Verify messaging.audit_enabled is true in production
 
-## Troubleshooting
-
-- Messages not delivered: check subscription filters, delivery retries, and plugin health in the Admin Console.
-- Unexpected message contents: confirm transformation rules in Canonical and check message filter rules.
+??? note "Troubleshooting subscriptions"
+    If a subscriber is missing messages, check filter rules, subscription health, and audit logs.
