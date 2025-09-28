@@ -65,4 +65,3 @@ async def get_user_info(user_id: str):
         "manager": "manager-123",
         "traits": ["handles_pii"],
     }
-

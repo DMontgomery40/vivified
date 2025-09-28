@@ -192,6 +192,11 @@ async def get_user_traits(user: Dict = Depends(get_current_user)):
             "ui.policy",
             "ui.register",
             "ui.users",
+            "ui.storage",
+            "ui.send_demo",
+            "ui.inbound_demo",
+            "ui.jobs",
+            "ui.dashboard",
         ]
         ui_traits.extend(dev_traits)
 

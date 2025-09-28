@@ -63,6 +63,7 @@ import TunnelSettings from './components/TunnelSettings';
 import GatewayTester from './components/GatewayTester';
 import GatewayAllowlist from './components/GatewayAllowlist';
 import MessagingConsole from './components/MessagingConsole';
+import NotificationsPanel from './components/Notifications';
 import CanonicalTools from './components/CanonicalTools';
 import PolicyInspector from './components/PolicyInspector';
 import PluginRegister from './components/PluginRegister';
@@ -341,6 +342,7 @@ function AppContent() {
     { label: 'Policy', icon: <AssessmentIcon />, trait: 'ui.policy' },
     { label: 'Register', icon: <ExtensionIcon />, trait: 'ui.register' },
     { label: 'Storage', icon: <DescriptionIcon />, trait: 'ui.storage' },
+    { label: 'Notifications', icon: <InboxIcon />, trait: 'ui.notifications' },
   ];
 
   const hasTrait = (t: string) => !!(userTraits && userTraits.includes(t));
@@ -770,13 +772,40 @@ function AppContent() {
           <Dashboard client={client!} onNavigate={handleNavigate} />
         </TabPanel>
         <TabPanel value={tabValue} index={1}>
-          <SendFax client={client!} />
+          {allowSendDemo ? (
+            <DemoSend client={client!} />
+          ) : (
+            <Paper sx={{ p: 3 }}>
+              <Typography variant="h6" gutterBottom>Demo Send is disabled</Typography>
+              <Typography variant="body2" color="text.secondary">
+                This demo flow is gated by trait <code>ui.send_demo</code>. Enable it for your user or use the Integrations Wizard to set up a real outbound action.
+              </Typography>
+            </Paper>
+          )}
         </TabPanel>
         <TabPanel value={tabValue} index={2}>
-          <JobsList client={client!} />
+          {allowJobs ? (
+            <JobsList client={client!} />
+          ) : (
+            <Paper sx={{ p: 3 }}>
+              <Typography variant="h6" gutterBottom>Jobs are disabled</Typography>
+              <Typography variant="body2" color="text.secondary">
+                Access to Jobs requires trait <code>ui.jobs</code> (or admin). Grant the trait or use Diagnostics for high‑level status.
+              </Typography>
+            </Paper>
+          )}
         </TabPanel>
         <TabPanel value={tabValue} index={3}>
-          <Inbound client={client!} docsBase={uiConfig?.docs_base || adminConfig?.branding?.docs_base} />
+          {allowInboundDemo ? (
+            <Inbound client={client!} docsBase={uiConfig?.docs_base || adminConfig?.branding?.docs_base} />
+          ) : (
+            <Paper sx={{ p: 3 }}>
+              <Typography variant="h6" gutterBottom>Inbound Demo is disabled</Typography>
+              <Typography variant="body2" color="text.secondary">
+                This demo view is gated by trait <code>ui.inbound_demo</code>. Enable it or configure inbound endpoints via the Integrations Wizard.
+              </Typography>
+            </Paper>
+          )}
         </TabPanel>
         {/* Settings group */}
         <TabPanel value={tabValue} index={4}>
@@ -894,6 +923,7 @@ function AppContent() {
               {toolsTab === 12 && <PolicyInspector client={client!} />}
               {toolsTab === 13 && <PluginRegister client={client!} />}
               {toolsTab === 14 && <StorageBrowser client={client!} />}
+              {toolsTab === 15 && <NotificationsPanel client={client!} readOnly={!isAdmin} />}
             </Box>
           </Paper>
         </TabPanel>
