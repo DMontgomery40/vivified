@@ -1,13 +1,3 @@
-FROM node:20.19.5-alpine AS ui-build
-
-WORKDIR /ui
-# Only copy manifests first for better layer caching
-COPY admin_ui/package*.json ./admin_ui/
-RUN cd admin_ui && npm ci --no-audit --progress=false
-# Copy UI source and build
-COPY admin_ui ./admin_ui
-RUN cd admin_ui && npm run build:dist
-
 FROM python:3.11-alpine AS base
 
 # Security: Create non-root user
@@ -25,8 +15,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY --chown=vivified:vivified . ./core
 COPY --chown=vivified:vivified entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
-# Copy built Admin UI assets from the UI build stage into package
-COPY --from=ui-build --chown=vivified:vivified /ui/admin_ui/dist ./core/admin_ui/dist
+# Admin UI assets are optional; server serves a safe placeholder when dist is absent in DEV/CI
 
 # Security: Run as non-root
 USER vivified
