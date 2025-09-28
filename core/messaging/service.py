@@ -20,6 +20,7 @@ class MessagingService:
     def __init__(self, audit_service: AuditService, policy_engine: PolicyEngine):
         self.audit_service = audit_service
         self.policy_engine = policy_engine
+        # EventBus will auto-select broker via env (EVENT_BUS_BACKEND=nats|redis|memory)
         self.event_bus = EventBus(audit_service, policy_engine)
         self.message_store: Dict[str, Message] = {}
         self.event_store: Dict[str, Event] = {}
