@@ -509,7 +509,7 @@ function AppContent() {
                   onClick={() => handleLogin('bootstrap_admin_only')}
                   sx={{ mt: 1.5, py: 1.25, borderRadius: 2 }}
                 >
-                  Dev Bootstrap (admin)
+                  Sign in (Dev)
                 </Button>
                 
                 <Typography variant="caption" sx={{ mt: 2, display: 'block', opacity: 0.8 }}>
