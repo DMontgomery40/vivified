@@ -60,7 +60,9 @@ class HIPAAEncryption:
         self._encryption_key = derived[:32]  # 256-bit
         self._hmac_key = derived[32:]
 
-    def encrypt_phi(self, data: Dict[str, Any], patient_id: str) -> Tuple[bytes, Dict[str, Any]]:
+    def encrypt_phi(
+        self, data: Dict[str, Any], patient_id: str
+    ) -> Tuple[bytes, Dict[str, Any]]:
         """Encrypt PHI data with AES-256-GCM.
 
         Returns base64-encoded ciphertext bytes and metadata required for
@@ -73,7 +75,9 @@ class HIPAAEncryption:
 
         plaintext = json.dumps(data).encode()
         nonce = os.urandom(12)
-        cipher = Cipher(algorithms.AES(self._encryption_key), modes.GCM(nonce), backend=self.backend)
+        cipher = Cipher(
+            algorithms.AES(self._encryption_key), modes.GCM(nonce), backend=self.backend
+        )
         encryptor = cipher.encryptor()
         encryptor.authenticate_additional_data(patient_id.encode())
         ciphertext = encryptor.update(plaintext) + encryptor.finalize()
@@ -86,10 +90,14 @@ class HIPAAEncryption:
             "patient_id_hash": self._hash_patient_id(patient_id),
         }
 
-        logger.info("PHI encrypted for patient %s", metadata["patient_id_hash"])  # no PHI in logs
+        logger.info(
+            "PHI encrypted for patient %s", metadata["patient_id_hash"]
+        )  # no PHI in logs
         return base64.b64encode(ciphertext), metadata
 
-    def decrypt_phi(self, ciphertext: bytes, metadata: Dict[str, Any], patient_id: str) -> Dict[str, Any]:
+    def decrypt_phi(
+        self, ciphertext: bytes, metadata: Dict[str, Any], patient_id: str
+    ) -> Dict[str, Any]:
         """Decrypt PHI data with AES-256-GCM using provided metadata."""
         if metadata.get("patient_id_hash") != self._hash_patient_id(patient_id):
             raise ValueError("Patient ID mismatch")
@@ -99,7 +107,9 @@ class HIPAAEncryption:
         tag = base64.b64decode(str(metadata.get("tag", "")))
         key = self._get_key_version(int(metadata.get("version", 1)))
 
-        cipher = Cipher(algorithms.AES(key), modes.GCM(nonce, tag), backend=self.backend)
+        cipher = Cipher(
+            algorithms.AES(key), modes.GCM(nonce, tag), backend=self.backend
+        )
         decryptor = cipher.decryptor()
         decryptor.authenticate_additional_data(patient_id.encode())
         plaintext = decryptor.update(raw_ct) + decryptor.finalize()
@@ -148,7 +158,11 @@ _PHI_ENCRYPTION_SVC: Optional[HIPAAEncryption] = None
 def get_phi_encryption() -> HIPAAEncryption:
     global _PHI_ENCRYPTION_SVC
     if _PHI_ENCRYPTION_SVC is None:
-        master = os.getenv("PHI_MASTER_KEY") or os.getenv("CONFIG_ENC_KEY") or "dev-phi-master"
+        master = (
+            os.getenv("PHI_MASTER_KEY")
+            or os.getenv("CONFIG_ENC_KEY")
+            or "dev-phi-master"
+        )
         _PHI_ENCRYPTION_SVC = HIPAAEncryption(master)
     return _PHI_ENCRYPTION_SVC
 
@@ -161,5 +175,3 @@ def rotate_phi_encryption(new_master_key: Optional[str] = None) -> int:
     svc.current_key_version += 1
     logger.info("PHI encryption key version rotated to %s", svc.current_key_version)
     return svc.current_key_version
-
-
