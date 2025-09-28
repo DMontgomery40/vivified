@@ -1,0 +1,8 @@
+black==25.9.0
+flake8==7.3.0
+mypy==1.18.2
+sqlalchemy==2.0.43
+pytest
+pytest-cov
+pytest-asyncio
+

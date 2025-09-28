@@ -1,8 +1,0 @@
-Metadata-Version: 2.4
-Name: vivified-api
-Version: 0.0.1
-Summary: Vivified FastAPI server
-Requires-Python: >=3.11
-Requires-Dist: fastapi>=0.115.0
-Requires-Dist: uvicorn>=0.30.0
-Requires-Dist: vivified-core>=0.0.1

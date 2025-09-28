@@ -1,21 +1,36 @@
-# Vivified (kernel + polyglot plugins)
+# Vivified Platform — Phase 1 Scaffold
 
-Packages:
-- `vivified_core`: kernel + plugin API (traits + config-ready)
-- `vivified_cli`: `vivi` CLI
-- `vivified_api`: FastAPI server
-- `plugins/hello_py`: native Python plugin
-- `plugins/hello_js`: external Node plugin via JSON-RPC over stdio
-- `plugins.d/*.json`: list external executables to auto-register
+This repository contains the Phase 1 scaffold for the Vivified platform: a minimal core service, plugin interface contracts, an example plugin, and Docker Compose wiring.
 
-## Quick start
-```bash
-python3 -m venv .venv && . .venv/bin/activate
-pip install -U pip
-pip install -e vivified_core -e vivified_cli -e vivified_api -e plugins/hello_py
-vivi plugins
-vivi run hello Vivi
-vivified-api
-# test:
-# curl -s -X POST http://localhost:8787/run -H 'content-type: application/json' -d '{"plugin":"hello","args":["David"]}'
-```
+Quick start
+
+- Prereqs: Docker, Docker Compose
+- Start stack: `make up`
+- Stop stack: `make down`
+
+Services
+
+- Core: FastAPI app exposing `/health` and plugin registration endpoints
+- Example Plugin: `user_management` service, registers itself with core on startup
+
+Docs
+
+- Built with MkDocs + Material, versioned with mike
+- Working branch: `mkdocs` (auto-deploys to `gh-pages`)
+- Build locally: `make docs`; serve: `make docs-serve`
+
+Commands
+
+- `make build` — Build Docker images
+- `make up` — Bring up services
+- `make down` — Tear down services
+- `make test` — Run unit tests
+- `make lint` — Run linters
+- `make proto` — Compile protobufs
+- `make docs` — Build docs site locally
+
+Notes
+
+- Containers run as non-root users
+- Registration endpoint is open for Phase 1 (no auth yet)
+- JWT secret and DB password are provided via environment variables

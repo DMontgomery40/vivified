@@ -1,0 +1,15 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vivified-cli"
+version = "0.1.0"
+description = "Vivified platform CLI"
+requires-python = ">=3.9"
+dependencies = ["click>=8.1.0", "jsonschema>=4.17.0"]
+
+[project.scripts]
+vivified = "vivified_cli.main:cli"
+
+

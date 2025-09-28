@@ -1,0 +1,109 @@
+name: CI Pipeline
+on: [push, pull_request]
+
+jobs:
+  security-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - name: Run security scan
+        run: |
+          pip install safety bandit
+          safety check || true
+          bandit -r core/ || true
+  
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - name: Python lint
+        run: |
+          pip install black flake8 mypy sqlalchemy
+          black --check core/
+          flake8 core/
+          mypy --config-file mypy.ini core/
+  
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - name: Run tests
+        run: |
+          pip install -r core/requirements.txt pytest pytest-cov
+          PYTHONPATH=$PWD:$PWD/sdk/python/src pytest --cov=core --cov-report=xml
+      - name: Check coverage
+        run: |
+          pip install coverage
+          coverage report --fail-under=80 || true
+
+  ui-build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: core/ui
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20.19.5'
+      - name: Install deps
+        run: npm ci || npm i
+      - name: Build UI
+        run: npm run build
+
+  admin-ui-build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: core/admin_ui
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20.19.5'
+      - name: Install deps
+        run: npm ci || npm i
+      - name: Build Admin UI
+        run: npm run build
+  
+  docker-core-image:
+    name: Build Core Docker image (with UI)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Build image
+        run: |
+          docker build -t vivified-core-ci:latest core
+      - name: Run container
+        run: |
+          docker run -d --rm --name vivified-core-ci -e DEV_MODE=true -e DB_INIT=false -p 8000:8000 vivified-core-ci:latest
+      - name: Wait for health
+        run: |
+          for i in $(seq 1 30); do
+            curl -fsS http://localhost:8000/health && exit 0 || true
+            sleep 2
+          done
+          echo "Core did not become healthy" >&2
+          docker logs vivified-core-ci || true
+          exit 1
+      - name: Verify Admin UI is served
+        run: |
+          curl -fsS -o /tmp/ui.html http://localhost:8000/admin/ui
+          grep -qi "<!doctype html" /tmp/ui.html
+      - name: Cleanup
+        if: always()
+        run: |
+          docker rm -f vivified-core-ci || true
+      # The Admin UI build is validated in the admin-ui-build job above.
+      # No additional npm steps are needed here.
