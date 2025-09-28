@@ -29,7 +29,14 @@ secrets/
 !.vscode/settings.json
 .idea/
 .DS_Store
+site/
+*.db
 
 # Local Python env
 .venv/
+.venv*/
+.venv_* 
+.venv_black/
+.venv_lint/
+.venv_docs/
 *.egg-info/

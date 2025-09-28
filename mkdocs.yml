@@ -26,19 +26,56 @@ theme:
   features:
     - navigation.instant
     - navigation.sections
+    - navigation.top
     - content.code.copy
+    - content.code.annotate
+    - content.tabs.link
 
 plugins:
   - search
   - mike
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.tilde
+  - pymdownx.caret
+  - pymdownx.mark
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
 
 nav:
   - Home: index.md
   - Getting Started: getting-started.md
   - Core:
       - Overview: core/overview.md
+  - SDK:
+      - Overview: sdk/overview.md
+  - Architecture:
+      - Diagrams: architecture/diagrams.md
   - Plugins:
       - Overview: plugins/overview.md
+  - Reference:
+      - APIs: reference/apis.md
   - Contributing: contributing.md
 
 extra:

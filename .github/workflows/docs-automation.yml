@@ -1,0 +1,106 @@
+name: Documentation Automation
+
+on:
+  push:
+    branches: ["development", "claude-test"]
+  workflow_dispatch:
+    inputs:
+      regenerate_all:
+        description: 'Regenerate all documentation (full scan)'
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: docs-automation
+  cancel-in-progress: true
+
+jobs:
+  generate-and-pr:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install generator deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests
+
+      - name: Generate docs (full scan)
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_MODEL: gpt-5-mini-2025-08-07
+        run: |
+          python tools/scripts/docs_autopilot_enhanced.py --full-scan --output-dir generated_docs
+
+      - name: Prepare PR branch off mkdocs
+        run: |
+          git fetch origin mkdocs
+          git checkout -b auto/docs-${{ github.run_id }} origin/mkdocs
+          rsync -a --delete generated_docs/ docs/
+          git add docs
+          git status --porcelain
+          if git diff --cached --quiet; then
+            echo "No docs changes to commit" && echo "no_changes=1" >> $GITHUB_OUTPUT
+          else
+            git commit -m "docs: regenerate via AI (auto)"
+          fi
+
+      - name: Create Pull Request
+        if: success()
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          title: "docs: AI-generated documentation update"
+          body: |
+            Automated documentation refresh using GPT-5 (fallbacks to gpt-4o).
+
+            - Full repository scan (core, plugins, sdk)
+            - Excludes internal plans/runbooks (plan/phase)
+            - Uses Material features: admonitions, tabs, details, mermaid, annotations
+            - Professional enterprise tone (ERP, cybersecurity, messaging)
+          branch: auto/docs-${{ github.run_id }}
+          base: mkdocs
+
+  deploy-mkdocs:
+    needs: generate-and-pr
+    if: github.ref == 'refs/heads/mkdocs'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: mkdocs
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install mkdocs deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r docs/requirements.txt
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Build and deploy with mike
+        run: |
+          mike deploy --push --update-aliases latest dev
+          mike set-default --push latest
+
