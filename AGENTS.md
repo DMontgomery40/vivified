@@ -1,5 +1,67 @@
 # AGENTS.md - Vivified Platform Development Guidelines
 
+## Local CI Parity — Commit Gate (Read This First)
+
+Stop the flood of CI errors by running exactly what CI runs before every push. Use Python 3.11 and these pinned tool versions.
+
+Required preflight (run from repo root):
+
+```bash
+# Python 3.11 environment
+python3.11 -m venv .venv && . .venv/bin/activate
+
+# Install runtime + dev tools exactly like CI
+pip install -r core/requirements.txt \
+  black==25.9.0 flake8==7.3.0 mypy==1.18.2 sqlalchemy==2.0.43 \
+  pytest pytest-cov pytest-asyncio
+
+# Lint/type/test — all must pass locally before pushing
+black --check core/ || (echo "Run: black core/" && exit 1)
+flake8 core/
+mypy --config-file mypy.ini core/
+PYTHONPATH=$PWD pytest -q
+```
+
+Pre-commit (recommended):
+
+```bash
+pip install pre-commit
+cat > .pre-commit-config.yaml <<'YAML'
+repos:
+  - repo: https://github.com/psf/black
+    rev: 25.9.0
+    hooks: [{ id: black }]
+  - repo: https://github.com/PyCQA/flake8
+    rev: 7.3.0
+    hooks: [{ id: flake8 }]
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.18.2
+    hooks:
+      - id: mypy
+        additional_dependencies: ["sqlalchemy==2.0.43"]
+  - repo: local
+    hooks:
+      - id: pytest
+        name: pytest (pre-push)
+        entry: bash -c 'PYTHONPATH=$PWD pytest -q'
+        language: system
+        pass_filenames: false
+        stages: [push]
+YAML
+pre-commit install -t pre-commit -t pre-push
+```
+
+Common pitfalls that cause “THIS MANY ERRORS”:
+- Optional defaults: if a parameter default is `None`, type it as `T | None` (or `Optional[T]`). mypy rejects implicit Optional.
+- Mutable defaults: for dataclasses use `field(default_factory=list)` and for Pydantic use `Field(default_factory=list)`; do not use `= []` or `= None` for lists.
+- SQLAlchemy typing: use `async_sessionmaker(...)` and `async with` sessions for correct async types; keep the mypy plugin enabled and ensure `sqlalchemy` is installed for linting.
+- Import-time side effects: avoid making network/DB calls at import. Use in‑memory SQLite in tests (`sqlite+aiosqlite:///:memory:`) or lazy init.
+- Async tests: install `pytest-asyncio` and mark async tests with `@pytest.mark.asyncio` when needed.
+- Admin UI routes: mount `/admin/ui` and the SPA fallback unconditionally; do not gate route definitions on the presence of built assets. CI’s Docker job separately verifies the real UI build.
+- JWT/optional deps: when providing fallbacks for optional libraries, assign them to a variable typed `Any` to avoid module vs. instance type errors.
+
+CI mirrors these exact tools and expectations. If any of the above fails locally, fix it before pushing.
+
 ## Critical Notice
 **THIS PLATFORM HANDLES PHI/PII AND MUST BE HIPAA-COMPLIANT**
 Every decision, implementation, and review must consider security and compliance implications.
