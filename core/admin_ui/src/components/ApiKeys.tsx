@@ -41,6 +41,7 @@ import {
   CheckCircle as SuccessIcon,
 } from '@mui/icons-material';
 import AdminAPIClient from '../api/client';
+import HelpTip from './common/HelpTip';
 import type { ApiKey } from '../api/types';
 import {
   ResponsiveTextField,
@@ -262,6 +263,7 @@ function ApiKeys({ client, readOnly = false }: ApiKeysProps) {
           API Keys
         </Typography>
         <Box display="flex" gap={1}>
+          <HelpTip topic="api-keys" />
           <Button
             variant="outlined"
             startIcon={<RefreshIcon />}
@@ -315,7 +317,7 @@ function ApiKeys({ client, readOnly = false }: ApiKeysProps) {
               No API Keys
             </Typography>
             <Typography color="text.secondary" sx={{ mb: 3 }}>
-              Create your first API key to start using the Faxbot API
+              Create your first API key to start using the Admin API
             </Typography>
             <Button
               variant="contained"

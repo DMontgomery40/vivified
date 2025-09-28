@@ -34,6 +34,7 @@ import AdminAPIClient from '../api/client';
 import type { Settings as SettingsType } from '../api/types';
 import { useTraits } from '../hooks/useTraits';
 import { ResponsiveSettingItem, ResponsiveSettingSection } from './common/ResponsiveSettingItem';
+import HelpTip from './common/HelpTip';
 import { ResponsiveTextField, ResponsiveFormSection } from './common/ResponsiveFormFields';
 import TunnelSettings from './TunnelSettings';
 
@@ -52,7 +53,7 @@ function Settings({ client, readOnly = false }: SettingsProps) {
   const [restartHint, setRestartHint] = useState<boolean>(false);
   const [allowRestart, setAllowRestart] = useState<boolean>(false);
   const [persistedEnabled, setPersistedEnabled] = useState<boolean>(false);
-  const [docsBase, setDocsBase] = useState<string>('https://dmontgomery40.github.io/Faxbot');
+  const [docsBase, setDocsBase] = useState<string>('');
   const [migrationBanner, setMigrationBanner] = useState<boolean>(false);
   const [importingEnv, setImportingEnv] = useState<boolean>(false);
   const [importResult, setImportResult] = useState<{discovered:number; prefixes:string[]} | null>(null);
@@ -260,6 +261,7 @@ function Settings({ client, readOnly = false }: SettingsProps) {
         <Typography variant="h4" component="h1">
           Settings
         </Typography>
+        <HelpTip topic="settings" docsBase={docsBase} />
         <Box>
           <Button
             variant="outlined"

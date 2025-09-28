@@ -181,13 +181,14 @@ function Diagnostics({ client, onNavigate, docsBase }: DiagnosticsProps) {
   useEffect(() => {
     const loadAnchors = async () => {
       try {
-        const base = docsBase || 'https://dmontgomery40.github.io/Faxbot';
+        const base = docsBase || '';
         const topics: string[] = [ 'security', 'diagnostics', 'inbound', 'storage', 'plugins', 'mcp', 'scripts', 'setup', 'send', 'jobs', 'tunnels', 'keys', 'logs', 'sip', 'signalwire', 'freeswitch', 'documo' ];
         const provs = [active?.outbound, active?.inbound].filter(Boolean) as string[];
         for (const p of provs) { if (!topics.includes(p)) topics.push(p); }
         topics.push('all');
         for (const t of Array.from(new Set(topics))) {
           try {
+            if (!base) break;
             const res = await fetch(`${base}/anchors/${t}.json`, { cache: 'no-store' });
             if (res.ok) {
               const js = await res.json();
@@ -311,6 +312,8 @@ function Diagnostics({ client, onNavigate, docsBase }: DiagnosticsProps) {
   const getHelpDocs = (title: string, key: string) => {
     const t = title.toLowerCase();
     const docs: { text: string; href?: string }[] = [];
+    const dropFaxbot = (items: { text: string; href?: string }[]) =>
+      items.filter((d) => !(d.href && d.href.includes('dmontgomery40.github.io/Faxbot')));
     
     if (t.includes('system')) {
       if (key === 'ghostscript') {
@@ -322,18 +325,18 @@ function Diagnostics({ client, onNavigate, docsBase }: DiagnosticsProps) {
         docs.push({ text: 'FAX_DATA_DIR stores temporary files and fax artifacts.' });
         docs.push({ text: 'Default: /faxdata in container, ./faxdata locally' });
         docs.push({ text: 'Must be writable by the application process.' });
-        docs.push({ text: 'Deployment Guide', href: `${docsBase || 'https://dmontgomery40.github.io/Faxbot'}/deployment/` });
+        if (docsBase) docs.push({ text: 'Deployment Guide', href: `${docsBase}/deployment/` });
       }
       else if (key === 'database_connected') {
         docs.push({ text: 'Database stores job records and API keys.' });
         docs.push({ text: 'Default: SQLite at ./faxbot.db' });
         docs.push({ text: 'Production: Use PostgreSQL with DATABASE_URL' });
-        docs.push({ text: 'Database Setup', href: `${docsBase || 'https://dmontgomery40.github.io/Faxbot'}/deployment/#database-configuration` });
+        if (docsBase) docs.push({ text: 'Database Setup', href: `${docsBase}/deployment/#database-configuration` });
       }
     }
     
     if (t.includes('phaxio')) {
-      docs.push({ text: 'Phaxio Setup Guide', href: `${docsBase || 'https://dmontgomery40.github.io/Faxbot'}/backends/phaxio-setup.html` });
+      if (docsBase) docs.push({ text: 'Phaxio Setup Guide', href: `${docsBase}/backends/phaxio-setup.html` });
       docs.push({ text: 'Phaxio Console', href: 'https://console.phaxio.com' });
       const add = (topic: string, text: string) => { const href = anchors[topic] || thirdParty[topic]; if (href) docs.push({ text, href }); };
       add('phaxio-webhook-hmac', 'Verify Phaxio inbound HMAC signatures');
@@ -341,14 +344,14 @@ function Diagnostics({ client, onNavigate, docsBase }: DiagnosticsProps) {
     }
     
     if (t.includes('sip')) {
-      docs.push({ text: 'SIP/Asterisk Setup', href: `${docsBase || 'https://dmontgomery40.github.io/Faxbot'}/backends/sip-setup.html` });
+      if (docsBase) docs.push({ text: 'SIP/Asterisk Setup', href: `${docsBase}/backends/sip-setup.html` });
       if (key === 'ami_password_not_default') {
         docs.push({ text: 'Change AMI password in both Asterisk manager.conf and ASTERISK_AMI_PASSWORD env var.' });
       }
     }
     
     if (t.includes('security')) {
-      docs.push({ text: 'Security Guide', href: `${docsBase || 'https://dmontgomery40.github.io/Faxbot'}/security/` });
+      if (docsBase) docs.push({ text: 'Security Guide', href: `${docsBase}/security/` });
       const addSec = (topic: string, text: string) => { const href = anchors[topic] || thirdParty[topic]; if (href) docs.push({ text, href }); };
       addSec('enforce-https-phi', 'Enforce HTTPS for PHI (ENFORCE_PUBLIC_HTTPS)');
       addSec('require-api-key-production', 'Require API keys (REQUIRE_API_KEY)');
@@ -356,7 +359,7 @@ function Diagnostics({ client, onNavigate, docsBase }: DiagnosticsProps) {
     }
 
     if (t.includes('sinch')) {
-      docs.push({ text: 'Faxbot: Sinch Setup', href: `${docsBase || 'https://dmontgomery40.github.io/Faxbot'}/backends/sinch-setup.html` });
+      if (docsBase) docs.push({ text: 'Sinch Setup', href: `${docsBase}/backends/sinch-setup.html` });
       docs.push({ text: 'Sinch Fax API', href: 'https://developers.sinch.com/docs/fax/api-reference/' });
       docs.push({ text: 'OAuth 2.0 for Fax API', href: 'https://developers.sinch.com/docs/fax/api-reference/authentication/oauth/' });
       docs.push({ text: 'Sinch Customer Dashboard (Access Keys – Build)', href: 'https://dashboard.sinch.com/settings/access-keys' });
@@ -372,7 +375,7 @@ function Diagnostics({ client, onNavigate, docsBase }: DiagnosticsProps) {
     }
 
     if (t.includes('inbound')) {
-      docs.push({ text: 'Inbound Overview', href: `${docsBase || 'https://dmontgomery40.github.io/Faxbot'}/inbound/` });
+      if (docsBase) docs.push({ text: 'Inbound Overview', href: `${docsBase}/inbound/` });
       const addI = (topic: string, text: string) => { const href = anchors[topic] || thirdParty[topic]; if (href) docs.push({ text, href }); };
       addI('inbound-enable', 'Enable inbound receiving');
       addI('inbound-retention', 'Retention days');
@@ -382,7 +385,7 @@ function Diagnostics({ client, onNavigate, docsBase }: DiagnosticsProps) {
     }
 
     if (t.includes('storage')) {
-      docs.push({ text: 'Storage Guide', href: `${docsBase || 'https://dmontgomery40.github.io/Faxbot'}/storage/` });
+      if (docsBase) docs.push({ text: 'Storage Guide', href: `${docsBase}/storage/` });
       const addSt = (topic: string, text: string) => { const href = anchors[topic] || thirdParty[topic]; if (href) docs.push({ text, href }); };
       addSt('storage-local-vs-s3', 'Local vs S3');
       addSt('storage-s3-kms', 'S3 KMS encryption');
@@ -390,7 +393,7 @@ function Diagnostics({ client, onNavigate, docsBase }: DiagnosticsProps) {
       addSt('storage-phi', 'PHI storage considerations');
     }
     
-    return docs;
+    return dropFaxbot(docs);
   };
 
   const shouldShowSection = (title: string) => {
@@ -610,7 +613,7 @@ function Diagnostics({ client, onNavigate, docsBase }: DiagnosticsProps) {
       setTestSending(true);
       setTestJobId(null);
       setTestStatus(null);
-      const blob = new Blob(["Faxbot test"], { type: 'text/plain' });
+      const blob = new Blob(["Admin test"], { type: 'text/plain' });
       const file = new File([blob], 'test.txt', { type: 'text/plain' });
       const result = await client.sendFax('+15555550123', file);
       setTestJobId(result.id);
@@ -647,8 +650,8 @@ function Diagnostics({ client, onNavigate, docsBase }: DiagnosticsProps) {
       setTestSendingTxt(true);
       setTestJobId(null);
       setTestStatus(null);
-      const blob = new Blob(["Faxbot test TXT\nHello from Admin Console"], { type: 'text/plain' });
-      const file = new File([blob], 'faxbot_test.txt', { type: 'text/plain' });
+      const blob = new Blob(["Admin test TXT\nHello from Admin Console"], { type: 'text/plain' });
+      const file = new File([blob], 'admin_test.txt', { type: 'text/plain' });
       const result = await client.sendFax('+15555550123', file);
       setTestJobId(result.id);
       setTestStatus(result.status);
@@ -726,7 +729,7 @@ function Diagnostics({ client, onNavigate, docsBase }: DiagnosticsProps) {
       const ab = new ArrayBuffer(bytes.byteLength);
       new Uint8Array(ab).set(bytes);
       const blob = new Blob([ab], { type: 'application/pdf' });
-      const file = new File([blob], 'faxbot_test_image.pdf', { type: 'application/pdf' });
+      const file = new File([blob], 'admin_test_image.pdf', { type: 'application/pdf' });
       const result = await client.sendFax('+15555550123', file);
       setTestJobId(result.id);
       setTestStatus(result.status);

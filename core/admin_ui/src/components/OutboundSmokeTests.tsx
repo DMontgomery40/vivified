@@ -118,12 +118,12 @@ export default function OutboundSmokeTests({ client, canSend = true }: OutboundS
     if (type === 'txt') {
       const content = `Faxbot Smoke Test - ${new Date().toISOString()}\n\nProvider: ${providerName}\nTest Type: Text File\n\nThis is a test transmission to verify outbound fax functionality.`;
       const blob = new Blob([content], { type: 'text/plain' });
-      return new File([blob], 'faxbot_test.txt', { type: 'text/plain' });
+      return new File([blob], 'admin_test.txt', { type: 'text/plain' });
     } else if (type === 'pdf') {
       // Generate a simple PDF
       const pdfContent = generateSimplePdf(`Faxbot Test PDF - ${providerName}`);
       const blob = new Blob([new Uint8Array(pdfContent)], { type: 'application/pdf' });
-      return new File([blob], 'faxbot_test.pdf', { type: 'application/pdf' });
+      return new File([blob], 'admin_test.pdf', { type: 'application/pdf' });
     } else {
       // Generate a PDF with graphics (image test)
       const pdfContent = generateGraphicsPdf(`Faxbot Graphics Test - ${providerName}`);

@@ -30,6 +30,7 @@ import {
 } from '@mui/material';
 import { Refresh as RefreshIcon } from '@mui/icons-material';
 import AdminAPIClient from '../api/client';
+import HelpTip from './common/HelpTip';
 import type { FaxJob } from '../api/types';
 
 interface JobsListProps {
@@ -114,9 +115,8 @@ function JobsList({ client }: JobsListProps) {
   return (
     <Box>
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-        <Typography variant="h4" component="h1">
-          Fax Jobs
-        </Typography>
+        <Typography variant="h4" component="h1">Jobs</Typography>
+        <HelpTip topic="jobs" />
         <Button
           variant="outlined"
           startIcon={<RefreshIcon />}

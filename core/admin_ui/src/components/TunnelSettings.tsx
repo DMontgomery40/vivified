@@ -193,6 +193,9 @@ export default function TunnelSettings({ client, docsBase, hipaaMode, readOnly =
 
   return (
     <Box>
+      <Box display="flex" justifyContent="flex-end" alignItems="center" sx={{ mb: 1 }}>
+        <HelpTip topic="tunnel" docsBase={docsBase} />
+      </Box>
       {notice && (
         <Alert severity={notice.severity} onClose={() => setNotice(null)} sx={{ mb: 2 }}>
           {notice.message}

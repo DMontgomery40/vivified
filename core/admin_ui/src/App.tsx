@@ -106,7 +106,11 @@ function AppContent() {
   
   const [apiKey, setApiKey] = useState<string>(() => {
     // Load from localStorage (temporary storage, cleared on logout)
-    return localStorage.getItem('faxbot_admin_key') || '';
+    return (
+      localStorage.getItem('vivified_admin_key') ||
+      localStorage.getItem('faxbot_admin_key') ||
+      ''
+    );
   });
   const [client, setClient] = useState<AdminAPIClient | null>(null);
   const [adminConfig, setAdminConfig] = useState<any | null>(null);
@@ -133,6 +137,8 @@ function AppContent() {
       const cfg = await testClient.getConfig();
       
       // Success
+      localStorage.setItem('vivified_admin_key', key);
+      // Back-compat for older builds
       localStorage.setItem('faxbot_admin_key', key);
       setApiKey(key);
       setClient(testClient);
@@ -156,6 +162,7 @@ function AppContent() {
   };
 
   const handleLogout = () => {
+    localStorage.removeItem('vivified_admin_key');
     localStorage.removeItem('faxbot_admin_key');
     setApiKey('');
     setClient(null);
@@ -392,7 +399,7 @@ function AppContent() {
                       (e.target as HTMLImageElement).style.display = 'none';
                       // Show fallback text
                       const fallback = document.createElement('div');
-                      fallback.innerHTML = '<h1 style="color: #3BA0FF; font-size: 3rem; margin: 0;">FAXBOT</h1>';
+                      fallback.innerHTML = '<h1 style="color: #3BA0FF; font-size: 3rem; margin: 0;">VIVIFIED</h1>';
                       (e.target as HTMLImageElement).parentNode?.appendChild(fallback);
                     }}
                     style={{
@@ -497,7 +504,7 @@ function AppContent() {
                   value={apiKey}
                   onChange={(e) => setApiKey(e.target.value)}
                   onKeyPress={handleKeyPress}
-                  placeholder="fbk_live_... or bootstrap key"
+                  placeholder="api_key_here or use Sign in (Dev)"
                   sx={{ mt: 3 }}
                   autoFocus
                 />
@@ -563,13 +570,13 @@ function AppContent() {
           </IconButton>
           <Box
             component="img"
-            src={muiTheme.palette.mode === 'dark' ? '/admin/ui/faxbot_mini_banner_dark.png' : '/admin/ui/faxbot_mini_banner_light.png'}
+            src={muiTheme.palette.mode === 'dark' ? '/admin/ui/vivified_mini_banner_dark.png' : '/admin/ui/vivified_mini_banner_light.png'}
             alt="Vivified"
             onClick={() => setTabValue(0)}
             onError={(e) => {
               console.error('Header logo failed to load:', e);
               // Try relative path as fallback
-              (e.target as HTMLImageElement).src = muiTheme.palette.mode === 'dark' ? '/assets/faxbot_mini_banner_dark.png' : '/assets/faxbot_mini_banner_light.png';
+              (e.target as HTMLImageElement).src = muiTheme.palette.mode === 'dark' ? '/assets/vivified_mini_banner_dark.png' : '/assets/vivified_mini_banner_light.png';
             }}
             sx={{ 
               height: { xs: 30, sm: 36 }, 
@@ -853,8 +860,14 @@ function AppContent() {
             <Box sx={{ p: { xs: 2, md: 3 } }}>
               {toolsTab === 0 && <Terminal apiKey={apiKey} />}
               {toolsTab === 1 && (
+                <Diagnostics client={client!} onNavigate={handleNavigate} docsBase={uiConfig?.docs_base || adminConfig?.branding?.docs_base} />
+              )}
+              {toolsTab === 2 && <Logs client={client!} />}
+              {toolsTab === 3 && <Plugins client={client!} readOnly={!hasTrait('role.admin')} />}
+              {toolsTab === 4 && <PluginMarketplace client={client!} docsBase={uiConfig?.docs_base || adminConfig?.branding?.docs_base} />}
+              {toolsTab === 5 && (
                 <Box>
-                  <Diagnostics client={client!} onNavigate={handleNavigate} docsBase={uiConfig?.docs_base || adminConfig?.branding?.docs_base} />
+                  <ScriptsTests client={client!} docsBase={uiConfig?.docs_base || adminConfig?.branding?.docs_base} canSend={canSend} readOnly={!isAdmin} />
                   <Box sx={{ mt: 4 }}>
                     <OutboundSmokeTests client={client!} canSend={canSend} />
                   </Box>
@@ -863,10 +876,6 @@ function AppContent() {
                   </Box>
                 </Box>
               )}
-              {toolsTab === 2 && <Logs client={client!} />}
-              {toolsTab === 3 && <Plugins client={client!} readOnly={!hasTrait('role.admin')} />}
-              {toolsTab === 4 && <PluginMarketplace client={client!} docsBase={uiConfig?.docs_base || adminConfig?.branding?.docs_base} />}
-              {toolsTab === 5 && <ScriptsTests client={client!} docsBase={uiConfig?.docs_base || adminConfig?.branding?.docs_base} canSend={canSend} readOnly={!isAdmin} />}
               {toolsTab === 6 && (
                 <TunnelSettings
                   client={client!}

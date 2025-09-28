@@ -41,7 +41,7 @@ export function useTraits(): TraitsHook {
       try {
         const response = await fetch('/admin/providers', {
           headers: {
-            'X-API-Key': localStorage.getItem('faxbot_admin_key') || '',
+            'X-API-Key': localStorage.getItem('vivified_admin_key') || localStorage.getItem('faxbot_admin_key') || '',
             'Content-Type': 'application/json',
           },
         });
