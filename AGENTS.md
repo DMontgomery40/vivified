@@ -51,6 +51,24 @@ YAML
 pre-commit install -t pre-commit -t pre-push
 ```
 
+Optional but recommended UI parity checks (mirrors CI’s UI jobs):
+
+```bash
+# Build React Admin UIs locally (skips if node/npm not installed)
+make ui-ci-local
+
+# Or via pre-push hook automatically (already added):
+#   - ui build (pre-push)
+```
+
+Agent gating (block automation until green + merged):
+
+```bash
+# Runs local parity first, then polls GitHub for PR merge (requires env)
+REPO=owner/repo PR_NUMBER=123 GITHUB_TOKEN=ghp_xxx \
+  python tools/scripts/agent_gate.py --wait-merge
+```
+
 - Align local preflight with CI (enforce before push)
       - Use existing pre-commit with pre-push pytest. Run:
           - pre-commit install -t pre-commit -t pre-push
