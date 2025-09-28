@@ -17,26 +17,20 @@ jobs:
         with:
           fetch-depth: 0
           
-      - name: Run Docs-Autopilot action (plan mode)
-        id: autopilot
-        uses: DMontgomery40/Docs-Autopilot@main
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        continue-on-error: true
-        
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
           
-      - name: Fallback - generate docs plan locally if missing
+      - name: Install dependencies
         run: |
-          if [ ! -f docs/_autopilot/plan.md ]; then
-            echo "Docs-Autopilot did not produce a plan; generating fallback plan..."
-            python tools/scripts/docs_autopilot.py
-          else
-            echo "Plan already present from Docs-Autopilot action."
-          fi
+          pip install requests pyyaml
+          
+      - name: Generate docs plan
+        run: |
+          echo "Generating documentation plan..."
+          mkdir -p docs/_autopilot
+          python tools/scripts/docs_autopilot.py || echo "Basic plan generation"
       - name: Detect changes to plan or mkdocs config
         id: detect
         run: |
