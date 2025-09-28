@@ -11,7 +11,7 @@ from core.api.models import ConfigSetRequest, UserCreateRequest
 import httpx
 from core.api.dependencies import get_current_user, require_auth
 from core.audit.service import audit_log
-from core.database import get_session, get_engine
+from core.database import get_session
 from core.identity.service import IdentityService
 from core.identity.auth import get_auth_manager
 from core.audit.service import get_audit_service
@@ -291,7 +291,7 @@ async def get_gateway_allowlist(
 async def set_gateway_allowlist(
     payload: Dict[str, Any],
     user: Dict[str, Any] = Depends(get_current_user),
-    _: Dict = Depends(require_auth(["admin", "plugin_manager"]))
+    _: Dict = Depends(require_auth(["admin", "plugin_manager"])),
 ):
     if _CONFIG_SVC is None:
         raise HTTPException(status_code=500, detail="Config service not available")
@@ -378,7 +378,9 @@ async def run_diagnostics(_: Dict = Depends(require_auth(["admin", "viewer"]))):
 
 # Security → Encryption admin endpoints
 @admin_router.get("/security/encryption/status")
-async def encryption_status(_: Dict = Depends(require_auth(["admin", "security_admin"]))):
+async def encryption_status(
+    _: Dict = Depends(require_auth(["admin", "security_admin"]))
+):
     svc = get_phi_encryption()
     return {
         "algorithm": "AES-256-GCM",
@@ -390,8 +392,7 @@ async def encryption_status(_: Dict = Depends(require_auth(["admin", "security_a
 @admin_router.post("/security/encryption/rotate")
 @audit_log("security_encryption_rotated")
 async def encryption_rotate(
-    payload: Dict[str, Any] | None = None,
-    _: Dict = Depends(require_auth(["admin"]))
+    payload: Dict[str, Any] | None = None, _: Dict = Depends(require_auth(["admin"]))
 ):
     new_master_key = None
     if isinstance(payload, dict):
@@ -479,7 +480,11 @@ async def create_api_key_admin(
     payload: Dict[str, Any],
     user: Dict[str, Any] = Depends(get_current_user),
     session=Depends(get_session),
-    ids: IdentityService = Depends(lambda session=Depends(get_session): IdentityService(session, get_auth_manager())),
+    ids: IdentityService = Depends(
+        lambda session=Depends(get_session): IdentityService(
+            session, get_auth_manager()
+        )
+    ),
 ):
     await _ensure_identity_schema(session)
     name = str(payload.get("name") or "api-key")
@@ -490,7 +495,8 @@ async def create_api_key_admin(
         raise HTTPException(status_code=400, detail="scopes must be a list")
 
     # Generate token and persist (inline to also return the id)
-    import secrets, hashlib
+    import secrets
+    import hashlib
 
     token = secrets.token_urlsafe(32)
     key_hash = hashlib.sha256(token.encode()).hexdigest()
@@ -538,11 +544,14 @@ async def rotate_api_key_admin(
     obj = await session.get(APIKey, key_id)
     if not obj:
         raise HTTPException(status_code=404, detail="Key not found")
-    import secrets, hashlib
+    import secrets
+    import hashlib
 
     token = secrets.token_urlsafe(32)
     key_hash = hashlib.sha256(token.encode()).hexdigest()
-    await session.execute(update(APIKey).where(APIKey.id == key_id).values(key_hash=key_hash))
+    await session.execute(
+        update(APIKey).where(APIKey.id == key_id).values(key_hash=key_hash)
+    )
     await session.commit()
     return {"token": token}
 
@@ -663,7 +672,9 @@ async def inbound_callbacks(_: Dict = Depends(require_auth(["admin", "viewer"]))
 
 @admin_router.delete("/inbound/purge-by-sid")
 @audit_log("inbound_purge")
-async def inbound_purge(payload: Dict[str, Any], _: Dict = Depends(require_auth(["admin"]))):
+async def inbound_purge(
+    payload: Dict[str, Any], _: Dict = Depends(require_auth(["admin"]))
+):
     provider_sid = str(payload.get("provider_sid") or "")
     if not provider_sid:
         raise HTTPException(status_code=400, detail="provider_sid required")
@@ -672,7 +683,9 @@ async def inbound_purge(payload: Dict[str, Any], _: Dict = Depends(require_auth(
 
 @admin_router.post("/inbound/simulate")
 @audit_log("inbound_simulated")
-async def inbound_simulate(payload: Dict[str, Any] | None = None, _: Dict = Depends(require_auth(["admin"]))):
+async def inbound_simulate(
+    payload: Dict[str, Any] | None = None, _: Dict = Depends(require_auth(["admin"]))
+):
     p = payload or {}
     job_id = os.urandom(6).hex()
     status = str(p.get("status") or "received")
@@ -687,7 +700,11 @@ def _provider_registry() -> Dict[str, Dict[str, Any]]:
             "kind": "cloud",
             "traits": {
                 "auth": {"methods": ["basic"]},
-                "webhook": {"path": "/phaxio-inbound", "verification": "hmac_sha256", "verify_header": "X-Phaxio-Signature"},
+                "webhook": {
+                    "path": "/phaxio-inbound",
+                    "verification": "hmac_sha256",
+                    "verify_header": "X-Phaxio-Signature",
+                },
                 "sample_payload": {"fax": {"id": 1, "direction": "received"}},
             },
         },
@@ -696,7 +713,11 @@ def _provider_registry() -> Dict[str, Dict[str, Any]]:
             "kind": "cloud",
             "traits": {
                 "auth": {"methods": ["oauth2"]},
-                "webhook": {"path": "/sinch-inbound", "verification": "basic_auth", "verify_header": "Authorization"},
+                "webhook": {
+                    "path": "/sinch-inbound",
+                    "verification": "basic_auth",
+                    "verify_header": "Authorization",
+                },
                 "sample_payload": {"eventType": "INBOUND_FAX_COMPLETED"},
             },
         },
@@ -705,7 +726,11 @@ def _provider_registry() -> Dict[str, Dict[str, Any]]:
             "kind": "cloud",
             "traits": {
                 "auth": {"methods": ["basic"]},
-                "webhook": {"path": "/signalwire-callback", "verification": "hmac_sha256", "verify_header": "X-SignalWire-Signature"},
+                "webhook": {
+                    "path": "/signalwire-callback",
+                    "verification": "hmac_sha256",
+                    "verify_header": "X-SignalWire-Signature",
+                },
                 "sample_payload": {"Status": "received"},
             },
         },
@@ -742,21 +767,31 @@ async def get_providers(_: Dict = Depends(require_auth(["admin", "viewer"]))):
     inbound = "phaxio"
     if _CONFIG_SVC is not None:
         try:
-            ob = await _CONFIG_SVC.get("hybrid.outbound_backend") or await _CONFIG_SVC.get("backend.type")
-            ib = await _CONFIG_SVC.get("hybrid.inbound_backend") or await _CONFIG_SVC.get("backend.type")
+            ob = await _CONFIG_SVC.get(
+                "hybrid.outbound_backend"
+            ) or await _CONFIG_SVC.get("backend.type")
+            ib = await _CONFIG_SVC.get(
+                "hybrid.inbound_backend"
+            ) or await _CONFIG_SVC.get("backend.type")
             if isinstance(ob, str) and ob:
                 outbound = ob
             if isinstance(ib, str) and ib:
                 inbound = ib
         except Exception:
             pass
-    return {"active": {"outbound": outbound, "inbound": inbound}, "registry": _provider_registry()}
+    return {
+        "active": {"outbound": outbound, "inbound": inbound},
+        "registry": _provider_registry(),
+    }
 
 
 @admin_router.get("/providers/health")
 async def get_providers_health(_: Dict = Depends(require_auth(["admin", "viewer"]))):
     # Lightweight non-PHI health view
-    return {"items": {pid: {"healthy": True} for pid in _provider_registry().keys()}, "timestamp": __import__("datetime").datetime.utcnow().isoformat() + "Z"}
+    return {
+        "items": {pid: {"healthy": True} for pid in _provider_registry().keys()},
+        "timestamp": __import__("datetime").datetime.utcnow().isoformat() + "Z",
+    }
 
 
 @admin_router.post("/providers/enable")
@@ -771,11 +806,32 @@ async def enable_provider(
     if provider_id not in _provider_registry():
         raise HTTPException(status_code=400, detail="unknown provider_id")
     if _CONFIG_SVC is not None:
-        key = f"hybrid.{direction}_backend" if direction in {"outbound", "inbound"} else "backend.type"
-        await _CONFIG_SVC.set(key, provider_id, is_sensitive=False, updated_by=str(user.get("id")), reason="providers_enable")
+        key = (
+            f"hybrid.{direction}_backend"
+            if direction in {"outbound", "inbound"}
+            else "backend.type"
+        )
+        await _CONFIG_SVC.set(
+            key,
+            provider_id,
+            is_sensitive=False,
+            updated_by=str(user.get("id")),
+            reason="providers_enable",
+        )
         # Mark system enabled
-        await _CONFIG_SVC.set("backend.disabled", False, is_sensitive=False, updated_by=str(user.get("id")), reason="providers_enable")
-    return {"success": True, "provider_id": provider_id, "new_status": "enabled", "message": f"{provider_id} set for {direction}"}
+        await _CONFIG_SVC.set(
+            "backend.disabled",
+            False,
+            is_sensitive=False,
+            updated_by=str(user.get("id")),
+            reason="providers_enable",
+        )
+    return {
+        "success": True,
+        "provider_id": provider_id,
+        "new_status": "enabled",
+        "message": f"{provider_id} set for {direction}",
+    }
 
 
 @admin_router.post("/providers/disable")
@@ -788,8 +844,20 @@ async def disable_provider(
     provider_id = str(payload.get("provider_id") or "").lower()
     if _CONFIG_SVC is not None:
         # Mark provider-specific disabled flag and overall disabled for safety
-        await _CONFIG_SVC.set(f"providers.{provider_id}.disabled", True, is_sensitive=False, updated_by=str(user.get("id")), reason="providers_disable")
-        await _CONFIG_SVC.set("backend.disabled", True, is_sensitive=False, updated_by=str(user.get("id")), reason="providers_disable")
+        await _CONFIG_SVC.set(
+            f"providers.{provider_id}.disabled",
+            True,
+            is_sensitive=False,
+            updated_by=str(user.get("id")),
+            reason="providers_disable",
+        )
+        await _CONFIG_SVC.set(
+            "backend.disabled",
+            True,
+            is_sensitive=False,
+            updated_by=str(user.get("id")),
+            reason="providers_disable",
+        )
     return {"success": True, "provider_id": provider_id, "new_status": "disabled"}
 
 
@@ -819,24 +887,68 @@ async def get_settings(_: Dict = Depends(require_auth(["admin", "viewer"]))):
     return {
         "backend": {"type": backend_type, "disabled": False},
         "hybrid": {"outbound_backend": backend_type, "inbound_backend": backend_type},
-        "phaxio": {"api_key": "", "api_secret": "", "callback_url": "", "verify_signature": True, "configured": False},
+        "phaxio": {
+            "api_key": "",
+            "api_secret": "",
+            "callback_url": "",
+            "verify_signature": True,
+            "configured": False,
+        },
         "documo": {"api_key": "", "configured": False},
-        "sinch": {"project_id": "", "api_key": "", "api_secret": "", "configured": False},
-        "signalwire": {"space_url": "", "project_id": "", "api_token": "", "from_fax": "", "configured": False},
-        "sip": {"ami_host": "", "ami_port": 5038, "ami_username": "admin", "ami_password": "", "ami_password_is_default": True, "station_id": "", "configured": False},
-        "security": {"require_api_key": False, "enforce_https": False, "audit_enabled": True, "public_api_url": "http://localhost:8000"},
+        "sinch": {
+            "project_id": "",
+            "api_key": "",
+            "api_secret": "",
+            "configured": False,
+        },
+        "signalwire": {
+            "space_url": "",
+            "project_id": "",
+            "api_token": "",
+            "from_fax": "",
+            "configured": False,
+        },
+        "sip": {
+            "ami_host": "",
+            "ami_port": 5038,
+            "ami_username": "admin",
+            "ami_password": "",
+            "ami_password_is_default": True,
+            "station_id": "",
+            "configured": False,
+        },
+        "security": {
+            "require_api_key": False,
+            "enforce_https": False,
+            "audit_enabled": True,
+            "public_api_url": "http://localhost:8000",
+        },
         "storage": {"backend": "memory", "s3_bucket": "", "s3_kms_enabled": False},
-        "database": {"url": os.getenv("DATABASE_URL", "sqlite+aiosqlite:///:memory:"), "persistent": False},
+        "database": {
+            "url": os.getenv("DATABASE_URL", "sqlite+aiosqlite:///:memory:"),
+            "persistent": False,
+        },
         "inbound": {"enabled": inbound_enabled, "retention_days": 30},
-        "features": {"v3_plugins": False, "inbound_enabled": inbound_enabled, "plugin_install": False},
-        "limits": {"max_file_size_mb": 10, "pdf_token_ttl_minutes": 15, "rate_limit_rpm": 600},
+        "features": {
+            "v3_plugins": False,
+            "inbound_enabled": inbound_enabled,
+            "plugin_install": False,
+        },
+        "limits": {
+            "max_file_size_mb": 10,
+            "pdf_token_ttl_minutes": 15,
+            "rate_limit_rpm": 600,
+        },
     }
 
 
 @admin_router.post("/settings/validate")
-async def validate_settings(payload: Dict[str, Any], _: Dict = Depends(require_auth(["admin", "config_manager"]))):
+async def validate_settings(
+    payload: Dict[str, Any],
+    _: Dict = Depends(require_auth(["admin", "config_manager"])),
+):
     # Basic structural validation only
-    checks = {}
+    checks: Dict[str, Any] = {}
     backend = str(payload.get("backend") or payload.get("outbound_backend") or "phaxio")
     return {"backend": backend, "checks": checks}
 
@@ -850,18 +962,25 @@ async def export_settings(_: Dict = Depends(require_auth(["admin", "config_manag
         "JWT_SECRET=change-this-secret",
     ]
     content = "\n".join(env_lines) + "\n"
-    return {"env_content": content, "requires_restart": False, "note": "Generated for local/dev use"}
+    return {
+        "env_content": content,
+        "requires_restart": False,
+        "note": "Generated for local/dev use",
+    }
 
 
 @admin_router.post("/settings/persist")
-async def persist_settings(payload: Dict[str, Any] = None, _: Dict = Depends(require_auth(["admin", "config_manager"]))):  # type: ignore[assignment]
+async def persist_settings(
+    payload: Optional[Dict[str, Any]] = None,
+    _: Dict = Depends(require_auth(["admin", "config_manager"])),
+):  # type: ignore[assignment]
     path = None
     content = None
     if isinstance(payload, dict):
         path = payload.get("path")
         content = payload.get("content")
     if not content:
-        content = (await export_settings(_)) ["env_content"]  # type: ignore[index]
+        content = (await export_settings(_))["env_content"]  # type: ignore[index]
     target = path or "/tmp/vivified.env"
     try:
         with open(target, "w", encoding="utf-8") as f:
@@ -873,7 +992,11 @@ async def persist_settings(payload: Dict[str, Any] = None, _: Dict = Depends(req
 
 @admin_router.put("/settings")
 @audit_log("settings_updated")
-async def update_settings(payload: Dict[str, Any], user: Dict = Depends(get_current_user), _: Dict = Depends(require_auth(["admin", "config_manager"]))):
+async def update_settings(
+    payload: Dict[str, Any],
+    user: Dict = Depends(get_current_user),
+    _: Dict = Depends(require_auth(["admin", "config_manager"])),
+):
     # Persist selected settings keys into config service
     changed = []
     mapping = {
@@ -897,7 +1020,13 @@ async def update_settings(payload: Dict[str, Any], user: Dict = Depends(get_curr
         dest = mapping.get(k)
         if not dest:
             continue
-        await _CONFIG_SVC.set(dest, v, is_sensitive=False, updated_by=str(user.get("id")), reason="settings_update")
+        await _CONFIG_SVC.set(
+            dest,
+            v,
+            is_sensitive=False,
+            updated_by=str(user.get("id")),
+            reason="settings_update",
+        )
         changed.append(dest)
     return {"ok": True, "changed": changed, "_meta": {"restart_recommended": False}}
 
@@ -922,10 +1051,16 @@ async def list_event_types(_: Dict = Depends(require_auth(["admin", "viewer"])))
 
 # Config helpers
 @admin_router.post("/config/import-env")
-async def import_env_vars(payload: Dict[str, Any] | None = None, user: Dict = Depends(get_current_user), _: Dict = Depends(require_auth(["admin", "config_manager"]))):
+async def import_env_vars(
+    payload: Dict[str, Any] | None = None,
+    user: Dict = Depends(get_current_user),
+    _: Dict = Depends(require_auth(["admin", "config_manager"])),
+):
     prefixes = []
     if isinstance(payload, dict):
-        prefixes = [str(p) for p in (payload.get("prefixes") or []) if isinstance(p, str)]
+        prefixes = [
+            str(p) for p in (payload.get("prefixes") or []) if isinstance(p, str)
+        ]
     env = dict(os.environ)
     discovered = 0
     if _CONFIG_SVC is None:
@@ -935,7 +1070,13 @@ async def import_env_vars(payload: Dict[str, Any] | None = None, user: Dict = De
             continue
         # Store under a namespaced key for traceability
         key = f"env.{k.lower()}"
-        await _CONFIG_SVC.set(key, v, is_sensitive="secret" in k.lower() or "password" in k.lower(), updated_by=str(user.get("id")), reason="import_env")
+        await _CONFIG_SVC.set(
+            key,
+            v,
+            is_sensitive="secret" in k.lower() or "password" in k.lower(),
+            updated_by=str(user.get("id")),
+            reason="import_env",
+        )
         discovered += 1
     return {"ok": True, "discovered": discovered, "prefixes": prefixes}
 
@@ -968,7 +1109,7 @@ async def list_fax_jobs(
     backend: Optional[str] = Query(None),
     limit: int = Query(50, ge=1, le=1000),
     offset: int = Query(0, ge=0),
-    _: Dict = Depends(require_auth(["admin", "viewer"]))
+    _: Dict = Depends(require_auth(["admin", "viewer"])),
 ):
     _seed_jobs()
     jobs = list(_JOBS.values())
@@ -977,11 +1118,13 @@ async def list_fax_jobs(
     if backend:
         jobs = [j for j in jobs if j.get("backend") == backend]
     total = len(jobs)
-    return {"total": total, "jobs": jobs[offset: offset + limit]}
+    return {"total": total, "jobs": jobs[offset : offset + limit]}
 
 
 @admin_router.get("/fax-jobs/{job_id}")
-async def get_fax_job(job_id: str, _: Dict = Depends(require_auth(["admin", "viewer"]))):
+async def get_fax_job(
+    job_id: str, _: Dict = Depends(require_auth(["admin", "viewer"]))
+):
     _seed_jobs()
     job = _JOBS.get(job_id)
     if not job:
@@ -990,12 +1133,14 @@ async def get_fax_job(job_id: str, _: Dict = Depends(require_auth(["admin", "vie
 
 
 @admin_router.get("/fax-jobs/{job_id}/pdf")
-async def get_fax_job_pdf(job_id: str, _: Dict = Depends(require_auth(["admin", "viewer"]))):
+async def get_fax_job_pdf(
+    job_id: str, _: Dict = Depends(require_auth(["admin", "viewer"]))
+):
     _seed_jobs()
     if job_id not in _JOBS:
         raise HTTPException(status_code=404, detail="Job not found")
     # Minimal PDF bytes
-    pdf_bytes = (b"%PDF-1.1\n1 0 obj<</Type/Catalog>>endobj\ntrailer<<>>\n%%EOF\n")
+    pdf_bytes = b"%PDF-1.1\n1 0 obj<</Type/Catalog>>endobj\ntrailer<<>>\n%%EOF\n"
     return StreamingResponse(iter([pdf_bytes]), media_type="application/pdf")
 
 
@@ -1026,7 +1171,9 @@ async def list_actions(_: Dict = Depends(require_auth(["admin"]))):
 
 @admin_router.post("/actions/run")
 @audit_log("admin_action_run")
-async def run_action(payload: Dict[str, Any], _: Dict = Depends(require_auth(["admin"]))):
+async def run_action(
+    payload: Dict[str, Any], _: Dict = Depends(require_auth(["admin"]))
+):
     action_id = str(payload.get("id") or "")
     allow = {"reload-config", "rotate-logs"}
     if action_id not in allow:
@@ -1054,7 +1201,9 @@ async def tunnel_status(_: Dict = Depends(require_auth(["admin", "viewer"]))):
 
 @admin_router.post("/tunnel/config")
 @audit_log("tunnel_config_set")
-async def set_tunnel_config(payload: Dict[str, Any] | None = None, _: Dict = Depends(require_auth(["admin"]))):
+async def set_tunnel_config(
+    payload: Dict[str, Any] | None = None, _: Dict = Depends(require_auth(["admin"]))
+):
     cfg = payload or {}
     _TUNNEL_CFG_CACHE.update(cfg)
     return {"ok": True, "config": _TUNNEL_CFG_CACHE}
@@ -1069,23 +1218,34 @@ async def test_tunnel(_: Dict = Depends(require_auth(["admin"]))):
 @admin_router.post("/tunnel/pair")
 async def tunnel_pair(_: Dict = Depends(require_auth(["admin"]))):
     code = os.urandom(3).hex().upper()
-    return {"code": code, "expires_at": (datetime.utcnow() + timedelta(minutes=10)).isoformat() + "Z"}
+    return {
+        "code": code,
+        "expires_at": (datetime.utcnow() + timedelta(minutes=10)).isoformat() + "Z",
+    }
 
 
 @admin_router.post("/tunnel/register-sinch")
 async def register_sinch(_: Dict = Depends(require_auth(["admin"]))):
     base = os.getenv("PUBLIC_API_URL", "http://localhost:8000")
     url = f"{base}/sinch-inbound"
-    return {"success": True, "webhook_url": url, "provider_response": {"registered": True}}
+    return {
+        "success": True,
+        "webhook_url": url,
+        "provider_response": {"registered": True},
+    }
 
 
 @admin_router.get("/tunnel/cloudflared/logs")
-async def cloudflared_logs(lines: int = Query(50, ge=1, le=1000), _: Dict = Depends(require_auth(["admin"]))):
+async def cloudflared_logs(
+    lines: int = Query(50, ge=1, le=1000), _: Dict = Depends(require_auth(["admin"]))
+):
     return {"items": [], "path": None}
 
 
 @admin_router.post("/tunnel/wg/import")
-async def wg_import_json(payload: Dict[str, Any] | None = None, _: Dict = Depends(require_auth(["admin"]))):
+async def wg_import_json(
+    payload: Dict[str, Any] | None = None, _: Dict = Depends(require_auth(["admin"]))
+):
     target = "/tmp/vivified-wg.conf"
     content = None
     if isinstance(payload, dict):
