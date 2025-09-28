@@ -57,6 +57,91 @@ export class AdminAPIClient {
     return res.json();
   }
 
+  // Messaging
+  async getMessagingStats(): Promise<any> {
+    const res = await this.fetch('/messaging/stats');
+    return res.json();
+  }
+
+  async publishEvent(payload: {
+    event_type: string;
+    data: Record<string, any>;
+    source_plugin: string;
+    data_traits?: string[];
+    metadata?: Record<string, string>;
+  }): Promise<{ event_id: string; status: string }> {
+    const res = await this.fetch('/messaging/events', {
+      method: 'POST',
+      body: JSON.stringify({
+        event_type: payload.event_type,
+        payload: payload.data,
+        source_plugin: payload.source_plugin,
+        data_traits: payload.data_traits || [],
+        metadata: payload.metadata || {},
+      }),
+    });
+    return res.json();
+  }
+
+  // Gateway
+  async getGatewayStats(): Promise<any> {
+    const res = await this.fetch('/gateway/stats');
+    return res.json();
+  }
+
+  async proxyRequest(payload: {
+    plugin_id: string;
+    method: string;
+    url: string;
+    headers?: Record<string, string>;
+    body?: string;
+    timeout?: number;
+  }): Promise<any> {
+    const res = await this.fetch('/gateway/proxy', {
+      method: 'POST',
+      body: JSON.stringify({
+        plugin_id: payload.plugin_id,
+        method: payload.method,
+        url: payload.url,
+        headers: payload.headers || {},
+        body: payload.body ? new TextEncoder().encode(payload.body) : undefined,
+        timeout: payload.timeout ?? 30,
+      }),
+    });
+    return res.json();
+  }
+
+  // Canonical
+  async getCanonicalStats(): Promise<any> {
+    const res = await this.fetch('/canonical/stats');
+    return res.json();
+  }
+
+  async normalizeUser(payload: {
+    user_data: Record<string, any>;
+    source_plugin: string;
+    target_plugin: string;
+  }): Promise<any> {
+    const res = await this.fetch('/canonical/normalize/user', {
+      method: 'POST',
+      body: JSON.stringify({
+        user_data: payload.user_data,
+        source_plugin: payload.source_plugin,
+        target_plugin: payload.target_plugin,
+      }),
+    });
+    return res.json();
+  }
+
+  // Core plugin registration
+  async registerPlugin(manifest: Record<string, any>): Promise<any> {
+    const res = await this.fetch('/plugins/register', {
+      method: 'POST',
+      body: JSON.stringify(manifest),
+    });
+    return res.json();
+  }
+
   async importEnv(prefixes?: string[]): Promise<{ ok: boolean; discovered: number; prefixes: string[] }>{
     const body = prefixes && prefixes.length ? { prefixes } : {};
     const res = await this.fetch('/admin/config/import-env', {

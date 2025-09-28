@@ -236,6 +236,46 @@ class TraitRegistry:
                 ui_icon="terminal",
                 requires=["admin", "developer"],
             ),
+            Trait(
+                name="ui.gateway",
+                description="Access to gateway proxy tools",
+                category=TraitCategory.UI_FEATURE,
+                ui_label="Gateway Tools",
+                ui_icon="api",
+                requires=["admin"],
+            ),
+            Trait(
+                name="ui.messaging",
+                description="Access to messaging/event bus tools",
+                category=TraitCategory.UI_FEATURE,
+                ui_label="Messaging Tools",
+                ui_icon="message",
+                requires=["admin"],
+            ),
+            Trait(
+                name="ui.canonical",
+                description="Access to canonical model tools",
+                category=TraitCategory.UI_FEATURE,
+                ui_label="Canonical Tools",
+                ui_icon="account_tree",
+                requires=["admin"],
+            ),
+            Trait(
+                name="ui.policy",
+                description="Access to policy/traits inspector",
+                category=TraitCategory.UI_FEATURE,
+                ui_label="Policy Inspector",
+                ui_icon="policy",
+                requires=["admin"],
+            ),
+            Trait(
+                name="ui.register",
+                description="Access to plugin registration",
+                category=TraitCategory.UI_FEATURE,
+                ui_label="Register Plugin",
+                ui_icon="app_registration",
+                requires=["admin", "plugin_manager"],
+            ),
         ]
 
         # PLUGIN TYPE TRAITS - Plugin categories
@@ -445,6 +485,11 @@ class TraitRegistry:
             "ui.users": "ui.users",
             "ui.monitoring": "ui.monitoring",
             "ui.terminal": "ui.terminal",
+            "ui.gateway": "ui.gateway",
+            "ui.messaging": "ui.messaging",
+            "ui.canonical": "ui.canonical",
+            "ui.policy": "ui.policy",
+            "ui.register": "ui.register",
         }
 
         self._ui_mapping.update(ui_mappings)

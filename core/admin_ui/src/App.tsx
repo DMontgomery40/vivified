@@ -60,6 +60,11 @@ import Inbound from './components/Inbound';
 import Terminal from './components/Terminal';
 import ScriptsTests from './components/ScriptsTests';
 import TunnelSettings from './components/TunnelSettings';
+import GatewayTester from './components/GatewayTester';
+import MessagingConsole from './components/MessagingConsole';
+import CanonicalTools from './components/CanonicalTools';
+import PolicyInspector from './components/PolicyInspector';
+import PluginRegister from './components/PluginRegister';
 import ProviderSetupWizard from './components/ProviderSetupWizard';
 import InboundWebhookTester from './components/InboundWebhookTester';
 import OutboundSmokeTests from './components/OutboundSmokeTests';
@@ -312,14 +317,19 @@ function AppContent() {
 
   // Always include Plugins tab; component will guide when feature disabled
   const toolsItems = [
-    { label: 'Terminal', icon: <TerminalIcon /> },
-    { label: 'Diagnostics', icon: <AssessmentIcon /> },
-    { label: 'Logs', icon: <DescriptionIcon /> },
-    { label: 'Plugins', icon: <ExtensionIcon /> },
-    { label: 'Marketplace', icon: <ExtensionIcon /> },
-    { label: 'Scripts & Tests', icon: <ScienceIcon /> },
-    { label: 'Tunnels', icon: <VpnLockIcon /> },
-    { label: 'Audit', icon: <DescriptionIcon /> },
+    { label: 'Terminal', icon: <TerminalIcon />, trait: 'ui.terminal' },
+    { label: 'Diagnostics', icon: <AssessmentIcon />, trait: 'ui.monitoring' },
+    { label: 'Logs', icon: <DescriptionIcon />, trait: 'ui.monitoring' },
+    { label: 'Plugins', icon: <ExtensionIcon />, trait: 'ui.plugins' },
+    { label: 'Marketplace', icon: <ExtensionIcon />, trait: 'ui.plugins' },
+    { label: 'Scripts & Tests', icon: <ScienceIcon />, trait: 'role.admin' },
+    { label: 'Tunnels', icon: <VpnLockIcon />, trait: 'ui.monitoring' },
+    { label: 'Audit', icon: <DescriptionIcon />, trait: 'ui.audit' },
+    { label: 'Gateway', icon: <AssessmentIcon />, trait: 'ui.gateway' },
+    { label: 'Messaging', icon: <AssessmentIcon />, trait: 'ui.messaging' },
+    { label: 'Canonical', icon: <AssessmentIcon />, trait: 'ui.canonical' },
+    { label: 'Policy', icon: <AssessmentIcon />, trait: 'ui.policy' },
+    { label: 'Register', icon: <ExtensionIcon />, trait: 'ui.register' },
   ];
 
   const hasTrait = (t: string) => !!(userTraits && userTraits.includes(t));
@@ -831,7 +841,7 @@ function AppContent() {
                     icon={item.icon} 
                     iconPosition="start" 
                     label={item.label} 
-                    disabled={(idx === 0 && terminalDisabled) || (idx === 5 && scriptsDisabled) || (!isAdmin && item.label === 'Marketplace')}
+                    disabled={!isAdmin && !hasTrait(item.trait || '')}
                   />
                 ))}
               </Tabs>
@@ -864,6 +874,11 @@ function AppContent() {
                 />
               )}
               {toolsTab === 7 && <Audit client={client!} />}
+              {toolsTab === 8 && <GatewayTester client={client!} />}
+              {toolsTab === 9 && <MessagingConsole client={client!} />}
+              {toolsTab === 10 && <CanonicalTools client={client!} />}
+              {toolsTab === 11 && <PolicyInspector client={client!} />}
+              {toolsTab === 12 && <PluginRegister client={client!} />}
             </Box>
           </Paper>
         </TabPanel>
