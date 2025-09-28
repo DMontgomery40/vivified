@@ -1,164 +1,157 @@
-site_name: Vivified Platform Documentation
-site_description: Enterprise-grade modular platform with HIPAA compliance
+site_name: Vivified Platform
+site_description: Enterprise application kernel with plugin architecture
 site_url: https://docs.vivified.dev
 repo_url: https://github.com/DMontgomery40/vivified
 repo_name: DMontgomery40/vivified
 copyright: Copyright &copy; 2025 Vivified Platform
+
 theme:
   name: material
-  custom_dir: docs/overrides
   language: en
   palette:
-  - scheme: default
-    primary: indigo
-    accent: indigo
-    toggle:
-      icon: material/brightness-7
-      name: Switch to dark mode
-  - scheme: slate
-    primary: indigo
-    accent: indigo
-    toggle:
-      icon: material/brightness-4
-      name: Switch to light mode
+    # Light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    # Dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
   font:
     text: Roboto
     code: Roboto Mono
   features:
-  - navigation.instant
-  - navigation.tracking
-  - navigation.tabs
-  - navigation.sections
-  - navigation.expand
-  - navigation.indexes
-  - navigation.top
-  - toc.follow
-  - toc.integrate
-  - content.code.copy
-  - content.code.annotate
-  - content.tabs.link
-  - content.tooltips
-  - search.suggest
-  - search.highlight
-  - search.share
+    - navigation.instant
+    - navigation.tracking
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.expand
+    - navigation.indexes
+    - navigation.top
+    - toc.follow
+    - toc.integrate
+    - content.code.copy
+    - content.code.annotate
+    - content.tabs.link
+    - content.tooltips
+    - search.suggest
+    - search.highlight
+    - search.share
   icon:
     logo: material/shield-check
     repo: fontawesome/brands/github
-    admonition:
-      note: material/note-text
-      info: material/information
-      tip: material/lightbulb
-      success: material/check-circle
-      warning: material/alert
-      danger: material/alert-circle
+
 plugins:
-- search
-- mike
-- git-revision-date-localized:
-    enable_creation_date: true
-    type: iso_datetime
-- awesome-pages
-- minify:
-    minify_html: true
-    minify_js: true
-    minify_css: true
-- macros
+  - search
+  - mike:
+      version_selector: true
+      css_dir: css
+      javascript_dir: js
+      canonical_version: latest
+  - git-revision-date-localized:
+      enable_creation_date: true
+      type: iso_datetime
+      fallback_to_build_date: true
+  - awesome-pages:
+      collapse_single_pages: false
+  - minify:
+      minify_html: true
+      minify_js: true
+      minify_css: true
+      htmlmin_opts:
+        remove_comments: true
+  - macros
+
 markdown_extensions:
-- admonition
-- pymdownx.details
-- pymdownx.superfences
-- pymdownx.tabbed
-- pymdownx.keys
-- pymdownx.snippets
-- pymdownx.progressbar
-- attr_list
-- md_in_html
-- def_list
-- footnotes
-- tables
-- pymdownx.arithmatex
-- pymdownx.betterem
-- pymdownx.caret
-- pymdownx.mark
-- pymdownx.tilde
-- pymdownx.smartsymbols
-- pymdownx.emoji
-- pymdownx.superfences:
-    custom_fences:
-    - name: mermaid
-      class: mermaid
-      format: '!!python/name:pymdownx.superfences.fence_code_format'
-- pymdownx.tabbed:
-    alternate_style: true
-- pymdownx.tasklist:
-    custom_checkbox: true
-- pymdownx.highlight:
-    anchor_linenums: true
-    line_spans: __span
-    pygments_lang_class: true
-- pymdownx.inlinehilite
-- pymdownx.emoji:
-    emoji_index: '!!python/name:material.extensions.emoji.twemoji'
-    emoji_generator: '!!python/name:material.extensions.emoji.to_svg'
+  # Python Markdown
+  - abbr
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - toc:
+      permalink: true
+      toc_depth: 3
+  - tables
+  
+  # Python Markdown Extensions
+  - pymdownx.arithmatex:
+      generic: true
+  - pymdownx.betterem:
+      smart_enable: all
+  - pymdownx.caret
+  - pymdownx.details
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+  - pymdownx.mark
+  - pymdownx.smartsymbols
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.tilde
+  - pymdownx.snippets
+
 extra:
   version:
     provider: mike
     default: latest
   social:
-  - icon: fontawesome/brands/github
-    link: https://github.com/DMontgomery40/vivified
+    - icon: fontawesome/brands/github
+      link: https://github.com/DMontgomery40/vivified
   analytics:
     provider: google
-    property: G-XXXXXXXXXX
+    property: !ENV GOOGLE_ANALYTICS_KEY
   consent:
     title: Cookie consent
     description: We use cookies to recognize your repeated visits and preferences.
+
 extra_javascript:
-- https://unpkg.com/mermaid@9/dist/mermaid.min.js
+  - https://unpkg.com/mermaid@10/dist/mermaid.min.js
+
+extra_css:
+  - stylesheets/extra.css
+
 nav:
-- Home: index.md
-- Getting Started:
-  - Quick Start: getting-started.md
-  - Installation: installation.md
+  - Home: index.md
+  - Getting Started: getting-started.md
+  - Core:
+      - Overview: core/overview.md
+      - Identity: core/identity.md
+      - Policy: core/policy.md
+      - Storage: core/storage.md
+      - Messaging: core/messaging.md
+      - Gateway: core/gateway.md
+      - Canonical: core/canonical.md
+      - Audit: core/audit.md
+  - Plugins:
+      - Overview: plugins/overview.md
+      - Development: plugins/development.md
+  - API Reference: api-reference.md
+  - Admin Console: admin-console.md
+  - Security: security.md
   - Configuration: configuration.md
-- Core Platform:
-  - Overview: core/overview.md
-  - Architecture: core/architecture.md
-  - Gateway: core/gateway.md
-  - Identity & Auth: core/identity.md
-  - Policy Engine: core/policy.md
-  - Storage: core/storage.md
-  - Messaging: core/messaging.md
-  - Audit: core/audit.md
-- Admin Console:
-  - Overview: admin-console.md
-  - Dashboard: admin-console/dashboard.md
-  - User Management: admin-console/users.md
-  - Configuration: admin-console/configuration.md
-  - Monitoring: admin-console/monitoring.md
-- Plugins:
-  - Overview: plugins/overview.md
-  - Development Guide: plugins/development.md
-  - SDK Reference: plugins/sdk.md
-  - Examples: plugins/examples.md
-- API Reference:
-  - REST API: api-reference.md
-  - WebSocket API: api/websocket.md
-  - GraphQL: api/graphql.md
-- Security & Compliance:
-  - Overview: security.md
-  - HIPAA Compliance: security/hipaa.md
-  - Authentication: security/authentication.md
-  - Authorization: security/authorization.md
-  - Encryption: security/encryption.md
-- Operations:
-  - Deployment: deployment.md
-  - Monitoring: monitoring.md
-  - Backup & Recovery: backup.md
   - Troubleshooting: troubleshooting.md
-- Reference:
-  - Environment Variables: reference/env-vars.md
-  - CLI Commands: reference/cli.md
-  - Error Codes: reference/errors.md
-  - Glossary: reference/glossary.md
-- Contributing: contributing.md
+  - Contributing: contributing.md
