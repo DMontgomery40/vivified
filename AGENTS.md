@@ -62,6 +62,16 @@ Common pitfalls that cause “THIS MANY ERRORS”:
 
 CI mirrors these exact tools and expectations. If any of the above fails locally, fix it before pushing.
 
+## Admin Console First — Accessibility/Dyslexia Mandate
+
+Absolutely everything must be operable from the Admin Console. No exceptions.
+
+- No CLI‑only features. If a capability exists (config, identity/users/roles, plugins, audit, diagnostics, lanes, storage, policy, proxy, etc.), it must have a discoverable, trait‑aware path in the Admin Console in the same PR.
+- DEV_MODE UX (no-credential friction): When `DEV_MODE=true`, the Admin Console must allow one‑click dev login without typing any API key or password. Use the existing backend bootstrap mapping of `bootstrap_admin_only` to admin claims and present a visible “Sign in (Dev)” button that uses it automatically.
+- Documentation + tests: Every feature PR must include an Admin Console flow update and a UI test/smoke that exercises the new surface. CI should fail PRs that introduce CLI‑only features or omit UI trait mappings.
+- Trait‑aware rendering: Least‑privilege by default; only show surfaces when the user has `admin` and/or specific traits (e.g., `config_manager`, `plugin_manager`, `audit_viewer`).
+- Accessibility considerations: Prefer visual flows, icons, and summaries over terminal commands and long text; the project owner is dyslexic and requires the Admin UI to be the primary interface for understanding and operating the system.
+
 ## Critical Notice
 **THIS PLATFORM HANDLES PHI/PII AND MUST BE HIPAA-COMPLIANT**
 Every decision, implementation, and review must consider security and compliance implications.
