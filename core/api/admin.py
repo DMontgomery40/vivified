@@ -605,6 +605,71 @@ async def webauthn_assert(
     return {"ok": True}
 
 
+# Notifications admin endpoints
+@admin_router.get("/notifications")
+async def list_notifications(
+    limit: int = Query(50, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
+    _: Dict = Depends(require_auth(["admin", "viewer"])),
+):
+    svc = await get_audit_service()
+    data = await svc.list_events(limit=limit, offset=offset)
+    return {"items": data["items"]}
+
+
+@admin_router.post("/notifications/send")
+@audit_log("notification_send")
+async def send_notification(
+    payload: Dict[str, Any],
+    user: Dict = Depends(get_current_user),
+    _: Dict = Depends(require_auth(["admin", "viewer"])),
+):
+    title = str(payload.get("title") or "Notification")
+    body = str(payload.get("body") or "")
+    channel = str(payload.get("channel") or "inbox")
+    metadata = (
+        payload.get("metadata") if isinstance(payload.get("metadata"), dict) else {}
+    )
+    if not body:
+        raise HTTPException(status_code=400, detail="body is required")
+    svc = await get_audit_service()
+    await svc.log_event(
+        event_type="notification",
+        category="system",
+        action="send",
+        result="queued",
+        description=title,
+        details={"channel": channel, "metadata": metadata},
+        user_id=str(user.get("id")),
+    )
+    return {"status": "ok", "notification_id": os.urandom(6).hex(), "queued": True}
+
+
+@admin_router.get("/notifications/settings")
+async def get_notifications_settings(
+    _: Dict = Depends(require_auth(["admin", "viewer"]))
+):
+    return {"enabled": True, "channels": ["inbox"], "defaults": {"priority": "normal"}}
+
+
+@admin_router.put("/notifications/settings")
+@audit_log("notifications_settings_updated")
+async def set_notifications_settings(
+    payload: Dict[str, Any], _: Dict = Depends(require_auth(["admin"]))
+):
+    return {"ok": True, **payload}
+
+
+@admin_router.get("/notifications/help")
+async def notifications_help(_: Dict = Depends(require_auth(["admin", "viewer"]))):
+    return {
+        "links": {
+            "webhooks": "https://docs.example.com/notifications/webhooks",
+            "smtp": "https://docs.example.com/notifications/smtp",
+        }
+    }
+
+
 @admin_router.patch("/users/{user_id}")
 @audit_log("user_updated")
 async def patch_user(
