@@ -425,31 +425,41 @@ Example features to use:
             "Content-Type": "application/json",
         }
         
-        # Use GPT-4o for highest quality documentation
-        # Current best available OpenAI models (as of late 2024):
-        # - gpt-4o: Latest and most capable model (recommended for quality)
-        # - gpt-4o-mini: Faster, more cost-effective version
-        # - gpt-4-turbo: Previous generation, still very capable
-        # - gpt-3.5-turbo: Budget option, significantly cheaper but lower quality
+        # Use GPT-5 Mini for cost-effective, high-quality documentation
+        # Available GPT-5 models (September 2025):
+        # - gpt-5-chat-latest: Latest GPT-5 for chat (highest quality)
+        # - gpt-5-mini-2025-08-07: Cost-effective, fast (recommended)
+        # - gpt-5-nano-2025-08-07: Most economical for simpler tasks
         # 
-        # Note: GPT-5 models are announced but not yet available via API
-        # We'll use gpt-4o for the best documentation quality
+        # Fallback options:
+        # - gpt-4o: Previous generation, still excellent
+        # - gpt-4o-mini: Budget-friendly GPT-4 variant
         
-        model = os.getenv("OPENAI_MODEL", "gpt-4o")  # Allow override via environment
+        model = os.getenv("OPENAI_MODEL", "gpt-5-mini-2025-08-07")  # Allow override via environment
         
+        # Build request data - GPT-5 models have different parameter support
         data = {
             "model": model,
             "messages": [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
             ],
-            "temperature": 0.7,  # Balance between creativity and consistency
-            "max_tokens": 16000,  # Maximum response length
-            "response_format": {"type": "json_object"},  # Ensure structured output
-            "top_p": 0.95,  # Nucleus sampling for quality
-            "frequency_penalty": 0.3,  # Reduce repetition
-            "presence_penalty": 0.3,  # Encourage covering all topics
         }
+        
+        # GPT-5 models have strict parameter requirements:
+        # - Only support default temperature (1)
+        # - Don't support max_tokens, response_format, etc.
+        if model.startswith("gpt-5"):
+            # GPT-5 models - minimal parameters only
+            pass  # Using defaults
+        else:
+            # GPT-4 and other models - full parameter set
+            data["temperature"] = 0.7  # Balance between creativity and consistency
+            data["top_p"] = 0.95  # Nucleus sampling for quality
+            data["frequency_penalty"] = 0.3  # Reduce repetition
+            data["presence_penalty"] = 0.3  # Encourage covering all topics
+            data["max_tokens"] = 16000  # Maximum response length
+            data["response_format"] = {"type": "json_object"}  # Ensure structured output
         
         print(f"Using OpenAI model: {model}")
         
@@ -461,10 +471,19 @@ Example features to use:
         except Exception as e:
             print(f"Error calling OpenAI API with {model}: {e}")
             # Try with fallback model
-            fallback_model = "gpt-4o-mini"  # More cost-effective fallback
+            fallback_model = "gpt-4o"  # Reliable fallback with full parameter support
             print(f"Attempting fallback with {fallback_model}...")
-            data["model"] = fallback_model
-            data.pop("response_format", None)  # Remove JSON mode for compatibility
+            
+            # Rebuild data for fallback with appropriate parameters
+            data = {
+                "model": fallback_model,
+                "messages": data["messages"],
+                "temperature": 0.7,
+                "top_p": 0.95,
+                "frequency_penalty": 0.3,
+                "presence_penalty": 0.3,
+                "max_tokens": 16000,
+            }
             try:
                 response = requests.post(url, headers=headers, json=data, timeout=180)
                 response.raise_for_status()
