@@ -1,0 +1,23 @@
+repos:
+  - repo: https://github.com/psf/black
+    rev: 25.9.0
+    hooks:
+      - id: black
+        additional_dependencies: []
+  - repo: https://github.com/PyCQA/flake8
+    rev: 7.3.0
+    hooks:
+      - id: flake8
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.18.2
+    hooks:
+      - id: mypy
+        additional_dependencies: ["sqlalchemy==2.0.23"]
+  - repo: local
+    hooks:
+      - id: pytest
+        name: pytest (pre-push)
+        entry: bash -c 'PYTHONPATH=$PWD:$PWD/sdk/python/src pytest -q'
+        language: system
+        pass_filenames: false
+        stages: [push]

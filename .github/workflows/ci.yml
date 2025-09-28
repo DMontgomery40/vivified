@@ -24,7 +24,7 @@ jobs:
           python-version: '3.11'
       - name: Python lint
         run: |
-          pip install black flake8 mypy sqlalchemy
+          pip install -c constraints.txt black flake8 mypy sqlalchemy
           black --check core/
           flake8 core/
           mypy --config-file mypy.ini core/
@@ -38,7 +38,7 @@ jobs:
           python-version: '3.11'
       - name: Run tests
         run: |
-          pip install -r core/requirements.txt pytest pytest-cov
+          pip install -r core/requirements.txt -c constraints.txt pytest pytest-cov
           PYTHONPATH=$PWD:$PWD/sdk/python/src pytest --cov=core --cov-report=xml
       - name: Check coverage
         run: |
