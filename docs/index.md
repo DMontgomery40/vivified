@@ -1,27 +1,24 @@
-# Welcome to Vivified Platform
+# Vivified Platform
 
-<div class="hipaa-badge">HIPAA Compliant</div>
+## Enterprise application kernel with plugin architecture
 
-!!! success "Production Ready"
-    Vivified is actively processing Protected Health Information (PHI) in production environments with Business Associate Agreements (BAAs) in place. Multi-million dollar fines are at stake - we take compliance seriously.
-
-## :material-rocket-launch: Quick Start
+Vivified is a modular platform for building secure, scalable applications. Deploy anything from ERP systems to security operations centers, messaging hubs to compliance platforms.
 
 <div class="grid cards" markdown>
 
--   :material-clock-fast:{ .lg .middle } **5-Minute Setup**
+-   :material-book-open:{ .lg .middle } **Getting Started**
 
     ---
 
-    Get Vivified running locally with Docker in minutes
+    Set up Vivified locally in 5 minutes
 
-    [:octicons-arrow-right-24: Quick Start Guide](getting-started.md)
+    [:octicons-arrow-right-24: Quick start](getting-started.md)
 
 -   :material-puzzle:{ .lg .middle } **Plugin Development**
 
     ---
 
-    Build custom plugins for your healthcare workflows
+    Build and deploy custom plugins
 
     [:octicons-arrow-right-24: Plugin SDK](plugins/development.md)
 
@@ -29,255 +26,330 @@
 
     ---
 
-    Complete REST API documentation with examples
+    REST, WebSocket, and RPC documentation
 
-    [:octicons-arrow-right-24: API Docs](api-reference.md)
+    [:octicons-arrow-right-24: API docs](api-reference.md)
 
--   :material-shield-check:{ .lg .middle } **Security & HIPAA**
+-   :material-server:{ .lg .middle } **Deployment**
 
     ---
 
-    Security architecture and compliance documentation
+    Production deployment guides
 
-    [:octicons-arrow-right-24: Security Guide](security.md)
+    [:octicons-arrow-right-24: Deploy](deployment/index.md)
 
 </div>
 
 ## Platform Overview
 
-!!! info "Enterprise Healthcare Platform"
-    Vivified is a **modular, HIPAA-compliant platform** designed for building secure healthcare applications. Built with zero-trust architecture and comprehensive audit capabilities.
+Vivified provides a secure foundation for enterprise applications through its three-lane communication model and trait-based access control (TBAC).
 
-### :material-star: Key Features
+### Architecture
 
-=== "Security"
+```mermaid
+graph TB
+    subgraph "Applications"
+        APP1[ERP System]
+        APP2[Security Platform]
+        APP3[Messaging Hub]
+        APP4[Custom Application]
+    end
+    
+    subgraph "Core Platform"
+        GW[Gateway]
+        AUTH[Identity & TBAC]
+        POL[Policy Engine]
+        STOR[Storage Service]
+        MSG[Message Bus]
+        AUDIT[Audit Service]
+    end
+    
+    subgraph "Plugins"
+        P1[Splunk Integration]
+        P2[Slack/Teams]
+        P3[Database Connectors]
+        P4[Custom Plugins]
+    end
+    
+    APP1 --> GW
+    APP2 --> GW
+    APP3 --> GW
+    APP4 --> GW
+    
+    GW --> AUTH
+    AUTH --> POL
+    GW --> MSG
+    MSG --> P1
+    MSG --> P2
+    MSG --> P3
+    MSG --> P4
+```
 
-    | Feature | Description | Compliance |
-    |---------|-------------|------------|
-    | **Encryption** | AES-256 at rest, TLS 1.3 in transit | :material-check-circle:{ .green } HIPAA §164.312(a) |
-    | **Access Control** | Role-based with trait system | :material-check-circle:{ .green } HIPAA §164.312(a) |
-    | **Audit Logs** | 7-year retention, immutable | :material-check-circle:{ .green } HIPAA §164.312(b) |
-    | **Zero Trust** | No component trusts by default | :material-check-circle:{ .green } Best Practice |
+### Use Cases
 
-=== "Architecture"
+=== "Enterprise Operations"
 
-    ```mermaid
-    graph TB
-        subgraph "External"
-            WEB[Web Apps]
-            MOB[Mobile Apps]
-            API[API Clients]
-        end
-        
-        subgraph "Core Platform"
-            GW[Gateway]
-            AUTH[Identity Service]
-            POL[Policy Engine]
-            AUDIT[Audit Service]
-        end
-        
-        subgraph "Plugins"
-            P1[Healthcare Plugin]
-            P2[Integration Plugin]
-        end
-        
-        WEB --> GW
-        MOB --> GW
-        API --> GW
-        GW --> AUTH
-        AUTH --> POL
-        POL --> AUDIT
-        GW -.-> P1
-        GW -.-> P2
-    ```
+    **ERP for SMB**
+    - Inventory management plugins
+    - Financial processing
+    - HR workflows
+    - Custom reporting
 
-=== "Performance"
+    **Messaging Nerve Center**
+    - Route faxes to Slack/Teams
+    - Push notifications via Pushover
+    - Email-to-SMS bridges
+    - Trait-based routing (no manual lists)
 
-    | Metric | Target | Actual |
-    |--------|--------|--------|
-    | **RPC Latency (p50)** | <5ms | 3.2ms |
-    | **RPC Latency (p99)** | <50ms | 42ms |
-    | **Throughput** | 1000 req/s | 1250 req/s |
-    | **Availability** | 99.9% | 99.95% |
+=== "Security Operations"
 
-### :material-code-tags: Development
+    **Red Team/Blue Team Platform**
+    - Splunk integration
+    - Custom SIEM from your SOC
+    - Aircrack-ng automation
+    - Vulnerability scanning orchestration
+    
+    **Compliance & Audit**
+    - Automated compliance checks
+    - Audit trail aggregation
+    - Policy enforcement
+    - Report generation
 
-!!! tip "Multi-Language SDK Support"
-    Vivified provides **identical APIs** in both Python and Node.js - choose based on your stack, not limitations.
+=== "Healthcare & Compliance"
+
+    **HIPAA-Compliant Systems**
+    - Patient data management
+    - Clinical workflows
+    - Insurance processing
+    - Regulatory reporting
+    
+    **Financial Services**
+    - Transaction processing
+    - Risk assessment
+    - Regulatory compliance
+    - Audit requirements
+
+### Core Features
+
+| Feature | Description | Use Case |
+|---------|-------------|----------|
+| **Trait-Based Access Control** | Dynamic permission system based on user/service traits | No manual ACL maintenance |
+| **Three-Lane Communication** | Canonical events, RPC operations, proxied external calls | Clean plugin isolation |
+| **Plugin Architecture** | Hot-loadable plugins with sandboxing | Extend without modifying core |
+| **Audit Service** | Comprehensive audit logging with configurable retention | Compliance and debugging |
+| **Policy Engine** | Declarative policies for access control | Fine-grained permissions |
+| **Storage Abstraction** | Pluggable storage backends | Use existing infrastructure |
+
+## Development
+
+!!! note "Language Support"
+    Both Python and Node.js SDKs provide identical functionality. Choose based on your existing stack.
+
+### Plugin Example
 
 === "Python"
 
     ```python
     from vivified import Plugin, canonical, operator
     
-    class HealthcarePlugin(Plugin):
-        """Example HIPAA-compliant plugin"""
+    class IntegrationPlugin(Plugin):
+        """Example integration plugin"""
         
-        @canonical.subscribe("patient.created")  # (1)
-        async def handle_patient(self, event):
-            # Process with audit trail
-            patient_data = event.data
-            await self.audit.log("patient.accessed", patient_data.id)  # (2)
-            await self.storage.save("patients", patient_data)
+        @canonical.subscribe("document.received")
+        async def handle_document(self, event):
+            # Route based on traits
+            recipients = await self.identity.find_by_traits(
+                ["department:finance", "notify:documents"]
+            )
             
-        @operator.expose("get_patient")  # (3)
-        async def get_patient(self, patient_id: str):
-            await self.policy.check("patient.read", patient_id)  # (4)
-            return await self.storage.get("patients", patient_id)
+            for recipient in recipients:
+                await self.send_notification(recipient, event.data)
+        
+        @operator.expose("send_notification")
+        async def send_notification(self, recipient, data):
+            # Send via configured channel
+            channel = recipient.traits.get("preferred_channel", "email")
+            return await self.channels[channel].send(recipient, data)
     ```
-
-    1. Subscribe to canonical events
-    2. Automatic audit logging for HIPAA
-    3. Expose RPC methods
-    4. Policy enforcement before data access
 
 === "Node.js"
 
     ```javascript
     import { Plugin, canonical, operator } from '@vivified/sdk';
     
-    class HealthcarePlugin extends Plugin {
-      constructor() {
-        super('healthcare-plugin');
+    class IntegrationPlugin extends Plugin {
+      @canonical.subscribe('document.received')
+      async handleDocument(event) {
+        // Route based on traits
+        const recipients = await this.identity.findByTraits([
+          'department:finance',
+          'notify:documents'
+        ]);
+        
+        for (const recipient of recipients) {
+          await this.sendNotification(recipient, event.data);
+        }
       }
       
-      @canonical.subscribe('patient.created')  // (1)
-      async handlePatient(event) {
-        // Process with audit trail
-        const patientData = event.data;
-        await this.audit.log('patient.accessed', patientData.id);  // (2)
-        await this.storage.save('patients', patientData);
-      }
-      
-      @operator.expose('getPatient')  // (3)
-      async getPatient(patientId) {
-        await this.policy.check('patient.read', patientId);  // (4)
-        return await this.storage.get('patients', patientId);
+      @operator.expose('sendNotification')
+      async sendNotification(recipient, data) {
+        // Send via configured channel
+        const channel = recipient.traits.preferredChannel || 'email';
+        return await this.channels[channel].send(recipient, data);
       }
     }
     ```
 
-    1. Subscribe to canonical events
-    2. Automatic audit logging for HIPAA
-    3. Expose RPC methods
-    4. Policy enforcement before data access
+=== "Configuration"
 
-=== "curl"
-
-    ```bash
-    # Get patient data with authentication
-    curl -X GET "https://api.vivified.dev/rpc/getPatient" \
-      -H "Authorization: Bearer $TOKEN" \
-      -H "Content-Type: application/json" \
-      -d '{"patient_id": "12345"}'
+    ```yaml
+    # plugin.yaml
+    name: integration-plugin
+    version: 1.0.0
+    traits:
+      - can_send_notifications
+      - can_access_user_directory
+    channels:
+      email:
+        provider: smtp
+        host: mail.example.com
+      slack:
+        webhook_url: ${SLACK_WEBHOOK}
+      pushover:
+        app_token: ${PUSHOVER_TOKEN}
     ```
 
-### :material-network: Three-Lane Communication
+### Communication Patterns
 
-!!! warning "All Plugin Communication is Supervised"
-    Plugins cannot communicate directly - all interaction goes through one of three supervised lanes.
+??? info "Three-Lane Model"
 
-??? note "Communication Lanes Explained"
+    **Canonical Lane** - Event-driven messaging
+    - Asynchronous processing
+    - Event sourcing patterns
+    - Loose coupling between services
+    
+    **Operator Lane** - Synchronous RPC
+    - Direct method invocation
+    - Request/response patterns
+    - Strong typing support
+    
+    **Proxy Lane** - External API access
+    - Controlled external communication
+    - Rate limiting and retry logic
+    - Credential management
 
-    | Lane | Purpose | Use Case | Supervision |
-    |------|---------|----------|-------------|
-    | **Canonical** | Event-driven messaging | Async workflows | Event validation & routing |
-    | **Operator** | Synchronous RPC | Direct method calls | Request/response validation |
-    | **Proxy** | External API access | Third-party integrations | Domain allowlisting |
+## Quick Start
 
-## :material-hospital: HIPAA Compliance
+### Local Development
 
-!!! danger "Critical Compliance Requirements"
-    **Vivified handles PHI in production.** All modifications must maintain HIPAA compliance, preserve audit trails, and ensure PHI security. Business Associate Agreements (BAAs) are co-signed by the US Secretary of HHS.
+```bash
+# Clone repository
+git clone https://github.com/DMontgomery40/vivified.git
+cd vivified
 
-### Compliance Checklist
+# Start services
+docker-compose up -d
 
-- [x] **Administrative Safeguards** (§164.308)
-  - [x] Access management
-  - [x] Workforce training
-  - [x] Audit controls
-- [x] **Physical Safeguards** (§164.310)
-  - [x] Facility access controls
-  - [x] Workstation security
-- [x] **Technical Safeguards** (§164.312)
-  - [x] Access control
-  - [x] Encryption/decryption
-  - [x] Audit logs
-  - [x] Integrity controls
-  - [x] Transmission security
+# Verify health
+curl http://localhost:8080/health
 
-## :material-speedometer: Getting Started
+# View logs
+docker-compose logs -f
+```
 
-!!! example "Quick Local Setup"
+### Configuration
 
-    === "Docker Compose"
+!!! tip "Environment Variables"
+    See `.env.example` for all configuration options
 
-        ```bash
-        # Clone repository
-        git clone https://github.com/DMontgomery40/vivified.git
-        cd vivified
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `GATEWAY_PORT` | API gateway port | `8080` |
+| `DATABASE_URL` | PostgreSQL connection string | `postgres://localhost/vivified` |
+| `REDIS_URL` | Redis connection for caching | `redis://localhost:6379` |
+| `LOG_LEVEL` | Logging verbosity | `info` |
+| `PLUGIN_DIR` | Plugin directory path | `./plugins` |
 
-        # Start platform
-        docker-compose up -d
+## Production Deployment
 
-        # Verify health
-        curl http://localhost:8080/health
-        ```
+=== "Kubernetes"
 
-    === "Development Mode"
+    ```yaml
+    # vivified-deployment.yaml
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: vivified-core
+    spec:
+      replicas: 3
+      selector:
+        matchLabels:
+          app: vivified
+      template:
+        metadata:
+          labels:
+            app: vivified
+        spec:
+          containers:
+          - name: vivified
+            image: vivified/core:latest
+            env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: vivified-secrets
+                  key: database-url
+    ```
 
-        ```bash
-        # Enable dev mode for instant admin access
-        export DEV_MODE=true
-        
-        # Start with hot-reload
-        make dev-run
+=== "Docker Swarm"
 
-        # Access Admin Console (no auth in dev mode)
-        open http://localhost:8080/admin
-        ```
+    ```yaml
+    # docker-stack.yml
+    version: '3.8'
+    services:
+      vivified:
+        image: vivified/core:latest
+        deploy:
+          replicas: 3
+          update_config:
+            parallelism: 1
+            delay: 10s
+        environment:
+          DATABASE_URL: ${DATABASE_URL}
+    ```
 
-    === "Kubernetes"
+=== "AWS ECS"
 
-        ```bash
-        # Deploy to cluster
-        kubectl apply -f k8s/
+    ```json
+    {
+      "family": "vivified",
+      "taskDefinition": {
+        "containerDefinitions": [{
+          "name": "vivified-core",
+          "image": "vivified/core:latest",
+          "memory": 2048,
+          "cpu": 1024,
+          "essential": true
+        }]
+      }
+    }
+    ```
 
-        # Wait for services
-        kubectl wait --for=condition=ready pod -l app=vivified
+## Documentation
 
-        # Port-forward
-        kubectl port-forward svc/vivified-gateway 8080:8080
-        ```
+- [Core Services](core/overview.md) - Gateway, Identity, Policy, Storage
+- [Plugin Development](plugins/development.md) - SDK reference and examples
+- [Admin Console](admin-console.md) - Web-based management interface
+- [API Reference](api-reference.md) - REST, WebSocket, and RPC APIs
+- [Deployment Guide](deployment/index.md) - Production deployment
+- [Troubleshooting](troubleshooting.md) - Common issues and solutions
 
-## :material-book-open-variant: Documentation
+## Community
 
-<div class="grid cards" markdown>
-
--   :material-file-document:{ .lg .middle } **[Core Services](core/overview.md)**
-
-    Gateway, Identity, Policy, Storage, Messaging, Audit
-
--   :material-monitor-dashboard:{ .lg .middle } **[Admin Console](admin-console.md)**
-
-    Web-based management interface
-
--   :material-security:{ .lg .middle } **[Security Guide](security.md)**
-
-    HIPAA compliance and security architecture
-
--   :material-help-circle:{ .lg .middle } **[Troubleshooting](troubleshooting.md)**
-
-    Common issues and solutions
-
-</div>
+- [GitHub Issues](https://github.com/DMontgomery40/vivified/issues) - Bug reports and feature requests
+- [Discussions](https://github.com/DMontgomery40/vivified/discussions) - Questions and community support
+- [Contributing](contributing.md) - Contribution guidelines
 
 ---
 
-<p align="center">
-  <small>
-    Made with :material-heart:{ .red } for the healthcare community |
-    Licensed under MIT |
-    <a href="https://github.com/DMontgomery40/vivified">:material-github: GitHub</a>
-  </small>
-</p>
+MIT License | [GitHub](https://github.com/DMontgomery40/vivified)
