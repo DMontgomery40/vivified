@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from typing import Optional, Dict, List, Tuple
 from datetime import datetime, timedelta
-import asyncio
 import logging
 
 from sqlalchemy import select, update
@@ -14,7 +13,8 @@ from ..identity.auth import AuthManager
 try:  # Optional dependency in test env
     import bcrypt as _bcrypt  # type: ignore
 except Exception:  # pragma: no cover - fallback for local tests
-    import hashlib, os
+    import hashlib
+    import os
 
     class _FallbackBcrypt:
         @staticmethod
@@ -23,14 +23,14 @@ except Exception:  # pragma: no cover - fallback for local tests
 
         @staticmethod
         def hashpw(pw: bytes, salt: bytes) -> bytes:
-            h = hashlib.pbkdf2_hmac('sha256', pw, salt, 100_000)
+            h = hashlib.pbkdf2_hmac("sha256", pw, salt, 100_000)
             return b"salted$" + salt + b"$" + h
 
         @staticmethod
         def checkpw(pw: bytes, hashed: bytes) -> bool:
             try:
                 _, salt, h = hashed.split(b"$", 2)
-                hv = hashlib.pbkdf2_hmac('sha256', pw, salt, 100_000)
+                hv = hashlib.pbkdf2_hmac("sha256", pw, salt, 100_000)
                 return hv == h
             except Exception:
                 return False
@@ -67,11 +67,15 @@ class IdentityService:
                 self.db.add(role)
         await self.db.commit()
 
-    async def ensure_admin_user(self, username: str, password: str, email: str = "admin@local") -> None:
+    async def ensure_admin_user(
+        self, username: str, password: str, email: str = "admin@local"
+    ) -> None:
         user = await self.db.scalar(select(User).where(User.username == username))
         if user:
             return
-        pw_hash = _bcrypt.hashpw(password.encode("utf-8"), _bcrypt.gensalt()).decode("latin1")
+        pw_hash = _bcrypt.hashpw(password.encode("utf-8"), _bcrypt.gensalt()).decode(
+            "latin1"
+        )
         user = User(username=username, email=email, password_hash=pw_hash)
         self.db.add(user)
         await self.db.flush()
@@ -81,57 +85,75 @@ class IdentityService:
         await self.db.commit()
 
     async def authenticate(
-        self, 
-        username: str, 
-        password: str, 
+        self,
+        username: str,
+        password: str,
         mfa_token: Optional[str] = None,
-        ip_address: Optional[str] = None
+        ip_address: Optional[str] = None,
     ) -> Optional[Dict]:
         """Authenticate user with optional MFA and account lockout protection."""
         user = await self.db.scalar(select(User).where(User.username == username))
         if not user or not user.is_active:
-            await self._audit_log(None, "failed_login", False, {"username": username, "reason": "user_not_found"}, ip_address)
+            await self._audit_log(
+                None,
+                "failed_login",
+                False,
+                {"username": username, "reason": "user_not_found"},
+                ip_address,
+            )
             return None
-        
+
         # Check if account is locked
         if user.locked_until and user.locked_until > datetime.utcnow():
-            await self._audit_log(user.id, "failed_login", False, {"reason": "account_locked"}, ip_address)
+            await self._audit_log(
+                user.id, "failed_login", False, {"reason": "account_locked"}, ip_address
+            )
             return None
-        
+
         # Verify password
-        if not _bcrypt.checkpw(password.encode("utf-8"), user.password_hash.encode("latin1")):
-            await self._handle_failed_login(user.id, user.failed_login_attempts, ip_address)
+        if not _bcrypt.checkpw(
+            password.encode("utf-8"), user.password_hash.encode("latin1")
+        ):
+            await self._handle_failed_login(
+                user.id, user.failed_login_attempts, ip_address
+            )
             return None
-        
+
         # Verify MFA if enabled
         if user.mfa_enabled:
             if not mfa_token or not self._verify_mfa(user.mfa_secret, mfa_token):
-                await self._audit_log(user.id, "failed_login", False, {"reason": "invalid_mfa"}, ip_address)
+                await self._audit_log(
+                    user.id,
+                    "failed_login",
+                    False,
+                    {"reason": "invalid_mfa"},
+                    ip_address,
+                )
                 return None
-        
+
         # Generate JWT token
         traits = await self.get_user_traits(user.id)
         token = self.auth.generate_user_token(user.id, traits)
-        
+
         # Update login info and reset failed attempts
         await self.db.execute(
             update(User)
             .where(User.id == user.id)
             .values(
-                last_login=datetime.utcnow(),
-                failed_login_attempts=0,
-                locked_until=None
+                last_login=datetime.utcnow(), failed_login_attempts=0, locked_until=None
             )
         )
         await self.db.commit()
-        
+
         # Audit successful login
-        await self._audit_log(user.id, "login", True, {"ip_address": ip_address}, ip_address)
-        
+        await self._audit_log(
+            user.id, "login", True, {"ip_address": ip_address}, ip_address
+        )
+
         return {
-            "token": token, 
+            "token": token,
             "user": {"id": user.id, "username": user.username, "traits": traits},
-            "mfa_required": user.mfa_enabled
+            "mfa_required": user.mfa_enabled,
         }
 
     async def get_user_traits(self, user_id: str) -> List[str]:
@@ -155,59 +177,80 @@ class IdentityService:
         for u in users:
             await self.db.refresh(u)
             role_names = [r.name for r in (u.roles or [])]
-            items.append({
-                "id": u.id,
-                "username": u.username,
-                "email": u.email,
-                "is_active": u.is_active,
-                "roles": role_names,
-            })
+            items.append(
+                {
+                    "id": u.id,
+                    "username": u.username,
+                    "email": u.email,
+                    "is_active": u.is_active,
+                    "roles": role_names,
+                }
+            )
         # Count
         total = (await self.db.execute(select(User))).scalars().unique().count()
         return {"users": items, "page": page, "page_size": page_size, "total": total}
 
-    async def create_user(self, username: str, email: str, password: str, roles: List[str]) -> Tuple[bool, Optional[str]]:
-        existing = await self.db.scalar(select(User).where((User.username == username) | (User.email == email)))
+    async def create_user(
+        self, username: str, email: str, password: str, roles: List[str]
+    ) -> Tuple[bool, Optional[str]]:
+        existing = await self.db.scalar(
+            select(User).where((User.username == username) | (User.email == email))
+        )
         if existing:
             return False, "user_exists"
-        
-        pw_hash = _bcrypt.hashpw(password.encode("utf-8"), _bcrypt.gensalt()).decode("latin1")
-        
+
+        pw_hash = _bcrypt.hashpw(password.encode("utf-8"), _bcrypt.gensalt()).decode(
+            "latin1"
+        )
+
         # Setup MFA for sensitive roles
         mfa_secret = None
         if self._requires_mfa(roles):
             try:
                 import pyotp
+
                 mfa_secret = pyotp.random_base32()
             except Exception:
-                self.logger.warning(f"Failed to generate MFA secret for user {username}")
-        
+                self.logger.warning(
+                    f"Failed to generate MFA secret for user {username}"
+                )
+
         user = User(
-            username=username, 
-            email=email, 
+            username=username,
+            email=email,
             password_hash=pw_hash,
             mfa_secret=mfa_secret,
-            mfa_enabled=bool(mfa_secret)
+            mfa_enabled=bool(mfa_secret),
         )
         self.db.add(user)
         await self.db.flush()
-        
+
         for rname in roles:
             role = await self.db.scalar(select(Role).where(Role.name == rname))
             if role:
                 self.db.add(UserRole(user_id=user.id, role_id=role.id))
-        
+
         await self.db.commit()
-        
+
         # Audit user creation
-        await self._audit_log(user.id, "user_created", True, {"username": username, "roles": roles}, None)
-        
+        await self._audit_log(
+            user.id, "user_created", True, {"username": username, "roles": roles}, None
+        )
+
         return True, user.id
 
     async def list_roles(self) -> List[Dict]:
         result = await self.db.execute(select(Role))
         roles = result.scalars().all()
-        return [{"id": r.id, "name": r.name, "description": r.description, "traits": r.traits or []} for r in roles]
+        return [
+            {
+                "id": r.id,
+                "name": r.name,
+                "description": r.description,
+                "traits": r.traits or [],
+            }
+            for r in roles
+        ]
 
     async def set_user_roles(self, user_id: str, role_names: List[str]) -> bool:
         user = await self.db.get(User, user_id)
@@ -229,6 +272,7 @@ class IdentityService:
         """Verify TOTP MFA token."""
         try:
             import pyotp
+
             totp = pyotp.TOTP(secret)
             return totp.verify(token, valid_window=1)
         except Exception:
@@ -239,38 +283,41 @@ class IdentityService:
         mfa_required_roles = ["admin", "phi_handler"]
         return any(role in mfa_required_roles for role in roles)
 
-    async def _handle_failed_login(self, user_id: str, current_attempts: int, ip_address: Optional[str] = None):
+    async def _handle_failed_login(
+        self, user_id: str, current_attempts: int, ip_address: Optional[str] = None
+    ):
         """Handle failed login attempt with account lockout."""
         new_attempts = current_attempts + 1
-        
+
         if new_attempts >= self.max_failed_attempts:
             locked_until = datetime.utcnow() + self.lockout_duration
             await self.db.execute(
                 update(User)
                 .where(User.id == user_id)
-                .values(
-                    failed_login_attempts=new_attempts,
-                    locked_until=locked_until
-                )
+                .values(failed_login_attempts=new_attempts, locked_until=locked_until)
             )
-            await self._audit_log(user_id, "account_locked", True, {"attempts": new_attempts}, ip_address)
+            await self._audit_log(
+                user_id, "account_locked", True, {"attempts": new_attempts}, ip_address
+            )
         else:
             await self.db.execute(
                 update(User)
                 .where(User.id == user_id)
                 .values(failed_login_attempts=new_attempts)
             )
-        
+
         await self.db.commit()
-        await self._audit_log(user_id, "failed_login", False, {"attempt": new_attempts}, ip_address)
+        await self._audit_log(
+            user_id, "failed_login", False, {"attempt": new_attempts}, ip_address
+        )
 
     async def _audit_log(
-        self, 
-        user_id: Optional[str], 
-        event_type: str, 
-        success: bool, 
-        details: Dict, 
-        ip_address: Optional[str] = None
+        self,
+        user_id: Optional[str],
+        event_type: str,
+        success: bool,
+        details: Dict,
+        ip_address: Optional[str] = None,
     ):
         """Log authentication events for audit trail."""
         audit_entry = AuthAudit(
@@ -278,43 +325,41 @@ class IdentityService:
             event_type=event_type,
             ip_address=ip_address,
             success=success,
-            details=details
+            details=details,
         )
         self.db.add(audit_entry)
         await self.db.commit()
-        
+
         self.logger.info(
             f"Auth event: {event_type}",
             extra={
                 "trace_id": user_id or "unknown",
                 "event_type": event_type,
                 "success": success,
-                "ip_address": ip_address
-            }
+                "ip_address": ip_address,
+            },
         )
 
     async def setup_mfa(self, user_id: str) -> Dict:
         """Setup MFA for a user."""
         try:
             import pyotp
+
             secret = pyotp.random_base32()
             qr_code_url = pyotp.totp.TOTP(secret).provisioning_uri(
-                name=user_id,
-                issuer_name="Vivified Platform"
+                name=user_id, issuer_name="Vivified Platform"
             )
-            
+
             # Store secret (not enabled yet)
             await self.db.execute(
-                update(User)
-                .where(User.id == user_id)
-                .values(mfa_secret=secret)
+                update(User).where(User.id == user_id).values(mfa_secret=secret)
             )
             await self.db.commit()
-            
+
             return {
                 "secret": secret,
                 "qr_code_url": qr_code_url,
-                "backup_codes": []  # Could implement backup codes
+                "backup_codes": [],  # Could implement backup codes
             }
         except Exception as e:
             self.logger.error(f"Failed to setup MFA for user {user_id}: {e}")
@@ -325,45 +370,49 @@ class IdentityService:
         user = await self.db.get(User, user_id)
         if not user or not user.mfa_secret:
             return False
-        
+
         if not self._verify_mfa(user.mfa_secret, mfa_token):
             return False
-        
+
         await self.db.execute(
-            update(User)
-            .where(User.id == user_id)
-            .values(mfa_enabled=True)
+            update(User).where(User.id == user_id).values(mfa_enabled=True)
         )
         await self.db.commit()
-        
+
         await self._audit_log(user_id, "mfa_enabled", True, {}, None)
         return True
 
     async def create_api_key(
-        self, 
-        name: str, 
-        owner_id: Optional[str] = None, 
+        self,
+        name: str,
+        owner_id: Optional[str] = None,
         plugin_id: Optional[str] = None,
-        scopes: List[str] = None
+        scopes: List[str] = None,
     ) -> str:
         """Create an API key for service-to-service authentication."""
         import secrets
         import hashlib
-        
+
         # Generate a secure random key
         key = secrets.token_urlsafe(32)
         key_hash = hashlib.sha256(key.encode()).hexdigest()
-        
+
         api_key = APIKey(
             key_hash=key_hash,
             name=name,
             owner_id=owner_id,
             plugin_id=plugin_id,
-            scopes=scopes or []
+            scopes=scopes or [],
         )
         self.db.add(api_key)
         await self.db.commit()
-        
-        await self._audit_log(owner_id, "api_key_created", True, {"name": name, "plugin_id": plugin_id}, None)
-        
+
+        await self._audit_log(
+            owner_id,
+            "api_key_created",
+            True,
+            {"name": name, "plugin_id": plugin_id},
+            None,
+        )
+
         return key  # Return the plain key only once

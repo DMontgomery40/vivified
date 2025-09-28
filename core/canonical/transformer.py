@@ -14,16 +14,13 @@ logger = logging.getLogger(__name__)
 
 class DataTransformer:
     """Transforms data between plugin-specific and canonical formats."""
-    
+
     def __init__(self, audit_service: AuditService):
         self.audit_service = audit_service
         self.transformations: List[DataTransformation] = []
 
     async def transform_user_to_canonical(
-        self,
-        user_data: Dict[str, Any],
-        source_plugin: str,
-        target_plugin: str
+        self, user_data: Dict[str, Any], source_plugin: str, target_plugin: str
     ) -> CanonicalUser:
         """Transform user data to canonical format."""
         try:
@@ -34,37 +31,25 @@ class DataTransformer:
                 roles=user_data.get("roles", []),
                 traits=user_data.get("traits", []),
                 created_at=user_data.get("created_at", datetime.utcnow()),
-                attributes=user_data.get("attributes", {})
+                attributes=user_data.get("attributes", {}),
             )
-            
+
             # Log transformation
             await self._log_transformation(
-                "user",
-                "canonical",
-                source_plugin,
-                target_plugin,
-                True
+                "user", "canonical", source_plugin, target_plugin, True
             )
-            
+
             return canonical_user
-            
+
         except Exception as e:
             logger.error(f"Failed to transform user to canonical: {e}")
             await self._log_transformation(
-                "user",
-                "canonical", 
-                source_plugin,
-                target_plugin,
-                False,
-                str(e)
+                "user", "canonical", source_plugin, target_plugin, False, str(e)
             )
             raise
 
     async def transform_message_to_canonical(
-        self,
-        message_data: Dict[str, Any],
-        source_plugin: str,
-        target_plugin: str
+        self, message_data: Dict[str, Any], source_plugin: str, target_plugin: str
     ) -> CanonicalMessage:
         """Transform message data to canonical format."""
         try:
@@ -72,7 +57,7 @@ class DataTransformer:
             content = message_data.get("content", "")
             if isinstance(content, str):
                 content = content.encode("utf-8")
-            
+
             canonical_message = CanonicalMessage(
                 id=message_data.get("id", ""),
                 from_user=message_data.get("from_user", ""),
@@ -81,37 +66,25 @@ class DataTransformer:
                 content=content,
                 data_traits=message_data.get("data_traits", []),
                 sent_at=message_data.get("sent_at", datetime.utcnow()),
-                metadata=message_data.get("metadata", {})
+                metadata=message_data.get("metadata", {}),
             )
-            
+
             # Log transformation
             await self._log_transformation(
-                "message",
-                "canonical",
-                source_plugin,
-                target_plugin,
-                True
+                "message", "canonical", source_plugin, target_plugin, True
             )
-            
+
             return canonical_message
-            
+
         except Exception as e:
             logger.error(f"Failed to transform message to canonical: {e}")
             await self._log_transformation(
-                "message",
-                "canonical",
-                source_plugin,
-                target_plugin,
-                False,
-                str(e)
+                "message", "canonical", source_plugin, target_plugin, False, str(e)
             )
             raise
 
     async def transform_event_to_canonical(
-        self,
-        event_data: Dict[str, Any],
-        source_plugin: str,
-        target_plugin: str
+        self, event_data: Dict[str, Any], source_plugin: str, target_plugin: str
     ) -> CanonicalEvent:
         """Transform event data to canonical format."""
         try:
@@ -123,29 +96,20 @@ class DataTransformer:
                 source_plugin=event_data.get("source_plugin", source_plugin),
                 data_traits=event_data.get("data_traits", []),
                 payload=event_data.get("payload", {}),
-                metadata=event_data.get("metadata", {})
+                metadata=event_data.get("metadata", {}),
             )
-            
+
             # Log transformation
             await self._log_transformation(
-                "event",
-                "canonical",
-                source_plugin,
-                target_plugin,
-                True
+                "event", "canonical", source_plugin, target_plugin, True
             )
-            
+
             return canonical_event
-            
+
         except Exception as e:
             logger.error(f"Failed to transform event to canonical: {e}")
             await self._log_transformation(
-                "event",
-                "canonical",
-                source_plugin,
-                target_plugin,
-                False,
-                str(e)
+                "event", "canonical", source_plugin, target_plugin, False, str(e)
             )
             raise
 
@@ -154,7 +118,7 @@ class DataTransformer:
         canonical_data: Any,
         target_format: str,
         source_plugin: str,
-        target_plugin: str
+        target_plugin: str,
     ) -> Dict[str, Any]:
         """Transform canonical data to plugin-specific format."""
         try:
@@ -166,7 +130,7 @@ class DataTransformer:
                     "roles": canonical_data.roles,
                     "traits": canonical_data.traits,
                     "created_at": canonical_data.created_at.isoformat(),
-                    "attributes": canonical_data.attributes
+                    "attributes": canonical_data.attributes,
                 }
             elif isinstance(canonical_data, CanonicalMessage):
                 result = {
@@ -174,10 +138,14 @@ class DataTransformer:
                     "from_user": canonical_data.from_user,
                     "to_user": canonical_data.to_user,
                     "content_type": canonical_data.content_type,
-                    "content": canonical_data.content.decode("utf-8") if isinstance(canonical_data.content, bytes) else canonical_data.content,
+                    "content": (
+                        canonical_data.content.decode("utf-8")
+                        if isinstance(canonical_data.content, bytes)
+                        else canonical_data.content
+                    ),
                     "data_traits": canonical_data.data_traits,
                     "sent_at": canonical_data.sent_at.isoformat(),
-                    "metadata": canonical_data.metadata
+                    "metadata": canonical_data.metadata,
                 }
             elif isinstance(canonical_data, CanonicalEvent):
                 result = {
@@ -188,31 +156,22 @@ class DataTransformer:
                     "source_plugin": canonical_data.source_plugin,
                     "data_traits": canonical_data.data_traits,
                     "payload": canonical_data.payload,
-                    "metadata": canonical_data.metadata
+                    "metadata": canonical_data.metadata,
                 }
             else:
                 raise ValueError(f"Unknown canonical data type: {type(canonical_data)}")
-            
+
             # Log transformation
             await self._log_transformation(
-                "canonical",
-                target_format,
-                source_plugin,
-                target_plugin,
-                True
+                "canonical", target_format, source_plugin, target_plugin, True
             )
-            
+
             return result
-            
+
         except Exception as e:
             logger.error(f"Failed to transform from canonical: {e}")
             await self._log_transformation(
-                "canonical",
-                target_format,
-                source_plugin,
-                target_plugin,
-                False,
-                str(e)
+                "canonical", target_format, source_plugin, target_plugin, False, str(e)
             )
             raise
 
@@ -223,7 +182,7 @@ class DataTransformer:
         source_plugin: str,
         target_plugin: str,
         success: bool,
-        error_message: Optional[str] = None
+        error_message: Optional[str] = None,
     ):
         """Log data transformation."""
         transformation = DataTransformation(
@@ -233,11 +192,11 @@ class DataTransformer:
             source_plugin=source_plugin,
             target_plugin=target_plugin,
             success=success,
-            error_message=error_message
+            error_message=error_message,
         )
-        
+
         self.transformations.append(transformation)
-        
+
         # Audit log
         await self.audit_service.log_event(
             event_type="data_transformation",
@@ -252,8 +211,8 @@ class DataTransformer:
                 "target_format": target_format,
                 "target_plugin": target_plugin,
                 "success": success,
-                "error": error_message
-            }
+                "error": error_message,
+            },
         )
 
     def get_transformation_history(self) -> List[DataTransformation]:

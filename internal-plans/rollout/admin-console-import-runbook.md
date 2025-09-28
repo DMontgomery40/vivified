@@ -211,6 +211,8 @@ Local Validation (before opening PR)
   - `docker compose build vivified-core && docker compose up -d`
   - Open `http://localhost:8000/admin/ui`
   - If Core fails at startup with `psycopg2` import errors, verify compose uses the `postgresql+asyncpg://` URL.
+  - For Vite hot reload in Docker: `docker compose up -d vivified-core admin-ui-dev` and open `http://localhost:5173`.
+    - Tail logs during first start (dependency install): `docker logs -f vivified-admin-ui-dev-1`.
 
 Operational Notes
 - All UI → Core traffic must flow through the gateway (Operator lane). No direct plugin endpoints or cross-plugin access from UI.

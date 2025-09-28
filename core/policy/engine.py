@@ -31,6 +31,7 @@ class PolicyDecision(str, Enum):
 
 class PolicyContext(str, Enum):
     """Contexts for policy evaluation."""
+
     USER_ACTION = "user_action"
     PLUGIN_INTERACTION = "plugin_interaction"
     SYSTEM_OPERATION = "system_operation"
@@ -40,6 +41,7 @@ class PolicyContext(str, Enum):
 @dataclass
 class PolicyRequest:
     """Request for policy evaluation."""
+
     user_id: Optional[str]
     resource_type: str
     resource_id: str
@@ -54,6 +56,7 @@ class PolicyRequest:
 @dataclass
 class PolicyResult:
     """Result of policy evaluation."""
+
     decision: PolicyDecision
     reason: str
     required_traits: List[str] = None
@@ -84,7 +87,13 @@ class PolicyEngine:
 
         # Admin override - highest priority
         if "admin" in traits:
-            self.audit(request.user_id or "unknown", request.resource_id, [], "allow", "admin_privilege")
+            self.audit(
+                request.user_id or "unknown",
+                request.resource_id,
+                [],
+                "allow",
+                "admin_privilege",
+            )
             return PolicyResult(PolicyDecision.ALLOW, "admin_privilege")
 
         # PHI protection - critical for HIPAA compliance
@@ -92,59 +101,148 @@ class PolicyEngine:
             if traits.intersection({"phi_handler", "handles_phi", "admin"}):
                 # Additional check: ensure audit is enabled for PHI access
                 if "audit_required" in traits or "admin" in traits:
-                    self.audit(request.user_id or "unknown", request.resource_id, ["phi"], "allow", "phi_trait_present")
+                    self.audit(
+                        request.user_id or "unknown",
+                        request.resource_id,
+                        ["phi"],
+                        "allow",
+                        "phi_trait_present",
+                    )
                     return PolicyResult(PolicyDecision.ALLOW, "phi_trait_present")
                 else:
-                    self.audit(request.user_id or "unknown", request.resource_id, ["phi"], "deny", "phi_audit_required")
+                    self.audit(
+                        request.user_id or "unknown",
+                        request.resource_id,
+                        ["phi"],
+                        "deny",
+                        "phi_audit_required",
+                    )
                     return PolicyResult(PolicyDecision.DENY, "phi_audit_required")
             else:
-                self.audit(request.user_id or "unknown", request.resource_id, ["phi"], "deny", "phi_trait_missing")
+                self.audit(
+                    request.user_id or "unknown",
+                    request.resource_id,
+                    ["phi"],
+                    "deny",
+                    "phi_trait_missing",
+                )
                 return PolicyResult(PolicyDecision.DENY, "phi_trait_missing")
 
         # PII protection
         if classification == "pii" or "pii" in (ctx.get("data_traits") or []):
             if traits.intersection({"pii_handler", "handles_pii", "admin"}):
-                self.audit(request.user_id or "unknown", request.resource_id, ["pii"], "allow", "pii_trait_present")
+                self.audit(
+                    request.user_id or "unknown",
+                    request.resource_id,
+                    ["pii"],
+                    "allow",
+                    "pii_trait_present",
+                )
                 return PolicyResult(PolicyDecision.ALLOW, "pii_trait_present")
             else:
-                self.audit(request.user_id or "unknown", request.resource_id, ["pii"], "deny", "pii_trait_missing")
+                self.audit(
+                    request.user_id or "unknown",
+                    request.resource_id,
+                    ["pii"],
+                    "deny",
+                    "pii_trait_missing",
+                )
                 return PolicyResult(PolicyDecision.DENY, "pii_trait_missing")
 
         # External service restrictions
-        if ctx.get("external_service") and classification in ["confidential", "phi", "pii"]:
+        if ctx.get("external_service") and classification in [
+            "confidential",
+            "phi",
+            "pii",
+        ]:
             if "external_service" in traits:
-                self.audit(request.user_id or "unknown", request.resource_id, [classification], "sanitize", "external_service_sanitize")
+                self.audit(
+                    request.user_id or "unknown",
+                    request.resource_id,
+                    [classification],
+                    "sanitize",
+                    "external_service_sanitize",
+                )
                 return PolicyResult(PolicyDecision.ALLOW, "external_service_sanitize")
             else:
-                self.audit(request.user_id or "unknown", request.resource_id, [classification], "deny", "external_service_denied")
+                self.audit(
+                    request.user_id or "unknown",
+                    request.resource_id,
+                    [classification],
+                    "deny",
+                    "external_service_denied",
+                )
                 return PolicyResult(PolicyDecision.DENY, "external_service_denied")
 
         # Plugin-specific restrictions
         if resource_type == "plugin" and action in ["register", "configure", "execute"]:
             if "plugin_manager" in traits or "admin" in traits:
-                self.audit(request.user_id or "unknown", request.resource_id, [], "allow", "plugin_manager_privilege")
+                self.audit(
+                    request.user_id or "unknown",
+                    request.resource_id,
+                    [],
+                    "allow",
+                    "plugin_manager_privilege",
+                )
                 return PolicyResult(PolicyDecision.ALLOW, "plugin_manager_privilege")
             else:
-                self.audit(request.user_id or "unknown", request.resource_id, [], "deny", "plugin_access_denied")
+                self.audit(
+                    request.user_id or "unknown",
+                    request.resource_id,
+                    [],
+                    "deny",
+                    "plugin_access_denied",
+                )
                 return PolicyResult(PolicyDecision.DENY, "plugin_access_denied")
 
         # Configuration access
         if resource_type == "config" and action in ["read", "write", "delete"]:
             if "config_manager" in traits or "admin" in traits:
-                self.audit(request.user_id or "unknown", request.resource_id, [], "allow", "config_manager_privilege")
+                self.audit(
+                    request.user_id or "unknown",
+                    request.resource_id,
+                    [],
+                    "allow",
+                    "config_manager_privilege",
+                )
                 return PolicyResult(PolicyDecision.ALLOW, "config_manager_privilege")
             elif action == "read" and "viewer" in traits:
-                self.audit(request.user_id or "unknown", request.resource_id, [], "allow", "viewer_read")
+                self.audit(
+                    request.user_id or "unknown",
+                    request.resource_id,
+                    [],
+                    "allow",
+                    "viewer_read",
+                )
                 return PolicyResult(PolicyDecision.ALLOW, "viewer_read")
             else:
-                self.audit(request.user_id or "unknown", request.resource_id, [], "deny", "config_access_denied")
+                self.audit(
+                    request.user_id or "unknown",
+                    request.resource_id,
+                    [],
+                    "deny",
+                    "config_access_denied",
+                )
                 return PolicyResult(PolicyDecision.DENY, "config_access_denied")
 
         # Default allow for non-sensitive operations
-        self.audit(request.user_id or "unknown", request.resource_id, [], "allow", "default_allow")
+        self.audit(
+            request.user_id or "unknown",
+            request.resource_id,
+            [],
+            "allow",
+            "default_allow",
+        )
         return PolicyResult(PolicyDecision.ALLOW, "default_allow")
 
-    def audit(self, source: str, target: str, data_traits: List[str], decision: str, reason: str) -> None:
+    def audit(
+        self,
+        source: str,
+        target: str,
+        data_traits: List[str],
+        decision: str,
+        reason: str,
+    ) -> None:
         payload = {
             "ts": datetime.now(tz=timezone.utc).isoformat(),
             "source": source,
@@ -158,4 +256,3 @@ class PolicyEngine:
 
 # Module-level singleton (used by some imports)
 policy_engine = PolicyEngine()
-

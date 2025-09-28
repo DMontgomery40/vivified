@@ -15,7 +15,7 @@ from .proxy import ProxyHandler
 __all__ = [
     "GatewayService",
     "ProxyRequest",
-    "ProxyResponse", 
+    "ProxyResponse",
     "DomainAllowlist",
     "ProxyHandler",
 ]

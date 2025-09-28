@@ -14,7 +14,7 @@ from .event_bus import EventBus
 
 __all__ = [
     "MessagingService",
-    "Message", 
+    "Message",
     "Event",
     "MessageFilter",
     "EventBus",

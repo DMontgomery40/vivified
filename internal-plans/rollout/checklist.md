@@ -35,3 +35,55 @@ Notes
 - Keep HIPAA/Zero-Trust guarantees front-and-center for every change.
 - Do not allow PHI/PII in logs; redact/mask in all examples.
 
+
+## P0 — Policy/auth decorators and tracing
+- [ ] Provide working examples for `@require_auth`, `@audit_log`, `@rate_limit` used in Admin API
+- [ ] Ensure end-to-end `trace_id` propagation across all three lanes and logs
+
+## P0 — NATS authentication and wiring
+- [ ] Add NATS config with users/passwords; mount config in compose/k8s
+- [ ] Update SDK/core envs to use `NATS_CORE_USER/PASSWORD` and `NATS_PLUGIN_USER/PASSWORD`
+- [ ] Add smoke test in Phase 3/4 to verify NATS auth is required
+
+## P0 — Rate limiting and session controls
+- [ ] Implement/administer rate limits on all admin endpoints via middleware
+- [ ] Verify session timeout ≤ 30m and JWT expiry 15m with tests
+
+## P0 — Proxy allowlist enforcement
+- [ ] Enforce `allowed_domains` for each plugin in Proxy; add tests (deny internal, allow listed)
+- [ ] Add SSRF protections (no redirects to internal IPs; re-resolve after redirects)
+
+## P0 — CI pipeline parity and stability
+- [ ] Update CI to build Admin UI (Vite) with Node 20 and cache node_modules
+- [ ] Add hadolint and semgrep stages; fail on high/critical issues
+- [ ] Add secret scanning (gitleaks) stage
+
+## P1 — Logging and masking improvements
+- [ ] Provide JSON logging option and `LoggerAdapter` with default `trace_id`
+- [ ] Add centralized masking utility; unit tests to prove no PHI appears in logs
+
+## P1 — Monitoring & alerting artifacts
+- [ ] Provide Grafana dashboard JSONs (security, latency, events, RPC, proxy)
+- [ ] Verify Alertmanager routes/severities per security/compliance needs
+
+## P1 — Admin UI hardening
+- [ ] Set CSP headers at server; keep meta tag as fallback
+- [ ] Add strict `X-Frame-Options`/`Referrer-Policy`/`X-Content-Type-Options` headers
+
+## P1 — Storage & sandboxing parity
+- [ ] Document Storage Service abstraction (per overview) or mark as deferred with rationale
+- [ ] Enforce plugin container resource limits (CPU/mem) in compose and k8s
+
+## P2 — Phase runbooks expansion
+- [ ] Phase 5: SDKs (Python/Node/Go), CLI (`vivified create-plugin`, `validate-manifest`)
+- [ ] Phase 6: Reference plugin Email Gateway (SMTP via config; proxy demo)
+- [ ] Phase 7: Reference plugin User Management (profiles; canonical events)
+- [ ] Phase 8: Performance/scalability (load tests, SLO validation, HPA)
+- [ ] Phase 9: Rollout/canary and operational runbook
+
+## P2 — Documentation and compliance mapping
+- [ ] Update Admin Console import runbook to Vite-only references
+- [ ] Expand HIPAA control mappings with concrete test evidence paths
+- [ ] Add UI Parity Checklist to all new features (per UI Parity Mandate)
+
+

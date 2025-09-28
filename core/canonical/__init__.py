@@ -15,7 +15,7 @@ from .transformer import DataTransformer
 __all__ = [
     "CanonicalService",
     "CanonicalUser",
-    "CanonicalMessage", 
+    "CanonicalMessage",
     "CanonicalEvent",
     "DataTransformer",
 ]
