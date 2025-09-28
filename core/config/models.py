@@ -9,7 +9,6 @@ from datetime import datetime
 from typing import Optional
 
 from sqlalchemy import (
-    Column,
     String,
     Boolean,
     DateTime,
@@ -26,7 +25,9 @@ Base = declarative_base()
 class Configuration(Base):
     __tablename__ = "configurations"
 
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=lambda: str(uuid.uuid4())
+    )
     key: Mapped[str] = mapped_column(String(255), nullable=False)
     value: Mapped[dict] = mapped_column(JSON, nullable=False)
     plugin_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
@@ -39,14 +40,18 @@ class Configuration(Base):
     updated_by: Mapped[Optional[str]] = mapped_column(String(36), nullable=True)
 
     __table_args__ = (
-        UniqueConstraint("key", "plugin_id", "environment", name="uq_config_key_plugin_env"),
+        UniqueConstraint(
+            "key", "plugin_id", "environment", name="uq_config_key_plugin_env"
+        ),
     )
 
 
 class ConfigHistory(Base):
     __tablename__ = "config_history"
 
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=lambda: str(uuid.uuid4())
+    )
     config_id: Mapped[str] = mapped_column(String(36), ForeignKey("configurations.id"))
     old_value: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
     new_value: Mapped[dict] = mapped_column(JSON, nullable=False)

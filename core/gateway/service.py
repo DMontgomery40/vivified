@@ -4,7 +4,7 @@ Gateway service for external API access and proxy functionality.
 
 import logging
 from typing import Dict, List, Optional, Any
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from .models import ProxyRequest, ProxyResponse, DomainAllowlist, ProxyStats
 from .proxy import ProxyHandler
@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 class GatewayService:
     """Service for external API access with security and rate limiting."""
-    
+
     def __init__(self, audit_service: AuditService, policy_engine: PolicyEngine):
         self.audit_service = audit_service
         self.policy_engine = policy_engine
@@ -29,7 +29,7 @@ class GatewayService:
         """Start the gateway service."""
         if self._running:
             return
-        
+
         await self.proxy_handler.start()
         self._running = True
         logger.info("Gateway service started")
@@ -38,7 +38,7 @@ class GatewayService:
         """Stop the gateway service."""
         if not self._running:
             return
-        
+
         await self.proxy_handler.stop()
         self._running = False
         logger.info("Gateway service stopped")
@@ -48,25 +48,27 @@ class GatewayService:
         plugin_id: str,
         domain: str,
         allowed_methods: List[str],
-        allowed_paths: List[str] = None,
-        max_requests_per_minute: int = 60
+        allowed_paths: Optional[List[str]] = None,
+        max_requests_per_minute: int = 60,
     ) -> str:
         """Add a domain to the allowlist for a plugin."""
         try:
             # Check if plugin can add domains
             if not await self._can_manage_allowlist(plugin_id):
-                raise PermissionError(f"Plugin {plugin_id} not authorized to manage allowlists")
-            
+                raise PermissionError(
+                    f"Plugin {plugin_id} not authorized to manage allowlists"
+                )
+
             allowlist_entry = DomainAllowlist(
                 plugin_id=plugin_id,
                 domain=domain,
                 allowed_methods=allowed_methods,
                 allowed_paths=allowed_paths or [],
-                max_requests_per_minute=max_requests_per_minute
+                max_requests_per_minute=max_requests_per_minute,
             )
-            
+
             self.domain_allowlists[domain] = allowlist_entry
-            
+
             await self.audit_service.log_event(
                 event_type="domain_allowlist_added",
                 category="gateway",
@@ -79,12 +81,12 @@ class GatewayService:
                     "domain": domain,
                     "allowed_methods": allowed_methods,
                     "allowed_paths": allowed_paths,
-                    "max_requests_per_minute": max_requests_per_minute
-                }
+                    "max_requests_per_minute": max_requests_per_minute,
+                },
             )
-            
+
             return allowlist_entry.id
-            
+
         except Exception as e:
             logger.error(f"Failed to add domain allowlist: {e}")
             await self.audit_service.log_event(
@@ -95,7 +97,7 @@ class GatewayService:
                 description=f"Failed to add domain {domain} to allowlist: {str(e)}",
                 plugin_id=plugin_id,
                 level=AuditLevel.STANDARD,
-                details={"error": str(e)}
+                details={"error": str(e)},
             )
             raise
 
@@ -104,15 +106,17 @@ class GatewayService:
         try:
             if domain not in self.domain_allowlists:
                 return False
-            
+
             allowlist_entry = self.domain_allowlists[domain]
-            
+
             # Check if plugin owns this allowlist entry
             if allowlist_entry.plugin_id != plugin_id:
-                raise PermissionError(f"Plugin {plugin_id} not authorized to remove domain {domain}")
-            
+                raise PermissionError(
+                    f"Plugin {plugin_id} not authorized to remove domain {domain}"
+                )
+
             del self.domain_allowlists[domain]
-            
+
             await self.audit_service.log_event(
                 event_type="domain_allowlist_removed",
                 category="gateway",
@@ -121,11 +125,11 @@ class GatewayService:
                 description=f"Domain {domain} removed from allowlist",
                 plugin_id=plugin_id,
                 level=AuditLevel.STANDARD,
-                details={"domain": domain}
+                details={"domain": domain},
             )
-            
+
             return True
-            
+
         except Exception as e:
             logger.error(f"Failed to remove domain allowlist: {e}")
             await self.audit_service.log_event(
@@ -136,7 +140,7 @@ class GatewayService:
                 description=f"Failed to remove domain {domain}: {str(e)}",
                 plugin_id=plugin_id,
                 level=AuditLevel.STANDARD,
-                details={"error": str(e)}
+                details={"error": str(e)},
             )
             raise
 
@@ -145,16 +149,18 @@ class GatewayService:
         plugin_id: str,
         method: str,
         url: str,
-        headers: Dict[str, str] = None,
-        body: bytes = None,
-        timeout: int = 30
+        headers: Optional[Dict[str, str]] = None,
+        body: Optional[bytes] = None,
+        timeout: int = 30,
     ) -> ProxyResponse:
         """Proxy a request to an external API."""
         try:
             # Check if plugin can make proxy requests
             if not await self._can_proxy_request(plugin_id):
-                raise PermissionError(f"Plugin {plugin_id} not authorized to make proxy requests")
-            
+                raise PermissionError(
+                    f"Plugin {plugin_id} not authorized to make proxy requests"
+                )
+
             # Create proxy request
             request = ProxyRequest(
                 plugin_id=plugin_id,
@@ -162,17 +168,19 @@ class GatewayService:
                 url=url,
                 headers=headers or {},
                 body=body,
-                timeout=timeout
+                timeout=timeout,
             )
-            
+
             # Handle the request
-            response = await self.proxy_handler.handle_request(request, self.domain_allowlists)
-            
+            response = await self.proxy_handler.handle_request(
+                request, self.domain_allowlists
+            )
+
             # Update stats
             self._update_stats(response)
-            
+
             return response
-            
+
         except Exception as e:
             logger.error(f"Proxy request failed: {e}")
             await self.audit_service.log_event(
@@ -183,15 +191,16 @@ class GatewayService:
                 description=f"Proxy request failed: {str(e)}",
                 plugin_id=plugin_id,
                 level=AuditLevel.STANDARD,
-                details={"error": str(e)}
+                details={"error": str(e)},
             )
             raise
 
-    async def get_allowlist(self, plugin_id: str = None) -> List[DomainAllowlist]:
+    async def get_allowlist(self, plugin_id: Optional[str] = None) -> List[DomainAllowlist]:
         """Get domain allowlist entries."""
         if plugin_id:
             return [
-                entry for entry in self.domain_allowlists.values()
+                entry
+                for entry in self.domain_allowlists.values()
                 if entry.plugin_id == plugin_id
             ]
         return list(self.domain_allowlists.values())
@@ -215,9 +224,9 @@ class GatewayService:
             "127.0.0.1",
             "0.0.0.0",
             "169.254",  # Link-local
-            "10.",      # Private ranges
+            "10.",  # Private ranges
             "172.16",
-            "192.168"
+            "192.168",
         ]
         return not any(domain.startswith(blocked) for blocked in blocked_domains)
 
@@ -250,7 +259,7 @@ class GatewayService:
     def _update_stats(self, response: ProxyResponse):
         """Update gateway statistics."""
         self.stats.total_requests += 1
-        
+
         if response.success:
             self.stats.successful_requests += 1
         else:
@@ -258,11 +267,13 @@ class GatewayService:
                 self.stats.blocked_requests += 1
             else:
                 self.stats.failed_requests += 1
-        
+
         # Update average response time
         if self.stats.total_requests > 0:
-            total_time = (self.stats.average_response_time_ms * (self.stats.total_requests - 1) + 
-                         response.response_time_ms) / self.stats.total_requests
+            total_time = (
+                self.stats.average_response_time_ms * (self.stats.total_requests - 1)
+                + response.response_time_ms
+            ) / self.stats.total_requests
             self.stats.average_response_time_ms = total_time
-        
+
         self.stats.last_updated = datetime.utcnow()

@@ -1,7 +1,6 @@
 """Enhanced plugin manager with security validation and health monitoring."""
 
-import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Dict, List, Optional, Any, Tuple
 from fastapi import HTTPException
 import logging
@@ -11,7 +10,6 @@ from .validator import SecurityValidator
 from .health import HealthMonitor
 from .registry import PluginRegistry
 from core.identity.auth import AuthManager
-from core.policy.engine import policy_engine
 from core.audit.models import AuditCategory
 
 logger = logging.getLogger(__name__)
@@ -457,10 +455,21 @@ class EnhancedPluginManager:
             if plugin_info.health.status == HealthStatus.UNHEALTHY:
                 return False, f"Plugin {plugin_id} is unhealthy"
 
-            # Use security validator
-            return self.validator.validate_plugin_operation(
-                plugin_id, operation, target, data
+            # Normalize context for validator
+            context: Dict[str, Any] = {
+                "target": target,
+                "data": data or {},
+                "data_classification": (data or {}).get("data_classification", ""),
+                "has_appropriate_traits": (data or {}).get("has_appropriate_traits", False),
+            }
+
+            # Use security validator (single implementation)
+            is_allowed, errors = self.validator.validate_plugin_operation(
+                plugin_id, operation, context
             )
+            if not is_allowed:
+                return False, "; ".join(errors)
+            return True, "allowed"
 
         except Exception as e:
             logger.error(f"Error validating plugin operation: {e}")

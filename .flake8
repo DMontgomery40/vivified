@@ -1,7 +1,10 @@
 [flake8]
-max-line-length = 100
-extend-ignore = E203, W503, F401, F403
-exclude = 
+max-line-length = 120
+extend-ignore = E203, W503
+per-file-ignores =
+    core/migrations/env.py:E402
+    core/migrations/versions/*:E501,W291,F401
+exclude =
     .git,
     __pycache__,
     core/proto,

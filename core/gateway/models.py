@@ -5,13 +5,14 @@ Gateway data models for external API access.
 from datetime import datetime
 from enum import Enum
 from typing import Dict, List, Optional, Any
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 from pydantic import BaseModel, Field, HttpUrl
 
 
 class ProxyMethod(str, Enum):
     """HTTP methods supported by proxy."""
+
     GET = "GET"
     POST = "POST"
     PUT = "PUT"
@@ -23,6 +24,7 @@ class ProxyMethod(str, Enum):
 
 class ProxyStatus(str, Enum):
     """Proxy request status."""
+
     PENDING = "pending"
     IN_PROGRESS = "in_progress"
     COMPLETED = "completed"
@@ -32,7 +34,7 @@ class ProxyStatus(str, Enum):
 
 class ProxyRequest(BaseModel):
     """Proxy request model."""
-    
+
     id: str = Field(default_factory=lambda: str(uuid4()))
     plugin_id: str
     method: ProxyMethod
@@ -50,7 +52,7 @@ class ProxyRequest(BaseModel):
 
 class ProxyResponse(BaseModel):
     """Proxy response model."""
-    
+
     request_id: str
     status_code: int
     headers: Dict[str, str] = Field(default_factory=dict)
@@ -66,7 +68,7 @@ class ProxyResponse(BaseModel):
 
 class DomainAllowlist(BaseModel):
     """Domain allowlist entry."""
-    
+
     id: str = Field(default_factory=lambda: str(uuid4()))
     plugin_id: str
     domain: str
@@ -82,7 +84,7 @@ class DomainAllowlist(BaseModel):
 
 class RateLimit(BaseModel):
     """Rate limiting configuration."""
-    
+
     plugin_id: str
     domain: str
     requests_per_minute: int
@@ -96,7 +98,7 @@ class RateLimit(BaseModel):
 
 class ProxyStats(BaseModel):
     """Proxy statistics."""
-    
+
     total_requests: int = 0
     successful_requests: int = 0
     failed_requests: int = 0

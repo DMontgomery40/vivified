@@ -5,13 +5,14 @@ Messaging data models for inter-plugin communication.
 from datetime import datetime
 from enum import Enum
 from typing import Dict, List, Optional, Any
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 from pydantic import BaseModel, Field
 
 
 class MessageType(str, Enum):
     """Types of messages in the system."""
+
     EVENT = "event"
     REQUEST = "request"
     RESPONSE = "response"
@@ -20,6 +21,7 @@ class MessageType(str, Enum):
 
 class MessagePriority(str, Enum):
     """Message priority levels."""
+
     LOW = "low"
     NORMAL = "normal"
     HIGH = "high"
@@ -28,6 +30,7 @@ class MessagePriority(str, Enum):
 
 class DataClassification(str, Enum):
     """Data classification for message content."""
+
     PUBLIC = "public"
     INTERNAL = "internal"
     CONFIDENTIAL = "confidential"
@@ -37,7 +40,7 @@ class DataClassification(str, Enum):
 
 class Message(BaseModel):
     """Canonical message format for inter-plugin communication."""
-    
+
     id: str = Field(default_factory=lambda: str(uuid4()))
     message_type: MessageType
     priority: MessagePriority = MessagePriority.NORMAL
@@ -60,7 +63,7 @@ class Message(BaseModel):
 
 class Event(BaseModel):
     """Event message for canonical communication."""
-    
+
     event_id: str = Field(default_factory=lambda: str(uuid4()))
     event_type: str
     trace_id: str = Field(default_factory=lambda: str(uuid4()))
@@ -76,7 +79,7 @@ class Event(BaseModel):
 
 class MessageFilter(BaseModel):
     """Filter criteria for message queries."""
-    
+
     message_types: Optional[List[MessageType]] = None
     source_plugins: Optional[List[str]] = None
     target_plugins: Optional[List[str]] = None
@@ -93,6 +96,7 @@ class MessageFilter(BaseModel):
 
 class MessageDeliveryStatus(str, Enum):
     """Message delivery status."""
+
     PENDING = "pending"
     DELIVERED = "delivered"
     FAILED = "failed"
@@ -102,7 +106,7 @@ class MessageDeliveryStatus(str, Enum):
 
 class MessageDelivery(BaseModel):
     """Message delivery tracking."""
-    
+
     message_id: str
     target_plugin: str
     status: MessageDeliveryStatus

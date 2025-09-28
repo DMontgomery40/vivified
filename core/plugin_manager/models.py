@@ -5,13 +5,13 @@ Plugin manager data models.
 from datetime import datetime
 from enum import Enum
 from typing import Dict, List, Optional, Any
-from uuid import UUID, uuid4
 
 from pydantic import BaseModel, Field
 
 
 class PluginStatus(str, Enum):
     """Plugin status values."""
+
     REGISTERED = "registered"
     ACTIVE = "active"
     INACTIVE = "inactive"
@@ -22,6 +22,7 @@ class PluginStatus(str, Enum):
 
 class HealthStatus(str, Enum):
     """Plugin health status values."""
+
     HEALTHY = "healthy"
     UNHEALTHY = "unhealthy"
     UNKNOWN = "unknown"
@@ -30,7 +31,7 @@ class HealthStatus(str, Enum):
 
 class PluginManifest(BaseModel):
     """Plugin manifest model."""
-    
+
     id: str
     name: str
     version: str
@@ -49,7 +50,7 @@ class PluginManifest(BaseModel):
 
 class PluginInfo(BaseModel):
     """Plugin information model."""
-    
+
     id: str
     manifest: PluginManifest
     status: PluginStatus
@@ -66,7 +67,7 @@ class PluginInfo(BaseModel):
 
 class PluginHealth(BaseModel):
     """Plugin health information."""
-    
+
     status: HealthStatus
     last_check: datetime
     consecutive_failures: int = 0
@@ -80,7 +81,7 @@ class PluginHealth(BaseModel):
 
 class PluginRegistration(BaseModel):
     """Plugin registration request."""
-    
+
     manifest: PluginManifest
     registration_token: Optional[str] = None
     metadata: Dict[str, Any] = Field(default_factory=dict)
@@ -91,7 +92,7 @@ class PluginRegistration(BaseModel):
 
 class PluginUpdate(BaseModel):
     """Plugin update request."""
-    
+
     status: Optional[PluginStatus] = None
     health: Optional[HealthStatus] = None
     metadata: Optional[Dict[str, Any]] = None

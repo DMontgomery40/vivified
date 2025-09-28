@@ -4,14 +4,14 @@ Canonical data models for cross-plugin compatibility.
 
 from datetime import datetime
 from typing import Dict, List, Optional, Any
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 from pydantic import BaseModel, Field
 
 
 class CanonicalUser(BaseModel):
     """Canonical user representation across all plugins."""
-    
+
     id: str
     username: str
     email: str
@@ -19,14 +19,14 @@ class CanonicalUser(BaseModel):
     traits: List[str] = Field(default_factory=list)
     created_at: datetime
     attributes: Dict[str, str] = Field(default_factory=dict)
-    
+
     class Config:
         use_enum_values = True
 
 
 class CanonicalMessage(BaseModel):
     """Canonical message format for communication plugins."""
-    
+
     id: str = Field(default_factory=lambda: str(uuid4()))
     from_user: str
     to_user: str
@@ -42,7 +42,7 @@ class CanonicalMessage(BaseModel):
 
 class CanonicalEvent(BaseModel):
     """Canonical event format for event bus."""
-    
+
     event_id: str = Field(default_factory=lambda: str(uuid4()))
     trace_id: str = Field(default_factory=lambda: str(uuid4()))
     event_type: str
@@ -58,7 +58,7 @@ class CanonicalEvent(BaseModel):
 
 class DataTransformation(BaseModel):
     """Record of data transformation."""
-    
+
     source_format: str
     target_format: str
     transformation_type: str

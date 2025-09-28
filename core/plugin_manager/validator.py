@@ -1,9 +1,7 @@
 """Security validator for plugin manifests and operations."""
 
 import re
-import ipaddress
-from typing import List, Dict, Any, Tuple, Set, Optional
-from urllib.parse import urlparse
+from typing import List, Dict, Any, Tuple, Set
 import logging
 
 from .models import PluginManifest
@@ -62,7 +60,7 @@ class SecurityValidator:
             errors.extend(compliance_errors)
 
             # Validate resource limits
-            resources = getattr(manifest, 'resources', None) or {}
+            resources = getattr(manifest, "resources", None) or {}
             resource_errors = self._validate_resource_limits(resources)
             errors.extend(resource_errors)
 
@@ -345,7 +343,9 @@ class SecurityValidator:
             data_classification = context.get("data_classification", "")
             if data_classification in ["phi", "pii"]:
                 if not context.get("has_appropriate_traits", False):
-                    errors.append(f"Operation requires appropriate traits for {data_classification} data")
+                    errors.append(
+                        f"Operation requires appropriate traits for {data_classification} data"
+                    )
 
             return len(errors) == 0, errors
 
