@@ -273,7 +273,11 @@ async def get_health_status(_: Dict = Depends(require_auth(["admin", "viewer"]))
 
     # Plugin counts
     total_plugins = len(_REGISTRY.plugins) if _REGISTRY else 0
-    active_plugins = sum(1 for p in (_REGISTRY.plugins.values() if _REGISTRY else []) if p.get("status") == "active")
+    active_plugins = sum(
+        1
+        for p in (_REGISTRY.plugins.values() if _REGISTRY else [])
+        if p.get("status") == "active"
+    )
 
     # NATS varz reachability (best-effort, internal only)
     nats_ok = False
