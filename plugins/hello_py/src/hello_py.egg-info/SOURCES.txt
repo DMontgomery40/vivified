@@ -1,7 +1,0 @@
-pyproject.toml
-src/hello_py/plugin.py
-src/hello_py.egg-info/PKG-INFO
-src/hello_py.egg-info/SOURCES.txt
-src/hello_py.egg-info/dependency_links.txt
-src/hello_py.egg-info/requires.txt
-src/hello_py.egg-info/top_level.txt

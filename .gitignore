@@ -1,7 +1,35 @@
-.venv
-__pycache__
-*.pyc
-dist
-.build
+# Python
+__pycache__/
+*.py[cod]
+venv/
+.env
+.pytest_cache/
+
+# Node
+node_modules/
+dist/
+.npm
+
+# Go
+vendor/
+bin/
+
+# Docker
+.docker/
+
+# Security
+*.key
+*.pem
+*.crt
+secrets/
+
+# IDE
+.vscode/*
+!.vscode/
+!.vscode/settings.json
+.idea/
 .DS_Store
-node_modules
+
+# Local Python env
+.venv/
+*.egg-info/

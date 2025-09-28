@@ -1,8 +1,0 @@
-Metadata-Version: 2.4
-Name: vivi-api
-Version: 0.0.1
-Summary: Vivi FastAPI server
-Requires-Python: >=3.11
-Requires-Dist: fastapi>=0.115.0
-Requires-Dist: uvicorn>=0.30.0
-Requires-Dist: vivi-core>=0.0.1

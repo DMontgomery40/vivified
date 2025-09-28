@@ -1,0 +1,30 @@
+site_name: Vivified Docs
+site_description: Documentation for the Vivified modular platform
+site_url: https://DMontgomery40.github.io/vivified/
+repo_url: https://github.com/DMontgomery40/vivified
+repo_name: DMontgomery40/vivified
+
+theme:
+  name: material
+  features:
+    - navigation.instant
+    - navigation.sections
+    - content.code.copy
+
+plugins:
+  - search
+  - mike
+
+nav:
+  - Home: index.md
+  - Getting Started: getting-started.md
+  - Core:
+      - Overview: core/overview.md
+  - Plugins:
+      - Overview: plugins/overview.md
+  - Contributing: contributing.md
+
+extra:
+  version:
+    provider: mike
+    default: latest

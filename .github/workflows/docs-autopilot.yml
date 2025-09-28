@@ -1,0 +1,50 @@
+name: Docs Autopilot
+
+on:
+  push:
+    branches: ["development", "claude-test"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Run Docs-Autopilot action (plan mode)
+        id: autopilot
+        uses: DMontgomery40/Docs-Autopilot@main
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Fallback: generate docs plan locally if missing
+        run: |
+          if [ ! -f docs/_autopilot/plan.md ]; then
+            echo "Docs-Autopilot did not produce a plan; generating fallback plan..."
+            python tools/scripts/docs_autopilot.py
+          else
+            echo "Plan already present from Docs-Autopilot action."
+          fi
+      - name: Commit plan and open PR against mkdocs branch
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          title: "docs: autopilot plan update"
+          body: |
+            This PR contains the latest Docs Autopilot plan generated from recent changes.
+          commit-message: "docs(autopilot): update plan"
+          branch: docs-autopilot/plan-${{ github.run_id }}
+          base: mkdocs
+          delete-branch: true
+          add-paths: |
+            docs/_autopilot/plan.md
+            mkdocs.yml
