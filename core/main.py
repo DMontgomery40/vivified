@@ -5,6 +5,7 @@ import logging
 from datetime import datetime
 import os
 from typing import Dict, Any
+import time
 from starlette.responses import FileResponse
 
 from .plugin_manager.registry import PluginRegistry
@@ -253,6 +254,8 @@ async def proxy_request(
 ):
     """Proxy a request to an external API."""
     try:
+        _rate_limit_key = f"proxy:{plugin_id}"
+        _enforce_rate_limit(_rate_store, _rate_limit_key, 60)
         if gateway_service is None:
             raise HTTPException(status_code=503, detail="Gateway service unavailable")
         response = await gateway_service.proxy_request(
@@ -384,3 +387,104 @@ def _admin_ui_placeholder():
         "</head><body><h1>Vivified Admin UI</h1><p>Placeholder UI loaded.</p></body></html>"
     )
     return HTMLResponse(content=html, media_type="text/html")
+
+
+# Minimal in-memory rate limiter (per-minute sliding window)
+_rate_store: Dict[str, list[float]] = {}
+
+
+def _enforce_rate_limit(store: Dict[str, list[float]], key: str, limit: int) -> None:
+    now = time.time()
+    window_start = now - 60.0
+    entries = store.get(key) or []
+    # prune old
+    entries = [t for t in entries if t >= window_start]
+    if len(entries) >= limit:
+        raise HTTPException(status_code=429, detail="Rate limit exceeded")
+    entries.append(now)
+    store[key] = entries
+
+
+# Operator lane endpoint (RPC via core gateway)
+class OperatorRequestModel(BaseModel):
+    caller_plugin: str
+    payload: Dict[str, Any] | None = None
+    timeout: int | None = 30
+
+
+@app.post("/gateway/{target_plugin}/{operation}")
+async def operator_invoke(target_plugin: str, operation: str, req: OperatorRequestModel):
+    try:
+        _rate_limit_key = f"operator:{req.caller_plugin}:{target_plugin}:{operation}"
+        _enforce_rate_limit(_rate_store, _rate_limit_key, 120)
+
+        target = registry.plugins.get(target_plugin)
+        if not target or not isinstance(target, dict):
+            raise HTTPException(status_code=404, detail="Target plugin not found")
+
+        manifest = target.get("manifest") or {}
+        endpoints = manifest.get("endpoints") or {}
+        endpoint_path = endpoints.get(operation) or endpoints.get(operation.replace("_", "-"))
+        if not endpoint_path or not isinstance(endpoint_path, str):
+            raise HTTPException(status_code=404, detail=f"Operation '{operation}' not found")
+
+        plugin_host = manifest.get("host") or target_plugin
+        plugin_port = manifest.get("port") or 8080
+        target_url = f"http://{plugin_host}:{plugin_port}{endpoint_path}"
+
+        import httpx
+
+        async with httpx.AsyncClient(timeout=req.timeout or 30) as client:
+            resp = await client.post(
+                target_url,
+                json=req.payload or {},
+                headers={
+                    "X-Caller-Plugin": req.caller_plugin,
+                    "X-Trace-Id": os.getenv("TRACE_ID", "system"),
+                    "Authorization": f"Bearer {registry.plugins.get(req.caller_plugin, {}).get('token', '')}",
+                },
+            )
+        if resp.status_code >= 400:
+            raise HTTPException(status_code=resp.status_code, detail=resp.text)
+        return resp.json()
+    except HTTPException:
+        raise
+    except Exception as e:  # noqa: BLE001
+        logger.exception("Operator call failed: %s", e)
+        raise HTTPException(status_code=500, detail="Internal gateway error")
+
+
+# Canonical Schemas stubs to satisfy Admin UI
+class SchemaUpsertModel(BaseModel):
+    name: str
+    major: int
+    minor: int | None = 0
+    patch: int | None = 0
+    schema: Dict[str, Any] | None = None
+
+
+@app.get("/schemas/{name}")
+async def list_schemas(name: str):
+    return {"name": name, "versions": []}
+
+
+@app.get("/schemas/{name}/active/{major}")
+async def get_active_schema(name: str, major: int):
+    return {"name": name, "major": major, "active": None}
+
+
+@app.post("/schemas")
+async def upsert_schema(payload: SchemaUpsertModel):
+    return {"ok": True, "name": payload.name, "version": [payload.major, payload.minor or 0, payload.patch or 0]}
+
+
+class SchemaActivateModel(BaseModel):
+    name: str
+    major: int
+    minor: int | None = 0
+    patch: int | None = 0
+
+
+@app.post("/schemas/activate")
+async def activate_schema(payload: SchemaActivateModel):
+    return {"ok": True, "name": payload.name, "version": [payload.major, payload.minor or 0, payload.patch or 0]}
