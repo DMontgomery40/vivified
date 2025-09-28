@@ -1,2 +1,0 @@
-[console_scripts]
-vivi = vivified_cli.__main__:app

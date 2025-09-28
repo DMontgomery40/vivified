@@ -1,2 +1,0 @@
-[console_scripts]
-vivi-api = vivified_api.main:run

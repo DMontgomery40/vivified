@@ -1,7 +1,0 @@
-Metadata-Version: 2.4
-Name: vivi-cli
-Version: 0.0.1
-Summary: Vivi CLI
-Requires-Python: >=3.11
-Requires-Dist: typer>=0.12.5
-Requires-Dist: vivi-core>=0.0.1

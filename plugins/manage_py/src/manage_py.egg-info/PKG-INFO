@@ -1,6 +1,0 @@
-Metadata-Version: 2.4
-Name: manage-py
-Version: 0.0.1
-Summary: Management plugin for Vivi (traits + plugin enable/disable)
-Requires-Python: >=3.11
-Requires-Dist: vivi-core>=0.0.1

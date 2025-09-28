@@ -1,0 +1,22 @@
+{
+  "id": "example-plugin",
+  "name": "example_plugin",
+  "version": "0.1.0",
+  "contracts": [],
+  "traits": [],
+  "dependencies": [],
+  "allowed_domains": [],
+  "endpoints": {
+    "health": "/health"
+  },
+  "security": {
+    "authentication_required": true,
+    "data_classification": [
+      "internal"
+    ]
+  },
+  "compliance": {
+    "hipaa_controls": [],
+    "audit_level": "basic"
+  }
+}
