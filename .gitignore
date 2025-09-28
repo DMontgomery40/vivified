@@ -27,3 +27,7 @@ secrets/
 .vscode/
 .idea/
 .DS_Store
+
+# Local Python env
+.venv/
+*.egg-info/

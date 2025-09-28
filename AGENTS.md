@@ -72,6 +72,13 @@ Absolutely everything must be operable from the Admin Console. No exceptions.
 - Trait‑aware rendering: Least‑privilege by default; only show surfaces when the user has `admin` and/or specific traits (e.g., `config_manager`, `plugin_manager`, `audit_viewer`).
 - Accessibility considerations: Prefer visual flows, icons, and summaries over terminal commands and long text; the project owner is dyslexic and requires the Admin UI to be the primary interface for understanding and operating the system.
 
+UI structure conventions (must follow):
+- Dashboard: static, high‑level status only; every card must link to its detailed counterpart (Diagnostics, Jobs, Inbox, Settings → Security/Providers/Storage, Keys, etc.).
+- Tools → Diagnostics: health, provider status, event types, troubleshooting aids only. No tests here.
+- Tools → Scripts & Tests: all smoke tests, webhook testers, and scripted helpers live here.
+- Tools → Tunnels/Audit/Logs/Gateway/Messaging/Canonical/Policy/Register/Storage: each feature is trait‑gated and operates only within its tab.
+- Settings: Setup wizard, core settings, configuration editor, keys, users, and MCP.
+
 ## Critical Notice
 **THIS PLATFORM HANDLES PHI/PII AND MUST BE HIPAA-COMPLIANT**
 Every decision, implementation, and review must consider security and compliance implications.

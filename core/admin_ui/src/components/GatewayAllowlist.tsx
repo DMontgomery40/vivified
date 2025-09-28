@@ -12,6 +12,7 @@ import {
   Chip,
 } from '@mui/material';
 import { Add as AddIcon, Save as SaveIcon, Delete as DeleteIcon, Refresh as RefreshIcon, Public as DomainIcon } from '@mui/icons-material';
+import HelpTip from './common/HelpTip';
 import AdminAPIClient from '../api/client';
 
 type AllowRule = { allowed_methods: string[]; allowed_paths: string[] };
@@ -88,6 +89,7 @@ export default function GatewayAllowlist({ client }: Props) {
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
         <Typography variant="h5" fontWeight={600}>Gateway Allowlist</Typography>
         <Box display="flex" gap={1}>
+          <HelpTip topic="gateway-allowlist" />
           <Button variant="outlined" startIcon={<RefreshIcon />} onClick={fetchAllowlist} disabled={!pluginId || loading} sx={{ borderRadius: 2 }}>Refresh</Button>
           <Button variant="contained" startIcon={<SaveIcon />} onClick={saveAllowlist} disabled={!canSave} sx={{ borderRadius: 2 }}>Save</Button>
         </Box>
@@ -161,4 +163,3 @@ export default function GatewayAllowlist({ client }: Props) {
     </Box>
   );
 }
-

@@ -168,7 +168,7 @@ const ScriptsTests: React.FC<Props> = ({ client, docsBase, readOnly = false, can
 
   const theme = useTheme();
 
-  const docsUrl = useMemo(() => `${docsBase || 'https://dmontgomery40.github.io/Faxbot'}/development/scripts-and-tests.html`, [docsBase]);
+  const docsUrl = useMemo(() => (docsBase ? `${docsBase}/development/scripts-and-tests.html` : '#'), [docsBase]);
 
   const pushAuth = (line: string) => setAuthLines((prev) => [...prev, line]);
   const clearAuth = () => setAuthLines([]);
@@ -209,7 +209,7 @@ const ScriptsTests: React.FC<Props> = ({ client, docsBase, readOnly = false, can
       const { token } = await client.createApiKey({ name: 'gui-smoke', owner: 'admin', scopes: ['fax:send','fax:read'] });
       pushAuth(`[i] Key minted (ends with …${(token||'').slice(-6)})`);
       pushAuth('[i] Sending test TXT');
-      const blob = new Blob([`hello from Faxbot Admin Console — ${new Date().toISOString()}`], { type: 'text/plain' });
+      const blob = new Blob([`hello from Admin Console — ${new Date().toISOString()}`], { type: 'text/plain' });
       const file = new File([blob], 'gui-smoke.txt', { type: 'text/plain' });
       const send = await client.sendFax(toNumber, file);
       pushAuth(`[✓] Queued: ${send.id} status=${send.status}`);

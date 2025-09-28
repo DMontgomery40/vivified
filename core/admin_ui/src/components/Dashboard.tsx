@@ -215,7 +215,7 @@ function Dashboard({ client, onNavigate }: DashboardProps) {
 
           {/* Inbound Status */}
           <Grid item xs={12} sm={6} lg={3}>
-            <Tooltip title="Click to view inbound faxes" arrow>
+            <Tooltip title="Click to view inbound" arrow>
               <Card 
                 sx={{ 
                   cursor: 'pointer',
@@ -353,22 +353,21 @@ function Dashboard({ client, onNavigate }: DashboardProps) {
             </Grid>
           )}
 
-          {/* SDK & Quickstart */}
+          {/* Admin API Quickstart */}
           <Grid item xs={12} md={cfg?.v3_plugins?.enabled ? 6 : 12}>
-            <Card sx={{ cursor: 'pointer' }} onClick={() => onNavigate?.('send')}>
+            <Card sx={{ cursor: 'pointer' }} onClick={() => onNavigate?.('settings/keys')}>
               <CardContent>
-                <Typography variant="h6" gutterBottom>SDK & Quickstart</Typography>
+                <Typography variant="h6" gutterBottom>Admin API Quickstart</Typography>
                 <Typography variant="body2">Base URL: {window.location.origin}</Typography>
                 <Typography variant="body2" sx={{ mb: 1 }}>Header: X-API-Key: &lt;your key&gt;</Typography>
-                <Typography variant="body2" color="text.secondary">Node:</Typography>
-                <Box component="pre" sx={{ p: 1, bgcolor: 'background.default', borderRadius: 1, overflow: 'auto' }}>{`npm i faxbot@1.0.2
-node -e "(async()=>{const FaxbotClient=require('faxbot');const c=new FaxbotClient('${window.location.origin}','<key>');const r=await c.sendFax('+15551234567','/path/to/file.pdf');console.log(r)})()"`}</Box>
-                <Typography variant="body2" color="text.secondary">Python:</Typography>
-                <Box component="pre" sx={{ p: 1, bgcolor: 'background.default', borderRadius: 1, overflow: 'auto' }}>{`pip install faxbot==1.0.2
-python - <<'PY'
-from faxbot import FaxbotClient
-c=FaxbotClient('${window.location.origin}','<key>')
-print(c.send_fax('+15551234567','/path/to/file.pdf'))
+                <Typography variant="body2" color="text.secondary">curl (GET health):</Typography>
+                <Box component="pre" sx={{ p: 1, bgcolor: 'background.default', borderRadius: 1, overflow: 'auto' }}>{`curl -H "X-API-Key: <key>" ${window.location.origin}/health`}</Box>
+                <Typography variant="body2" color="text.secondary">Python (requests):</Typography>
+                <Box component="pre" sx={{ p: 1, bgcolor: 'background.default', borderRadius: 1, overflow: 'auto' }}>{`python - <<'PY'
+import requests
+base='${window.location.origin}'
+headers={'X-API-Key':'<key>'}
+print(requests.get(f"{base}/health", headers=headers).json())
 PY`}</Box>
               </CardContent>
             </Card>
