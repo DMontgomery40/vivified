@@ -104,8 +104,12 @@ class AuthAudit(Base):
 class WebAuthnCredential(Base):
     __tablename__ = "webauthn_credentials"
 
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), nullable=False)
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=lambda: str(uuid.uuid4())
+    )
+    user_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("users.id"), nullable=False
+    )
     credential_id: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     public_key: Mapped[str] = mapped_column(String(4096), nullable=False)
     sign_count: Mapped[int] = mapped_column(Integer, default=0)

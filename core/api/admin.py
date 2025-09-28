@@ -536,7 +536,9 @@ async def webauthn_registration_options(
         raise HTTPException(status_code=400, detail="user_id is required")
     await _ensure_identity_schema(session)
     ids = IdentityService(session, get_auth_manager())
-    options = await ids.get_webauthn_registration_options(user_id, rp_id, rp_name, origin)
+    options = await ids.get_webauthn_registration_options(
+        user_id, rp_id, rp_name, origin
+    )
     return options
 
 

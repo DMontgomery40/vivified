@@ -392,7 +392,7 @@ function AppContent() {
                   }}
                 >
                   <img
-                    src={muiTheme.palette.mode === 'dark' ? '/admin/ui/faxbot_mini_banner_dark.png' : '/admin/ui/faxbot_mini_banner_light.png'}
+                    src={muiTheme.palette.mode === 'dark' ? '/admin/ui/vivified_mini_banner_dark.png' : '/admin/ui/vivified_mini_banner_light.png'}
                     alt="Vivified"
                     onError={(e) => {
                       console.error('Logo failed to load:', e);
@@ -438,7 +438,7 @@ function AppContent() {
                     color="text.secondary"
                     sx={{ fontSize: { xs: '1rem', md: '1.2rem' }, mb: 2 }}
                   >
-                    Local‑only tools for complete fax management
+                    Local‑only tools for development and administration
                   </Typography>
                   <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center', flexWrap: 'wrap' }}>
                     {['Keys', 'Diagnostics', 'Jobs', 'Inbound', 'Setup'].map((item, idx) => (
