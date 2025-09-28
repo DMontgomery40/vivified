@@ -117,7 +117,9 @@ class EventBus:
                 category="messaging",
                 action="send_message",
                 result="success",
-                description=(f"Message sent from {source_plugin} to {message.target_plugin}"),
+                description=(
+                    f"Message sent from {source_plugin} to {message.target_plugin}"
+                ),
                 plugin_id=source_plugin,
                 level=AuditLevel.STANDARD,
                 details={
