@@ -27,6 +27,7 @@ interface SetupWizardProps {
   client: AdminAPIClient;
   onDone?: () => void;
   docsBase?: string;
+  onNavigate?: (to: string) => void;
 }
 
 interface WizardConfig {
@@ -52,7 +53,7 @@ interface WizardConfig {
   pdf_token_ttl_minutes?: number;
 }
 
-function SetupWizard({ client, onDone, docsBase }: SetupWizardProps) {
+function SetupWizard({ client, onDone, docsBase, onNavigate }: SetupWizardProps) {
   const { hasTrait, traitValue, getWebhookUrl } = useTraits();
   const [activeStep, setActiveStep] = useState(0);
   const [config, setConfig] = useState<WizardConfig>({
@@ -74,6 +75,7 @@ function SetupWizard({ client, onDone, docsBase }: SetupWizardProps) {
   const ob = config.outbound_backend || config.backend;
 
   const steps = ['Choose Providers', 'Configure Credentials', 'Security Settings', 'Apply & Export'];
+  const [quickTask, setQuickTask] = useState<string>('');
 
   const handleNext = () => {
     setActiveStep((prevActiveStep) => prevActiveStep + 1);
@@ -114,7 +116,7 @@ function SetupWizard({ client, onDone, docsBase }: SetupWizardProps) {
         };
         // Traits-based hints
         try {
-          const obTraits = (await fetch('/admin/providers', { headers: { 'X-API-Key': localStorage.getItem('faxbot_admin_key') || '' } }).then(r=>r.json())).registry?.[effectiveOutbound]?.traits || {};
+          const obTraits = (await fetch('/admin/providers', { headers: { 'X-API-Key': (localStorage.getItem('vivified_admin_key') || localStorage.getItem('faxbot_admin_key') || '') } }).then(r=>r.json())).registry?.[effectiveOutbound]?.traits || {};
           const methods = (obTraits?.auth?.methods || []) as string[];
           const hasOAuth = Array.isArray(methods) && methods.includes('oauth2');
           const basicOnly = Array.isArray(methods) && methods.includes('basic') && !methods.includes('oauth2');
@@ -372,7 +374,7 @@ function SetupWizard({ client, onDone, docsBase }: SetupWizardProps) {
             )}
             {traitValue('inbound', 'inbound_verification') === 'basic' && (
               <Alert severity="info" sx={{ mt: 2 }}>
-                Inbound webhook will be <code>{getWebhookUrl('inbound')}</code>. Sinch webhooks use Basic auth; enforce in Faxbot and consider IP allowlisting.
+                Inbound webhook will be <code>{getWebhookUrl('inbound')}</code>. Some providers use Basic auth; enforce it and consider IP allowlisting.
                 <br/>
                 Access keys live in the <a href="https://dashboard.sinch.com/settings/access-keys" target="_blank" rel="noreferrer">Sinch Customer (Build) Dashboard</a>. Other Sinch portals do not expose Fax API access keys.
               </Alert>
@@ -443,7 +445,15 @@ function SetupWizard({ client, onDone, docsBase }: SetupWizardProps) {
               <Grid container spacing={2}>
                 <Grid item xs={12}>
                   <Typography variant="body2" color="text.secondary">
-                    See <a href={`${docsBase || 'https://dmontgomery40.github.io/Faxbot'}/backends/sinch-setup.html`} target="_blank" rel="noreferrer">Faxbot: Sinch Setup</a> or the <a href="https://developers.sinch.com/docs/fax/api-reference/" target="_blank" rel="noreferrer">Sinch Fax API docs</a>.
+                    {docsBase ? (
+                      <>
+                        See <a href={`${docsBase}/backends/sinch-setup.html`} target="_blank" rel="noreferrer">Sinch Setup</a> or the <a href="https://developers.sinch.com/docs/fax/api-reference/" target="_blank" rel="noreferrer">Sinch Fax API docs</a>.
+                      </>
+                    ) : (
+                      <>
+                        See the <a href="https://developers.sinch.com/docs/fax/api-reference/" target="_blank" rel="noreferrer">Sinch Fax API docs</a>.
+                      </>
+                    )}
                   </Typography>
                 </Grid>
                 <Grid item xs={12}>
@@ -529,7 +539,7 @@ function SetupWizard({ client, onDone, docsBase }: SetupWizardProps) {
               <Grid container spacing={2}>
                 <Grid item xs={12}>
                   <Alert severity="info" sx={{ mb: 2 }}>
-                    FreeSWITCH uses originate &amp;txfax; add an api_hangup_hook to post results back to Faxbot after call ends.
+                    FreeSWITCH uses originate &amp;txfax; add an api_hangup_hook to post results back to the API after call ends.
                   </Alert>
                 </Grid>
                 <Grid item xs={12}>
@@ -647,7 +657,9 @@ function SetupWizard({ client, onDone, docsBase }: SetupWizardProps) {
                       Paste this URL into your {(config.inbound_backend || config.outbound_backend || config.backend || 'phaxio').toUpperCase()} console for inbound fax delivery. For Sinch, set the webhook content type to application/json. Learn more:
                     </Typography>
                     <Box sx={{ mt: 1, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                      <Button size="small" variant="outlined" href={`${docsBase || 'https://dmontgomery40.github.io/Faxbot'}/backends/sinch-setup.html`} target="_blank" rel="noreferrer">Faxbot: Sinch Setup</Button>
+                      {docsBase && (
+                        <Button size="small" variant="outlined" href={`${docsBase}/backends/sinch-setup.html`} target="_blank" rel="noreferrer">Sinch Setup</Button>
+                      )}
                       <Button size="small" variant="outlined" href={`https://developers.sinch.com/docs/fax/api-reference/`} target="_blank" rel="noreferrer">Sinch Fax API Docs</Button>
                       <Button size="small" variant="outlined" href={`https://dashboard.sinch.com/settings/access-keys`} target="_blank" rel="noreferrer">Sinch Access Keys</Button>
                     </Box>
@@ -805,7 +817,15 @@ function SetupWizard({ client, onDone, docsBase }: SetupWizardProps) {
                       </Box>
                     ))}
                     <Typography variant="caption" color="text.secondary">
-                      Help: <a href={`${docsBase || 'https://dmontgomery40.github.io/Faxbot'}/backends/phaxio-setup.html`} target="_blank" rel="noreferrer">Faxbot: Phaxio</a> • <a href={`${docsBase || 'https://dmontgomery40.github.io/Faxbot'}/backends/signalwire-setup.html`} target="_blank" rel="noreferrer">Faxbot: SignalWire</a> • <a href={`${docsBase || 'https://dmontgomery40.github.io/Faxbot'}/backends/freeswitch-setup.html`} target="_blank" rel="noreferrer">Faxbot: FreeSWITCH</a> • <a href="https://developers.sinch.com/docs/fax/api-reference/" target="_blank" rel="noreferrer">Sinch Fax API</a>
+                      Help: {docsBase ? (
+                        <>
+                          <a href={`${docsBase}/backends/phaxio-setup.html`} target="_blank" rel="noreferrer">Phaxio</a> • <a href={`${docsBase}/backends/signalwire-setup.html`} target="_blank" rel="noreferrer">SignalWire</a> • <a href={`${docsBase}/backends/freeswitch-setup.html`} target="_blank" rel="noreferrer">FreeSWITCH</a> • <a href="https://developers.sinch.com/docs/fax/api-reference/" target="_blank" rel="noreferrer">Sinch Fax API</a>
+                        </>
+                      ) : (
+                        <>
+                          <a href="https://developers.sinch.com/docs/fax/api-reference/" target="_blank" rel="noreferrer">Sinch Fax API</a>
+                        </>
+                      )}
                     </Typography>
                   </Box>
                 )}
@@ -850,6 +870,36 @@ function SetupWizard({ client, onDone, docsBase }: SetupWizardProps) {
 
   return (
     <Box>
+      <Paper sx={{ p: 2, mb: 2 }}>
+        <Typography variant="h5" gutterBottom>Setup Wizard</Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          This guided flow helps you pick providers, set credentials, and enable core security. It’s also a launchpad for common setup tasks while you’re developing. Choose a task to jump directly to a detailed tool.
+        </Typography>
+        <Grid container spacing={2} alignItems="center">
+          <Grid item xs={12} sm={8} md={6}>
+            <FormControl fullWidth size="small">
+              <InputLabel>Guided task</InputLabel>
+              <Select label="Guided task" value={quickTask} onChange={(e)=>setQuickTask(String(e.target.value))}>
+                <MenuItem value="">Select…</MenuItem>
+                <MenuItem value="settings/security">Configure security (API keys, HTTPS)</MenuItem>
+                <MenuItem value="settings/storage">Configure storage</MenuItem>
+                <MenuItem value="settings/inbound">Configure inbound callbacks</MenuItem>
+                <MenuItem value="tools/tunnels">Set up tunnel / VPN</MenuItem>
+                <MenuItem value="settings/keys">Create admin API key</MenuItem>
+                <MenuItem value="tools/diagnostics">Run diagnostics</MenuItem>
+                <MenuItem value="tools/logs">View logs</MenuItem>
+                <MenuItem value="tools/gateway">Proxy via gateway</MenuItem>
+                <MenuItem value="tools/messaging">Publish an event</MenuItem>
+                <MenuItem value="tools/policy">Inspect traits/policy</MenuItem>
+                <MenuItem value="tools/canonical">Normalize user data</MenuItem>
+              </Select>
+            </FormControl>
+          </Grid>
+          <Grid item>
+            <Button variant="outlined" disabled={!quickTask || !onNavigate} onClick={()=> onNavigate && onNavigate(quickTask!)}>Go</Button>
+          </Grid>
+        </Grid>
+      </Paper>
       <Typography variant="h4" component="h1" gutterBottom>
         Setup Wizard
       </Typography>

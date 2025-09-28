@@ -49,4 +49,3 @@ def test_admin_api_keys_crud():
     assert r.status_code == 200, r.text
     items2 = r.json()
     assert not any(k["key_id"] == key_id for k in items2)
-

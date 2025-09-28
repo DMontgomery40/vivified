@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Box, Paper, Typography, TextField, Button, Grid, Alert } from '@mui/material';
+import HelpTip from './common/HelpTip';
 import AdminAPIClient from '../api/client';
 
 interface Props {
@@ -37,7 +38,10 @@ export default function CanonicalTools({ client }: Props) {
 
   return (
     <Paper elevation={0} sx={{ p: 2 }}>
-      <Typography variant="h6" sx={{ mb: 2 }}>Canonical Tools</Typography>
+      <Box display="flex" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
+        <Typography variant="h6">Canonical Tools</Typography>
+        <HelpTip topic="canonical" />
+      </Box>
       <Grid container spacing={2}>
         <Grid item xs={12} sm={4}>
           <TextField label="Source Plugin" value={source} onChange={e=>setSource(e.target.value)} fullWidth />

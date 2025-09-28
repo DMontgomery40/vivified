@@ -329,7 +329,7 @@ function Diagnostics({ client, onNavigate, docsBase }: DiagnosticsProps) {
       }
       else if (key === 'database_connected') {
         docs.push({ text: 'Database stores job records and API keys.' });
-        docs.push({ text: 'Default: SQLite at ./faxbot.db' });
+        docs.push({ text: 'Default: SQLite at ./vivified.db' });
         docs.push({ text: 'Production: Use PostgreSQL with DATABASE_URL' });
         if (docsBase) docs.push({ text: 'Database Setup', href: `${docsBase}/deployment/#database-configuration` });
       }
@@ -365,7 +365,7 @@ function Diagnostics({ client, onNavigate, docsBase }: DiagnosticsProps) {
       docs.push({ text: 'Sinch Customer Dashboard (Access Keys – Build)', href: 'https://dashboard.sinch.com/settings/access-keys' });
       const add = (topic: string, text: string) => { const href = anchors[topic] || thirdParty[topic]; if (href) docs.push({ text, href }); };
       add('sinch-build-access-keys-location', 'Where to find Sinch Fax access keys (Build)');
-      add('sinch-oauth-client-credentials-flow', 'How Faxbot mints OAuth2 access tokens');
+      add('sinch-oauth-client-credentials-flow', 'How OAuth2 client credentials are minted and used');
       add('sinch-regional-base-url', 'Regional base URL (SINCH_BASE_URL)');
       add('sinch-inbound-webhook-url', 'Set the inbound webhook URL');
       add('sinch-inbound-basic-auth', 'Enforce Basic auth for inbound webhooks');
@@ -724,7 +724,7 @@ function Diagnostics({ client, onNavigate, docsBase }: DiagnosticsProps) {
       setTestSendingImg(true);
       setTestJobId(null);
       setTestStatus(null);
-      const bytes = buildSimplePdf('Faxbot Test Image');
+      const bytes = buildSimplePdf('Admin Test Image');
       // Create a standalone ArrayBuffer to avoid ArrayBufferLike/SharedArrayBuffer typing issues
       const ab = new ArrayBuffer(bytes.byteLength);
       new Uint8Array(ab).set(bytes);
@@ -814,7 +814,7 @@ function Diagnostics({ client, onNavigate, docsBase }: DiagnosticsProps) {
                 Run System Diagnostics
               </Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-                Check your Faxbot configuration, backend connectivity, and system health
+                Check your configuration, backend connectivity, and system health
               </Typography>
               <Button
                 variant="contained"

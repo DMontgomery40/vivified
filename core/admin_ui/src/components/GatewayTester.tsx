@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Box, Paper, Typography, TextField, Button, Grid, Alert } from '@mui/material';
+import HelpTip from './common/HelpTip';
 import AdminAPIClient from '../api/client';
 
 interface Props {
@@ -43,7 +44,10 @@ export default function GatewayTester({ client }: Props) {
 
   return (
     <Paper elevation={0} sx={{ p: 2 }}>
-      <Typography variant="h6" sx={{ mb: 2 }}>Gateway Proxy Tester</Typography>
+      <Box display="flex" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
+        <Typography variant="h6">Gateway Proxy Tester</Typography>
+        <HelpTip topic="gateway" />
+      </Box>
       <Grid container spacing={2}>
         <Grid item xs={12} sm={2}>
           <TextField label="Method" value={method} onChange={e=>setMethod(e.target.value)} fullWidth />

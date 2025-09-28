@@ -447,7 +447,7 @@ function Settings({ client, readOnly = false }: SettingsProps) {
               icon={persistedEnabled ? <CheckCircleIcon color="success" /> : <WarningIcon color="warning" />}
               label="Load persisted .env at startup"
               value={((form.enable_persisted_settings ?? persistedEnabled) ? 'true' : 'false')}
-              helperText='Loads /faxdata/faxbot.env at boot. Use "Save .env to server" after applying changes to keep them across restarts.'
+              helperText='Loads a .env file at boot if configured. Use "Save .env to server" after applying changes to keep them across restarts.'
               onChange={(value) => handleForm('enable_persisted_settings', value === 'true')}
               type="select"
               options={[
@@ -501,7 +501,7 @@ function Settings({ client, readOnly = false }: SettingsProps) {
                   >
                     <Box sx={{ display: 'flex', gap: 1, mb: 2, flexWrap: 'wrap' }}>
                       <Chip
-                        label="Faxbot: Phaxio Setup"
+                        label="Phaxio Setup"
                         component="a"
                         href={`${docsBase}/backends/phaxio-setup.html`}
                         target="_blank"
@@ -556,7 +556,7 @@ function Settings({ client, readOnly = false }: SettingsProps) {
                   >
                     <Box sx={{ display: 'flex', gap: 1, mb: 2, flexWrap: 'wrap' }}>
                       <Chip
-                        label="Faxbot: Sinch Setup"
+                        label="Sinch Setup"
                         component="a"
                         href={`${docsBase}/backends/sinch-setup.html`}
                         target="_blank"
@@ -716,7 +716,7 @@ function Settings({ client, readOnly = false }: SettingsProps) {
                       icon={settings.sip.ami_password_is_default ? <WarningIcon color="warning" /> : <CheckCircleIcon color="success" />}
                       label="AMI Password"
                       value={settings.sip.ami_password_is_default ? 'Using default (insecure)' : 'Custom password set'}
-                      helperText="Must not be the default. Update in both Faxbot and Asterisk manager.conf; never expose 5038 publicly."
+                      helperText="Must not be the default. Update in both your app and Asterisk manager.conf; never expose 5038 publicly."
                       placeholder="Update ASTERISK_AMI_PASSWORD"
                       onChange={(value) => handleForm('ami_password', value)}
                       type="password"
@@ -860,7 +860,7 @@ function Settings({ client, readOnly = false }: SettingsProps) {
                   icon={<SecurityIcon />}
                   label="Asterisk Inbound Secret"
                   value={lastGeneratedSecret ? 'Generated (copy below)' : 'Not configured'}
-                  helperText="Shared secret used by your Asterisk dialplan to POST inbound fax metadata to Faxbot. Keep this private and only use it on the private network."
+                  helperText="Shared secret used by your Asterisk dialplan to POST inbound metadata to the API. Keep this private and only use it on the private network."
                   onChange={(value) => handleForm('asterisk_inbound_secret', value)}
                   placeholder="ASTERISK_INBOUND_SECRET"
                   type="password"
@@ -1040,7 +1040,7 @@ function Settings({ client, readOnly = false }: SettingsProps) {
                   <Box sx={{ mt: 2 }}>
                     <Typography variant="subtitle2" gutterBottom>Outbound Result Hook (copyable)</Typography>
                     <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                      Add this to your outbound dialplan (before hangup) to post result details back to Faxbot. Replace YOUR_SECRET with your <code>ASTERISK_INBOUND_SECRET</code> (shared internal secret).
+                      Add this to your outbound dialplan (before hangup) to post result details back to the API. Replace YOUR_SECRET with your <code>ASTERISK_INBOUND_SECRET</code> (shared internal secret).
                     </Typography>
                     <Box component="pre" sx={{ p: 1, bgcolor: 'background.default', border: '1px solid', borderColor: 'divider', borderRadius: 1, overflowX: 'auto', fontSize: '0.75rem' }}>
 {`<action application="set" data="api_hangup_hook=system curl -s -X POST \
@@ -1181,7 +1181,7 @@ function Settings({ client, readOnly = false }: SettingsProps) {
                   <ResponsiveSettingItem
                     icon={getStatusIcon(!!settings.database?.url)}
                     label="Database URL"
-                    value={settings.database?.url || 'sqlite:///./faxbot.db'}
+                    value={settings.database?.url || 'sqlite:///./vivified.db'}
                     helperText="SQLite in /faxdata persists across rebuilds. For production scale, use Postgres."
                     showCurrentValue={true}
                   />
@@ -1198,10 +1198,10 @@ function Settings({ client, readOnly = false }: SettingsProps) {
                         try{ 
                           setLoading(true); 
                           setError(null); 
-                          await client.updateSettings({ database_url: 'sqlite:////faxdata/faxbot.db' }); 
+                          await client.updateSettings({ database_url: 'sqlite:////data/vivified.db' }); 
                           await client.reloadSettings(); 
                           await fetchSettings(); 
-                          setSnack('Switched DB to /faxdata/faxbot.db'); 
+                          setSnack('Switched DB to /data/vivified.db'); 
                         } catch(e:any){ 
                           setError(e?.message||'Failed to switch DB'); 
                         } finally{ 
@@ -1342,7 +1342,7 @@ function Settings({ client, readOnly = false }: SettingsProps) {
                 <Button
                   variant="outlined"
                   startIcon={<DownloadIcon />}
-                  onClick={() => downloadText('faxbot.env', envContent)}
+                  onClick={() => downloadText('vivified.env', envContent)}
                 >
                   Download
                 </Button>
