@@ -9,6 +9,209 @@ Complete multi-language SDKs, build the CLI tool, create plugin templates, final
 - Security measures implemented
 - Admin UI operational
 
+## Agent Prompt (execute non-interactively, CI-safe)
+You are an automation agent. Execute Phase 5 end-to-end. After EACH portion, run the smoke tests and CI gates to prevent regressions. Enforce AGENTS.md at all times:
+- Zero Trust: no direct plugin-to-plugin or UI-to-plugin calls. All traffic goes through the Core gateway/proxy.
+- HIPAA: no PHI/PII in logs; mask/redact; 15-minute JWTs; MFA for admins (DEV bootstrap only when `DEV_MODE=true`).
+- Three Lanes only: Canonical (event bus), Operator (RPC via gateway), Proxy (allowlisted via core proxy). No bypass.
+- Security defaults: TLS 1.3+, rate limits on admin endpoints, session timeout ≤ 30 minutes.
+- All actions must be reproducible and CI-pass before advancing.
+
+Working directory: `/Users/davidmontgomery/faxbot_folder/vivified`
+
+---
+
+## Portions, Smoke Tests, and CI Gates
+
+### Portion 1/12 — Define SDK API Contract and Parity Spec
+Action:
+- Create/verify a single JSON parity spec (e.g., `tools/validator/sdk_parity.json`) that lists: `VivifiedClient`, `publish_event`, `subscribe`, `call_plugin`, `call_external`, `get_config`, `set_config`.
+
+Smoke tests:
+```bash
+rg -n "VivifiedClient|publish_event|subscribe|call_plugin|call_external|get_config" sdk -S | cat
+```
+- Expect stubs/signatures across Python/Node/Go SDKs.
+
+CI gates:
+```bash
+pip install black flake8 mypy || true
+black --check sdk/python || true; flake8 sdk/python || true; mypy sdk/python || true
+node -v && npm -v | cat
+```
+
+### Portion 2/12 — Python SDK implementation and tests
+Action:
+- Implement `sdk/python/vivified_sdk` with identical API. Use HTTP to Core; do not talk to NATS directly.
+
+Smoke tests:
+```bash
+cd sdk/python
+pip install -e .[dev] || true
+pytest -q | cat
+cd -
+```
+
+CI gates:
+```bash
+black --check sdk/python && flake8 sdk/python && mypy sdk/python | cat
+```
+
+### Portion 3/12 — Node.js SDK implementation and tests
+Action:
+- Implement `sdk/nodejs` in TS; use axios; no direct NATS.
+
+Smoke tests:
+```bash
+cd sdk/nodejs
+rm -rf node_modules package-lock.json && npm ci
+npm run lint | cat
+npm test --silent | cat
+npm run build | cat
+cd -
+```
+
+CI gates:
+```bash
+cd sdk/nodejs && npm audit --audit-level=moderate || true; cd -
+```
+
+### Portion 4/12 — Go SDK implementation and tests
+Action:
+- Implement `sdk/go` with matching API; idiomatic method names.
+
+Smoke tests:
+```bash
+cd sdk/go
+go mod tidy
+go vet ./... | cat
+go test ./... -v | cat
+cd -
+```
+
+CI gates:
+- Ensure tests make no external network calls.
+
+### Portion 5/12 — Cross-SDK parity checker
+Action:
+- Implement `tools/validator/check_sdk_parity.py` that introspects each SDK and compares to the JSON spec.
+
+Smoke tests:
+```bash
+python tools/validator/check_sdk_parity.py | cat
+```
+- Expect: Parity OK.
+
+CI gates: fail build on parity mismatch.
+
+### Portion 6/12 — CLI scaffolder and validator
+Action:
+- Implement `tools/cli/vivified` with commands:
+  - `create-plugin --lang python|node|go --name NAME --type TYPE`
+  - `validate-manifest --file plugin.json`
+  - `doctor` (optional environment check)
+
+Smoke tests:
+```bash
+cd tools/cli
+pip install -e . || true
+vivified --help | cat
+vivified create-plugin --lang python --name example_plugin --type communication | cat
+vivified validate-manifest --file plugins/example_plugin/manifest.json | cat
+cd -
+```
+
+CI gates: Lint CLI; create temp plugin and assert files exist and validate.
+
+### Portion 7/12 — Manifest schema wiring (single source)
+Action:
+- Ensure CLI and Core use the same `tools/validator/manifest_schema.json`.
+- Ensure registration path in Core calls the same validator (no duplicates).
+
+Smoke tests:
+```bash
+vivified validate-manifest --file plugins/example_plugin/manifest.json | cat
+# Negative
+jq '.traits=["admin"]' plugins/example_plugin/manifest.json > /tmp/bad.json
+vivified validate-manifest --file /tmp/bad.json || echo "Validation failed as expected"
+```
+
+CI gates: Add manifest validation step on any `plugins/**/manifest.json` changes.
+
+### Portion 8/12 — Language templates
+Action:
+- Provide templates under `tools/templates/{python,nodejs,go}/{communication,storage,identity,workflow,custom}` with `/health`, registration to Core on startup, tests, Dockerfile (non-root/caps), and minimal config.
+
+Smoke tests:
+```bash
+vivified create-plugin --lang python --name hello_py --type communication
+cd plugins/hello_py && pytest -q | cat; cd -
+vivified create-plugin --lang node --name hello_js --type communication
+cd plugins/hello_js && npm ci && npm test --silent | cat; cd -
+```
+
+CI gates: Build/lint/test template outputs in CI without network egress.
+
+### Portion 9/12 — Sample plugin local registration
+Action:
+- Start Core and a generated plugin; validate `/admin/plugins` shows registration; ensure auditing.
+
+Smoke tests:
+```bash
+make up
+sleep 8
+curl -s http://localhost:8000/health | cat
+# Start a python sample in foreground (dev)
+cd plugins/hello_py && python -m app & sleep 5; cd -
+TOKEN=$(curl -s -X POST http://localhost:8000/auth/login -H 'Content-Type: application/json' -d '{"username":"bootstrap_admin_only","password":"bootstrap_admin_only","mfa_code":"000000"}' | jq -r .token)
+curl -s -H "Authorization: Bearer $TOKEN" http://localhost:8000/admin/plugins | jq '.plugins | length' | cat
+```
+- Expect ≥1 plugin and an audit record for registration.
+
+CI gates: containerized integration test (core + minimal plugin) asserting registration & health.
+
+### Portion 10/12 — E2E lanes sanity (events/RPC/proxy)
+Action:
+- Using the sample plugin + SDKs, validate:
+  - Canonical publish/subscribe via Core
+  - RPC via gateway with trait enforcement
+  - Proxy call to an allowlisted, non-sensitive endpoint; internal addresses blocked
+
+Smoke tests:
+```bash
+curl -s -X POST http://localhost:8000/events/publish -H 'Content-Type: application/json' \
+ -d '{"event_type":"DevHello","payload":{"msg":"hello"},"source_plugin":"hello_py","data_traits":[]}' | cat
+curl -s -X POST http://localhost:8000/gateway/hello_py/ping -H 'Content-Type: application/json' -d '{}' | cat
+curl -s -X POST http://localhost:8000/proxy -H 'Content-Type: application/json' \
+ -d '{"plugin_id":"hello_py","url":"https://api.github.com","method":"GET"}' | cat
+```
+- Expect authorized responses; denied on policy/allowlist violations; audited.
+
+CI gates: integration tests assert audit entries and policy behavior.
+
+### Portion 11/12 — Docs and DX
+Action:
+- Generate SDK references, CLI usage, and a “first plugin” tutorial. Build docs with mkdocs.
+
+Smoke tests:
+```bash
+pip install mkdocs || true
+mkdocs build --strict | cat
+```
+
+CI gates: docs build required.
+
+### Portion 12/12 — CI pipeline integration
+Action:
+- Add jobs in CI: SDK parity checker; CLI generate + validate; template build/lint/test; integration test of registration + lanes.
+
+Smoke tests:
+- Trigger all jobs locally where possible via `make` targets.
+
+CI gates: all pass; ≥80% coverage for SDK/CLI code.
+
+---
+
 ## Tasks
 
 ### 1. Multi-Language SDK Implementation

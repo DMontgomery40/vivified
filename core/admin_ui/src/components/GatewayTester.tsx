@@ -9,9 +9,9 @@ interface Props {
 export default function GatewayTester({ client }: Props) {
   const [method, setMethod] = useState('GET');
   const [url, setUrl] = useState('https://httpbin.org/get');
-  const [headers, setHeaders] = useState('{
+  const [headers, setHeaders] = useState(`{
   "accept": "application/json"
-}');
+}`);
   const [body, setBody] = useState('');
   const [pluginId, setPluginId] = useState('admin-ui');
   const [result, setResult] = useState<any>(null);
@@ -74,4 +74,3 @@ export default function GatewayTester({ client }: Props) {
     </Paper>
   );
 }
-
