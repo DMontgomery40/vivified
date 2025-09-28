@@ -10,6 +10,7 @@ help:
 	@echo "  make proto   - Compile protobuf files"
 	@echo "  make docs    - Build MkDocs site"
 	@echo "  make docs-serve - Serve MkDocs locally"
+	@echo "  make ui-ci-local - Build React UIs (admin/ui) like CI"
 	@echo "  make clean   - Clean build artifacts"
 
 build:
@@ -41,6 +42,11 @@ ci-local:
 	flake8 core/
 	mypy --config-file mypy.ini core/
 	PYTHONPATH=$$(pwd):$$(pwd)/sdk/python/src pytest -q
+
+# Build Admin Console and UI locally similar to CI
+.PHONY: ui-ci-local
+ui-ci-local:
+	bash tools/scripts/ui_build.sh
 
 proto:
 	protoc -I=core/proto --python_out=core/proto core/proto/*.proto

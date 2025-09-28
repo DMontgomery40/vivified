@@ -25,6 +25,38 @@ export class AdminAPIClient {
     }
   }
 
+  // Security: MFA (TOTP)
+  async mfaSetup(): Promise<{ secret?: string; qr?: string; qr_png?: string; qr_code?: string; backup_codes?: string[] }>{
+    const res = await this.fetch('/admin/security/mfa/setup', { method: 'POST' });
+    return res.json();
+  }
+
+  async mfaEnable(payload: { totp_code?: string; backup_code?: string }): Promise<{ enabled: boolean; method: string }>{
+    const res = await this.fetch('/admin/security/mfa/enable', { method: 'POST', body: JSON.stringify(payload) });
+    return res.json();
+  }
+
+  // Security: WebAuthn (Passkeys)
+  async webauthnRegistrationOptions(): Promise<any> {
+    const res = await this.fetch('/admin/security/webauthn/registration-options', { method: 'POST' });
+    return res.json();
+  }
+
+  async webauthnRegister(attestation: any): Promise<{ ok: boolean; id?: string }>{
+    const res = await this.fetch('/admin/security/webauthn/register', { method: 'POST', body: JSON.stringify(attestation) });
+    return res.json();
+  }
+
+  async webauthnAssertionOptions(): Promise<any> {
+    const res = await this.fetch('/admin/security/webauthn/assertion-options', { method: 'POST' });
+    return res.json();
+  }
+
+  async webauthnAssert(assertion: any): Promise<{ ok: boolean; user_verified?: boolean }>{
+    const res = await this.fetch('/admin/security/webauthn/assert', { method: 'POST', body: JSON.stringify(assertion) });
+    return res.json();
+  }
+
   // Notifications
   async getNotificationsInbox(limit: number = 50, offset: number = 0): Promise<{ items: any[] }>{
     const res = await this.fetch(`/admin/notifications?limit=${encodeURIComponent(String(limit))}&offset=${encodeURIComponent(String(offset))}`);

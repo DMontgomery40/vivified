@@ -120,7 +120,10 @@ class ProxyHandler:
     async def _is_request_allowed(
         self, request: ProxyRequest, domain_allowlist: Dict[str, Any]
     ) -> bool:
-        """Check if request is allowed based on domain allowlist."""
+        """Check if request is allowed based on domain allowlist.
+
+        domain_allowlist is a mapping of domain -> DomainAllowlist model.
+        """
         domain = str(request.url.host)
 
         # Check if domain is in allowlist
@@ -129,16 +132,31 @@ class ProxyHandler:
 
         allowlist_entry = domain_allowlist[domain]
 
+        # Support both dict-like and Pydantic model accessors
+        try:
+            allowed_methods = set(
+                [str(m) for m in (allowlist_entry.get("allowed_methods", []))]
+                if isinstance(allowlist_entry, dict)
+                else [str(m) for m in (allowlist_entry.allowed_methods or [])]
+            )
+            allowed_paths = (
+                allowlist_entry.get("allowed_paths", [])
+                if isinstance(allowlist_entry, dict)
+                else list(allowlist_entry.allowed_paths or [])
+            )
+        except Exception:
+            # Fallback hard deny on malformed entry
+            return False
+
         # Check if method is allowed
-        if request.method not in allowlist_entry.get("allowed_methods", []):
+        if allowed_methods and str(request.method) not in allowed_methods:
             return False
 
         # Check if path is allowed
-        allowed_paths = allowlist_entry.get("allowed_paths", [])
-        if allowed_paths and not any(
-            httpx.URL(str(request.url)).path.startswith(path) for path in allowed_paths
-        ):
-            return False
+        if allowed_paths:
+            req_path = httpx.URL(str(request.url)).path
+            if not any(req_path.startswith(path) for path in allowed_paths):
+                return False
 
         return True
 

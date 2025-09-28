@@ -21,3 +21,9 @@ repos:
         language: system
         pass_filenames: false
         stages: [push]
+      - id: ui-build
+        name: ui build (pre-push)
+        entry: bash tools/scripts/ui_build.sh
+        language: system
+        pass_filenames: false
+        stages: [push]
