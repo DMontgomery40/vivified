@@ -1,0 +1,9 @@
+setup.py
+vivified_cli/__init__.py
+vivified_cli/main.py
+vivified_cli.egg-info/PKG-INFO
+vivified_cli.egg-info/SOURCES.txt
+vivified_cli.egg-info/dependency_links.txt
+vivified_cli.egg-info/entry_points.txt
+vivified_cli.egg-info/requires.txt
+vivified_cli.egg-info/top_level.txt
