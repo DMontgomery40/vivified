@@ -32,16 +32,15 @@ test:
 # Bootstrap local CI toolchain to match GitHub Actions
 .PHONY: ci-bootstrap ci-local
 ci-bootstrap:
-	python3 -m pip install -q -r core/requirements.txt \
-	  black==25.9.0 flake8==7.3.0 mypy==1.18.2 sqlalchemy==2.0.43 \
-	  pytest pytest-cov pytest-asyncio
+	python3 -m pip install -q -r core/requirements.txt -c constraints.txt \
+	  black flake8 mypy sqlalchemy pytest pytest-cov pytest-asyncio
 
 # Run the same checks as CI locally (fails on errors)
 ci-local:
 	black --check core/
 	flake8 core/
 	mypy --config-file mypy.ini core/
-	PYTHONPATH=$$(pwd) pytest -q
+	PYTHONPATH=$$(pwd):$$(pwd)/sdk/python/src pytest -q
 
 proto:
 	protoc -I=core/proto --python_out=core/proto core/proto/*.proto
