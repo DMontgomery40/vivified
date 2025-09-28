@@ -87,7 +87,7 @@ export default function GatewayAllowlist({ client }: Props) {
   return (
     <Box>
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-        <Typography variant="h5" fontWeight={600}>Gateway Allowlist</Typography>
+        <Typography variant="h5" fontWeight={600}>HTTP Proxy Allowlist</Typography>
         <Box display="flex" gap={1}>
           <HelpTip topic="gateway-allowlist" />
           <Button variant="outlined" startIcon={<RefreshIcon />} onClick={fetchAllowlist} disabled={!pluginId || loading} sx={{ borderRadius: 2 }}>Refresh</Button>

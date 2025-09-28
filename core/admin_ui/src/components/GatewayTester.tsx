@@ -45,7 +45,7 @@ export default function GatewayTester({ client }: Props) {
   return (
     <Paper elevation={0} sx={{ p: 2 }}>
       <Box display="flex" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
-        <Typography variant="h6">Gateway Proxy Tester</Typography>
+        <Typography variant="h6">HTTP Proxy Tester</Typography>
         <HelpTip topic="gateway" />
       </Box>
       <Grid container spacing={2}>

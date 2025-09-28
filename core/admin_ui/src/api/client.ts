@@ -364,7 +364,10 @@ export class AdminAPIClient {
 
   // Provider traits & active backends
   async getProviders(): Promise<ProvidersInfo> {
-    const res = await this.fetch('/admin/providers');
+    let res = await this.fetch('/admin/integrations').catch(() => null as any);
+    if (!res || !res.ok) {
+      res = await this.fetch('/admin/providers');
+    }
     return res.json();
   }
 
@@ -465,7 +468,10 @@ export class AdminAPIClient {
     circuit_open_count: number;
     disabled_count: number;
   }> {
-    const res = await this.fetch('/admin/providers/health');
+    let res = await this.fetch('/admin/integrations/health').catch(() => null as any);
+    if (!res || !res.ok) {
+      res = await this.fetch('/admin/providers/health');
+    }
     return res.json();
   }
 
@@ -491,10 +497,10 @@ export class AdminAPIClient {
     new_status: string;
     message?: string;
   }> {
-    const res = await this.fetch('/admin/providers/enable', {
-      method: 'POST',
-      body: JSON.stringify({ provider_id: providerId }),
-    });
+    let res = await this.fetch('/admin/integrations/enable', { method: 'POST', body: JSON.stringify({ provider_id: providerId }) }).catch(() => null as any);
+    if (!res || !res.ok) {
+      res = await this.fetch('/admin/providers/enable', { method: 'POST', body: JSON.stringify({ provider_id: providerId }) });
+    }
     return res.json();
   }
 
@@ -504,10 +510,10 @@ export class AdminAPIClient {
     new_status: string;
     message?: string;
   }> {
-    const res = await this.fetch('/admin/providers/disable', {
-      method: 'POST',
-      body: JSON.stringify({ provider_id: providerId }),
-    });
+    let res = await this.fetch('/admin/integrations/disable', { method: 'POST', body: JSON.stringify({ provider_id: providerId }) }).catch(() => null as any);
+    if (!res || !res.ok) {
+      res = await this.fetch('/admin/providers/disable', { method: 'POST', body: JSON.stringify({ provider_id: providerId }) });
+    }
     return res.json();
   }
 

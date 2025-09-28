@@ -39,12 +39,16 @@ export function useTraits(): TraitsHook {
     // Create new fetch promise
     globalCachePromise = (async () => {
       try {
-        const response = await fetch('/admin/providers', {
-          headers: {
-            'X-API-Key': localStorage.getItem('vivified_admin_key') || localStorage.getItem('faxbot_admin_key') || '',
-            'Content-Type': 'application/json',
-          },
-        });
+        // Prefer new alias; fallback to legacy route
+        const baseHeaders = {
+          'X-API-Key': localStorage.getItem('vivified_admin_key') || localStorage.getItem('faxbot_admin_key') || '',
+          'Content-Type': 'application/json',
+        } as Record<string, string>;
+        let response = await fetch('/admin/integrations', { headers: baseHeaders }).catch(() => null as any);
+        if (!response || !('ok' in response) || !response.ok) {
+          response = await fetch('/admin/providers', { headers: baseHeaders });
+        }
+        
 
         if (!response.ok) {
           throw new Error(`Failed to fetch providers: ${response.status}`);

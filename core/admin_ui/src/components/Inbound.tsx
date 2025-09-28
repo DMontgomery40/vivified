@@ -40,6 +40,7 @@ import {
 } from '@mui/icons-material';
 import AdminAPIClient from '../api/client';
 import { useTraits } from '../hooks/useTraits';
+import HelpTip from './common/HelpTip';
 import type { InboundFax } from '../api/types';
 import { ResponsiveFormSection } from './common/ResponsiveFormFields';
 
@@ -57,7 +58,7 @@ function Inbound({ client, docsBase }: InboundProps) {
   const [simulating, setSimulating] = useState(false);
   const [copySnackbar, setCopySnackbar] = useState<string>('');
   // Precise help anchors (lightweight resolver for inbound failures)
-  const base = docsBase || 'https://dmontgomery40.github.io/Faxbot';
+  const base = docsBase || '';
   const anchors: Record<string,string> = {
     // Our docs pages
     'inbound-overview': `${base}/inbound/`,
@@ -264,6 +265,10 @@ function Inbound({ client, docsBase }: InboundProps) {
 
   return (
     <Box>
+      <Box display="flex" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
+        <Typography variant="h5">Inbound Demo</Typography>
+        <HelpTip topic="inbound" docsBase={docsBase} />
+      </Box>
       <Box 
         display="flex" 
         justifyContent="space-between" 
