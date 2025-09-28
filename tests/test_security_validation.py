@@ -6,6 +6,7 @@ import pytest
 import asyncio
 from datetime import datetime, timedelta
 from unittest.mock import Mock, patch
+import os
 
 from core.identity.service import IdentityService
 from core.policy.engine import PolicyEngine, PolicyRequest, PolicyDecision
@@ -148,6 +149,45 @@ class TestDataEncryption:
         assert encrypted_data != test_data
         assert decrypted_data == test_data
         assert key_id is not None
+
+    def test_phi_encryption_aes_gcm(self):
+        """Test AES-256-GCM PHI encryption service round-trip."""
+        from core.security.encryption import HIPAAEncryption
+
+        svc = HIPAAEncryption("test-master-key")
+        payload = {"diagnosis": "flu", "mrn": "123456"}
+        patient_id = "patient-abc"
+
+        ct, meta = svc.encrypt_phi(payload, patient_id)
+        assert isinstance(ct, (bytes, bytearray))
+        assert meta.get("algorithm") == "AES-256-GCM"
+        assert meta.get("version") == 1
+
+        pt = svc.decrypt_phi(ct, meta, patient_id)
+        assert pt == payload
+
+    def test_admin_encryption_endpoints(self):
+        """Smoke-test admin encryption status/rotate endpoints."""
+        from fastapi.testclient import TestClient
+        from core.main import app
+
+        os.environ["DEV_MODE"] = "true"
+        client = TestClient(app)
+
+        # Auth via dev bootstrap
+        headers = {"X-API-Key": "bootstrap_admin_only"}
+
+        r1 = client.get("/admin/security/encryption/status", headers=headers)
+        assert r1.status_code == 200
+        data = r1.json()
+        assert data["algorithm"] == "AES-256-GCM"
+        assert data["version"] >= 1
+
+        r2 = client.post("/admin/security/encryption/rotate", json={}, headers=headers)
+        assert r2.status_code == 200
+        j2 = r2.json()
+        assert j2.get("ok") is True
+        assert j2.get("new_version") >= data["version"]
 
 
 class TestAuthenticationSecurity:
