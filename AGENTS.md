@@ -12,7 +12,7 @@ python3.11 -m venv .venv && . .venv/bin/activate
 
 # Install runtime + dev tools exactly like CI
 pip install -r core/requirements.txt \
-  black==25.9.0 flake8==7.3.0 mypy==1.18.2 sqlalchemy==2.0.43 \
+  black==25.9.0 flake8==7.3.0 mypy==1.18.2 sqlalchemy==2.0.23 \
   pytest pytest-cov pytest-asyncio
 
 # Lint/type/test — all must pass locally before pushing
@@ -38,7 +38,7 @@ repos:
     rev: v1.18.2
     hooks:
       - id: mypy
-        additional_dependencies: ["sqlalchemy==2.0.43"]
+        additional_dependencies: ["sqlalchemy==2.0.23"]
   - repo: local
     hooks:
       - id: pytest
