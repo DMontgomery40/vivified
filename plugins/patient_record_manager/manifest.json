@@ -1,0 +1,36 @@
+{
+  "id": "patient-record-manager",
+  "name": "Patient Record Manager",
+  "version": "1.0.0",
+  "description": "HIPAA-compliant patient record management (example)",
+  "contracts": ["HealthcarePlugin"],
+  "traits": [
+    "communication_plugin",
+    "handles_phi",
+    "audit_required",
+    "encryption_required",
+    "hipaa_compliant"
+  ],
+  "dependencies": [],
+  "allowed_domains": [],
+  "endpoints": {
+    "get_record": "/api/patients/{patient_id}",
+    "create_record": "/api/patients/{patient_id}/records"
+  },
+  "security": {
+    "authentication_required": true,
+    "data_classification": ["phi"],
+    "allowed_domains": []
+  },
+  "compliance": {
+    "hipaa_controls": [
+      "164.312(a)",
+      "164.312(b)",
+      "164.312(c)",
+      "164.312(d)",
+      "164.312(e)"
+    ],
+    "audit_level": "enhanced"
+  }
+}
+
