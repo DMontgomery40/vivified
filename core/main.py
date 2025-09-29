@@ -16,6 +16,7 @@ from .config.service import get_config_service
 from .identity.auth import dev_issue_admin_token
 from .messaging.service import MessagingService
 from .canonical.service import CanonicalService
+from .canonical.schema_registry import SchemaRegistry
 from .gateway.service import GatewayService
 from .audit.service import get_audit_service
 from .policy.engine import policy_engine
@@ -61,6 +62,7 @@ registry = PluginRegistry(jwt_secret=JWT_SECRET)
 audit_service = None  # Will be resolved on startup
 messaging_service = None  # Will be initialized on startup
 canonical_service = None  # Will be initialized on startup
+schema_registry = SchemaRegistry()
 gateway_service = None  # Will be initialized on startup
 notifications_service = None  # Will be initialized on startup
 storage_service = None  # Will be initialized when needed
@@ -374,6 +376,30 @@ async def operator_invoke(
     using the plugin registry's manifest endpoints mapping.
     """
     try:
+        # Policy check for operator lane
+        try:
+            from .policy.engine import PolicyRequest, PolicyContext, PolicyDecision
+
+            pol = PolicyRequest(
+                user_id=None,
+                resource_type="operator",
+                resource_id=f"{req.caller_plugin}->{target_plugin}:{operation}",
+                action="operator_call",
+                traits=[],
+                context={"operation": operation},
+                policy_context=PolicyContext.PLUGIN_INTERACTION,
+                source_plugin=req.caller_plugin,
+                target_plugin=target_plugin,
+            )
+            decision = await policy_engine.evaluate_request(pol)
+            if getattr(decision, "decision", None) == PolicyDecision.DENY:
+                raise HTTPException(
+                    status_code=403, detail="Operator call denied by policy"
+                )
+        except Exception:
+            # On errors evaluating policy, continue but log; defaults to allow in minimal engine
+            logger.debug("operator policy evaluation failed", exc_info=True)
+
         # Resolve target plugin info
         target = registry.plugins.get(target_plugin)
         if not target or not isinstance(target, dict):
@@ -411,7 +437,27 @@ async def operator_invoke(
             )
         if resp.status_code >= 400:
             raise HTTPException(status_code=resp.status_code, detail=resp.text)
-        return resp.json()
+        try:
+            data = resp.json()
+        except Exception:
+            data = {"raw": resp.text}
+
+        # Audit operator call
+        try:
+            await get_audit_service().log_event(  # type: ignore[attr-defined]
+                event_type="operator_call",
+                category="operator",
+                action=operation,
+                result="success",
+                description=f"{req.caller_plugin} -> {target_plugin}:{operation}",
+                resource_type="operator",
+                resource_id=target_url,
+                plugin_id=req.caller_plugin,
+                details={"status": resp.status_code},
+            )
+        except Exception:
+            logger.debug("operator call audit failed", exc_info=True)
+        return data
     except HTTPException:
         raise
     except Exception as e:  # noqa: BLE001
@@ -536,25 +582,42 @@ class SchemaUpsertModel(BaseModel):
 
 
 @app.get("/schemas/{name}")
-async def list_schemas(name: str):
-    """Stub: return empty version list for given schema name."""
-    return {"name": name, "versions": []}
+async def list_schemas(name: str, _: Dict = Depends(require_auth(["admin"]))):
+    versions = schema_registry.list_versions(name)
+    return {"name": name, "versions": versions}
 
 
 @app.get("/schemas/{name}/active/{major}")
-async def get_active_schema(name: str, major: int):
-    """Stub: return no active schema for now."""
-    return {"name": name, "major": major, "active": None}
+async def get_active_schema(
+    name: str, major: int, _: Dict = Depends(require_auth(["admin"]))
+):
+    active = schema_registry.get_active(name, major)
+    return {
+        "name": name,
+        "major": major,
+        "active": (active.schema_data if active else None),
+    }
 
 
 @app.post("/schemas")
-async def upsert_schema(payload: SchemaUpsertModel):
-    """Stub: accept schema upsert and return ok."""
-    return {
-        "ok": True,
-        "name": payload.name,
-        "version": [payload.major, payload.minor or 0, payload.patch or 0],
-    }
+async def upsert_schema(
+    payload: SchemaUpsertModel, _: Dict = Depends(require_auth(["admin"]))
+):
+    ver = (payload.major, payload.minor or 0, payload.patch or 0)
+    schema_registry.upsert(payload.name, ver, payload.schema_data or {})
+    try:
+        await get_audit_service().log_event(  # type: ignore[attr-defined]
+            event_type="schema_upsert",
+            category="canonical",
+            action="upsert",
+            result="success",
+            description=f"Upsert schema {payload.name} {ver}",
+            resource_type="canonical_schema",
+            resource_id=f"{payload.name}:{ver}",
+        )
+    except Exception:
+        logger.debug("schema upsert audit failed", exc_info=True)
+    return {"ok": True, "name": payload.name, "version": list(ver)}
 
 
 class SchemaActivateModel(BaseModel):
@@ -565,10 +628,23 @@ class SchemaActivateModel(BaseModel):
 
 
 @app.post("/schemas/activate")
-async def activate_schema(payload: SchemaActivateModel):
-    """Stub: accept activation and return ok."""
-    return {
-        "ok": True,
-        "name": payload.name,
-        "version": [payload.major, payload.minor or 0, payload.patch or 0],
-    }
+async def activate_schema(
+    payload: SchemaActivateModel, _: Dict = Depends(require_auth(["admin"]))
+):
+    ver = (payload.major, payload.minor or 0, payload.patch or 0)
+    ok = schema_registry.activate(payload.name, ver)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Schema version not found")
+    try:
+        await get_audit_service().log_event(  # type: ignore[attr-defined]
+            event_type="schema_activate",
+            category="canonical",
+            action="activate",
+            result="success",
+            description=f"Activate schema {payload.name} {ver}",
+            resource_type="canonical_schema",
+            resource_id=f"{payload.name}:{ver}",
+        )
+    except Exception:
+        logger.debug("schema activate audit failed", exc_info=True)
+    return {"ok": True, "name": payload.name, "version": list(ver)}
