@@ -96,6 +96,19 @@ flowchart LR
 - Messaging: event bus supports routing, filters, and PII-safe payloads
 - Gateway: domain allowlists, request/response transformations
 
+## Operator Lane & Messaging — What You Need To Do
+
+- Ensure plugins expose an inbox endpoint
+  - Add an endpoint key in the plugin manifest: `message.receive` (or `messages.receive`, `inbox`, or `message`) pointing to your handler path, e.g., `/inbox`.
+  - The Core dispatcher will POST messages to that path with `X-Caller-Plugin` and optional `Authorization` header (plugin token).
+- Configure operator allowlists
+  - Use `POST /admin/operator/allowlist/auto-generate` with `{ caller, target, merge: true }` to seed operations from the target plugin’s manifest endpoints.
+  - Edit or review via Admin Console → Operator Policy.
+  - Optional dev-mode: allow manifest-declared operations without explicit allowlist by setting `DEV_MODE=true` or `operator.allow.dev_all=true` (ConfigService).
+- Optional tuning via env
+  - `MESSAGE_MAX_ATTEMPTS`, `MESSAGE_RETRY_BASE_SECONDS`, `MESSAGE_DELIVERY_TIMEOUT` for delivery retry/backoff.
+  - `EVENT_BUS_BACKEND` = `memory` | `nats` | `redis` to select event bus transport.
+
 
 ### Glossary
 
