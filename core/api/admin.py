@@ -783,6 +783,104 @@ async def run_diagnostics(_: Dict = Depends(require_auth(["admin", "viewer"]))):
     return {"checks": {}, "summary": {"ok": True}}
 
 
+# ----- QA Environment Orchestration (containerized E2E) -----
+def _docker_available() -> bool:
+    try:
+        import shutil
+
+        return shutil.which("docker") is not None
+    except Exception:  # noqa: BLE001
+        return False
+
+
+@admin_router.get("/tests/env/status")
+async def qa_env_status(_: Dict = Depends(require_auth(["admin"]))):
+    """Return basic QA environment status.
+
+    Attempts to detect Docker availability. Does not start containers.
+    """
+    ok = _docker_available()
+    status: Dict[str, Any] = {"docker": ok}
+    if not ok:
+        status["note"] = "Docker not available on this host."
+        return status
+    # Light status via `docker ps` without assuming compose project name
+    try:
+        import subprocess
+
+        out = subprocess.run(
+            ["docker", "ps", "--format", "{{.Names}}|{{.Status}}|{{.Image}}"],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        lines = [l.strip() for l in (out.stdout or "").splitlines() if l.strip()]
+        items = []
+        for l in lines[:50]:
+            parts = l.split("|")
+            if len(parts) >= 3:
+                items.append({"name": parts[0], "status": parts[1], "image": parts[2]})
+        status["containers"] = items
+    except Exception:  # noqa: BLE001
+        status["containers"] = []
+    return status
+
+
+@admin_router.post("/tests/env/start")
+@audit_log("qa_env_start")
+async def qa_env_start(
+    payload: Optional[Dict[str, Any]] = None, _: Dict = Depends(require_auth(["admin"]))
+):
+    """Start containerized QA environment via docker compose when available.
+
+    Body: { compose_file?: string, project?: string }
+    """
+    if not _docker_available():
+        return {"ok": False, "error": "docker_not_available"}
+    cfg = payload or {}
+    compose_file = str(cfg.get("compose_file") or "docker-compose.yml")
+    project = str(cfg.get("project") or "vivified-tests")
+    try:
+        import subprocess
+
+        cmd = ["docker", "compose", "-f", compose_file, "-p", project, "up", "-d"]
+        out = subprocess.run(cmd, check=False, capture_output=True, text=True)
+        ok = out.returncode == 0
+        return {
+            "ok": ok,
+            "code": out.returncode,
+            "stdout": (out.stdout or "")[-4000:],
+            "stderr": (out.stderr or "")[-4000:],
+        }
+    except Exception as e:  # noqa: BLE001
+        return {"ok": False, "error": str(e)}
+
+
+@admin_router.post("/tests/env/stop")
+@audit_log("qa_env_stop")
+async def qa_env_stop(
+    payload: Optional[Dict[str, Any]] = None, _: Dict = Depends(require_auth(["admin"]))
+):
+    if not _docker_available():
+        return {"ok": False, "error": "docker_not_available"}
+    cfg = payload or {}
+    compose_file = str(cfg.get("compose_file") or "docker-compose.yml")
+    project = str(cfg.get("project") or "vivified-tests")
+    try:
+        import subprocess
+
+        cmd = ["docker", "compose", "-f", compose_file, "-p", project, "down"]
+        out = subprocess.run(cmd, check=False, capture_output=True, text=True)
+        ok = out.returncode == 0
+        return {
+            "ok": ok,
+            "code": out.returncode,
+            "stdout": (out.stdout or "")[-4000:],
+            "stderr": (out.stderr or "")[-4000:],
+        }
+    except Exception as e:  # noqa: BLE001
+        return {"ok": False, "error": str(e)}
+
 # QA Test Suites (Phase 8) — lightweight, in-process smoke tests
 @admin_router.get("/tests")
 async def list_test_suites(_: Dict = Depends(require_auth(["admin", "viewer"]))):
