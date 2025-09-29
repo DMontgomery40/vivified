@@ -1,5 +1,23 @@
 # Runbook 08: Testing & QA Procedures
 
+> Execution Progress (Phase 8) — updated by agent
+
+- [x] Read vivified_full_overview.md fully
+- [x] Local CI parity green (black, flake8, mypy, pytest)
+- [x] UI build parity green (core/ui, core/admin_ui)
+- [x] Admin Console wiring for tests (QA Test Suites panel)
+- [x] Backend endpoints to run smoke suites (/admin/tests, /admin/tests/run)
+- [x] Unit: policy engine sanity via UI
+- [x] Compliance: PHI encryption storage sanity via UI
+- [x] Integration: in-process onboarding flow (UI)
+- [x] Security: OWASP input sanity for auth (UI)
+- [x] Performance: p50/p95/p99 latency sample (UI)
+- [x] Chaos: simulated plugin disable/enable (UI)
+- [ ] Containerized E2E (docker) — deferred
+- [ ] Full OWASP + DAST tooling — deferred
+- [ ] Load/Soak/Chaos against cluster — deferred
+
+
 ## Objective
 Establish comprehensive testing strategies covering unit, integration, security, compliance, performance, and chaos testing for the Vivified platform.
 

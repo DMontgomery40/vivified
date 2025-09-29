@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import os
-from typing import Tuple
 
 from .schema_registry import SchemaRegistry, Version
 
@@ -62,4 +61,3 @@ def load_builtin_schemas(registry: SchemaRegistry) -> int:
                 continue
 
     return loaded
-

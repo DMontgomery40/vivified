@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Box, Typography, Paper, Stack, Alert, Button, Chip, Divider, TextField } from '@mui/material';
 import HelpTip from './common/HelpTip';
 import AdminAPIClient from '../api/client';
@@ -13,6 +13,17 @@ export default function PluginDevGuide({ client }: { client: AdminAPIClient }) {
 }`);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [schema, setSchema] = useState<any | null>(null);
+  const [validation, setValidation] = useState<any | null>(null);
+  const [caller, setCaller] = useState<string>('plugin.caller');
+  const [target, setTarget] = useState<string>('');
+
+  useEffect(() => {
+    const load = async () => {
+      try { setSchema(await client.getPluginManifestSchema()); } catch {}
+    };
+    load();
+  }, [client]);
 
   return (
     <Box>
@@ -39,6 +50,53 @@ export default function PluginDevGuide({ client }: { client: AdminAPIClient }) {
             minRows={6}
             sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2, fontFamily: 'monospace', fontSize: '0.875rem' } }}
           />
+          <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
+            <Button size="small" variant="outlined" onClick={async ()=>{
+              try {
+                setError(null); setValidation(null);
+                const obj = JSON.parse(manifest || '{}');
+                if (!target && obj?.id) setTarget(String(obj.id));
+                const res = await client.validatePluginManifest(obj);
+                setValidation(res);
+              } catch (e: any) { setError(e?.message || 'Validate failed'); }
+            }}>Validate Manifest</Button>
+            <Button size="small" variant="outlined" onClick={async () => {
+              try {
+                setError(null);
+                const obj = JSON.parse(manifest || '{}');
+                const allowlist = validation?.suggestions?.allowlist;
+                if (!obj?.id) { setError('Manifest must include id'); return; }
+                if (!allowlist) { setError('No allowlist suggestions yet. Validate first.'); return; }
+                await client.setGatewayAllowlist({ plugin_id: obj.id, allowlist });
+              } catch (e: any) { setError(e?.message || 'Apply allowlist failed'); }
+            }}>Apply Suggested Allowlist</Button>
+          </Stack>
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ mt: 1 }}>
+            <TextField label="Caller Plugin (operator)" value={caller} onChange={(e)=>setCaller(e.target.value)} fullWidth />
+            <TextField label="Target Plugin" value={target} onChange={(e)=>setTarget(e.target.value)} fullWidth placeholder="defaults to manifest.id" />
+            <Button size="small" variant="outlined" onClick={async ()=>{
+              try {
+                setError(null);
+                const obj = JSON.parse(manifest || '{}');
+                const ops: string[] = (validation?.suggestions?.operations && Array.isArray(validation.suggestions.operations)) ? validation.suggestions.operations : (obj?.endpoints ? Object.keys(obj.endpoints) : []);
+                const tgt = target || obj.id;
+                if (!caller || !tgt) { setError('Caller and Target are required'); return; }
+                await client.setOperatorAllowlist({ caller, target: tgt, operations: ops });
+              } catch (e: any) { setError(e?.message || 'Generate operator allowlist failed'); }
+            }}>Generate Operator Allowlist</Button>
+          </Stack>
+          {schema && (
+            <Paper variant="outlined" sx={{ p: 1.5, mt: 2 }}>
+              <Typography variant="subtitle2">Manifest Schema (summary)</Typography>
+              <pre style={{ whiteSpace: 'pre-wrap', maxHeight: 200, overflow: 'auto' }}>{JSON.stringify(schema?.properties || {}, null, 2)}</pre>
+            </Paper>
+          )}
+          {validation && (
+            <Paper variant="outlined" sx={{ p: 1.5, mt: 2 }}>
+              <Typography variant="subtitle2">Validation Result</Typography>
+              <pre style={{ whiteSpace: 'pre-wrap' }}>{JSON.stringify(validation, null, 2)}</pre>
+            </Paper>
+          )}
         </Paper>
 
         <Paper sx={{ p: 2, borderRadius: 2 }}>
@@ -103,6 +161,18 @@ class PatientRecordManager(VivifiedPlugin):
           >
             {busy ? 'Generating…' : 'Scaffold Plugin'}
           </Button>
+          <Button
+            variant="text"
+            disabled={busy}
+            sx={{ borderRadius: 2, ml: 1 }}
+            onClick={async () => {
+              try {
+                setBusy(true); setError(null);
+                const mj = JSON.parse(manifest || '{}');
+                await client.registerPlugin(mj);
+              } catch (e: any) { setError(e?.message || 'Register failed'); } finally { setBusy(false); }
+            }}
+          >Register Plugin</Button>
           {error && (
             <Alert severity="error" sx={{ mt: 2, borderRadius: 2 }} onClose={() => setError(null)}>{error}</Alert>
           )}

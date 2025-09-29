@@ -48,6 +48,7 @@ import { useTraits } from '../hooks/useTraits';
 import { ResponsiveFormSection } from './common/ResponsiveFormFields';
 import EventStream from './EventStream';
 import ProviderHealthStatus from './ProviderHealthStatus';
+import HelpTip from './common/HelpTip';
 
 interface DiagnosticsProps {
   client: AdminAPIClient;
@@ -765,7 +766,8 @@ function Diagnostics({ client, onNavigate, docsBase }: DiagnosticsProps) {
           <Typography variant="h4" component="h1">
             System Diagnostics
           </Typography>
-          <Box display="flex" gap={1}>
+          <Box display="flex" gap={1} alignItems="center">
+            <HelpTip topic="diagnostics" />
             <Button
               variant="contained"
               startIcon={loading ? <CircularProgress size={20} color="inherit" /> : <DiagnosticIcon />}

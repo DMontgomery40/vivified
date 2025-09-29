@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Box, Typography, Paper, TextField, Button, Stack, Link, Chip, Table, TableHead, TableRow, TableCell, TableBody, Tabs, Tab } from '@mui/material';
+import NotificationsRules from './NotificationsRules';
 import SendIcon from '@mui/icons-material/Send';
 import HelpIcon from '@mui/icons-material/Help';
+import HelpTip from './common/HelpTip';
 import type { AdminAPIClient } from '../api/client';
 
 interface Props {
@@ -19,7 +21,7 @@ export default function NotificationsPanel({ client, readOnly }: Props) {
   const [error, setError] = useState<string>('');
   const [help, setHelp] = useState<Record<string, string>>({});
   const [settings, setSettings] = useState<Record<string, any>>({});
-  const [tab, setTab] = useState<number>(0); // 0: Inbox, 1: Send, 2: Settings, 3: Learn more
+  const [tab, setTab] = useState<number>(0); // 0: Inbox, 1: Send, 2: Rules, 3: Settings, 4: Learn more
   const [limit] = useState<number>(50);
   const [offset, setOffset] = useState<number>(0);
 
@@ -41,15 +43,20 @@ export default function NotificationsPanel({ client, readOnly }: Props) {
     })();
   }, []);
 
+  const [audTraits, setAudTraits] = useState<string>('');
+
   const onSend = async () => {
     setLoading(true); setError(''); setNote('');
     try {
       const t = (targets || '').split(',').map(s => s.trim()).filter(Boolean);
-      const res = await client.sendNotification({ title: title || undefined, body, targets: t.length ? t : undefined });
+      const audience = (audTraits || '').split(',').map(s=>s.trim()).filter(Boolean);
+      const metadata: any = audience.length ? { audience: { mode: 'traits', traits: audience, scope: 'tenant' } } : undefined;
+      const res = await client.sendNotification({ title: title || undefined, body, targets: t.length ? t : undefined, metadata });
       setNote(`Queued status=${res.status} id=${res.notification_id}`);
       setTitle('');
       setBody('Test notification from Admin Console');
       setTargets('');
+      setAudTraits('');
       setTimeout(refresh, 300);
     } catch (e: any) {
       setError(e?.message || 'Send failed');
@@ -70,7 +77,10 @@ export default function NotificationsPanel({ client, readOnly }: Props) {
 
   return (
     <Box>
-      <Typography variant="h6" gutterBottom>Notifications</Typography>
+      <Box display="flex" alignItems="center" justifyContent="space-between">
+        <Typography variant="h6" gutterBottom>Notifications</Typography>
+        <HelpTip topic="notifications" />
+      </Box>
       <Typography variant="body2" color="text.secondary" gutterBottom>
         Send, manage, and review notifications. Trait <code>ui.notifications</code> controls access; actions are read‑only for non‑admins.
       </Typography>
@@ -80,6 +90,7 @@ export default function NotificationsPanel({ client, readOnly }: Props) {
           <Tabs value={tab} onChange={(_, v) => setTab(v)} variant="scrollable" scrollButtons="auto">
             <Tab label="Inbox" />
             <Tab label="Send" />
+            <Tab label="Rules" />
             <Tab label="Settings" />
             <Tab label="Learn more" />
           </Tabs>
@@ -127,6 +138,7 @@ export default function NotificationsPanel({ client, readOnly }: Props) {
             <TextField label="Title" value={title} onChange={(e)=>setTitle(e.target.value)} size="small" sx={{ minWidth: 220 }} />
             <TextField label="Body" value={body} onChange={(e)=>setBody(e.target.value)} size="small" fullWidth />
             <TextField label="Targets (comma‑sep)" value={targets} onChange={(e)=>setTargets(e.target.value)} size="small" sx={{ minWidth: 240 }} placeholder="mailto://you@ex.com, slack://..." />
+            <TextField label="Audience Traits (comma‑sep)" value={audTraits} onChange={(e)=>setAudTraits(e.target.value)} size="small" sx={{ minWidth: 240 }} placeholder="e.g. sales, customer_success" />
             <Button variant="contained" startIcon={<SendIcon />} onClick={onSend} disabled={loading || !!readOnly}>Send</Button>
           </Stack>
           {note && <Typography sx={{ mt: 2 }} color="success.main">{note}</Typography>}
@@ -134,6 +146,10 @@ export default function NotificationsPanel({ client, readOnly }: Props) {
         </Box>
 
         <Box sx={{ p: 2 }} hidden={tab !== 2}>
+          <NotificationsRules client={client} readOnly={readOnly} />
+        </Box>
+
+        <Box sx={{ p: 2 }} hidden={tab !== 3}>
           <Stack direction="row" spacing={2} alignItems="center">
             <Chip 
               label={`dry_run=${String(Boolean(settings?.dry_run))}`} 
@@ -146,7 +162,7 @@ export default function NotificationsPanel({ client, readOnly }: Props) {
           {error && <Typography sx={{ mt: 1 }} color="error.main">{error}</Typography>}
         </Box>
 
-        <Box sx={{ p: 2 }} hidden={tab !== 3}>
+        <Box sx={{ p: 2 }} hidden={tab !== 4}>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
             Helpful links for configuring notification channels:
           </Typography>
@@ -165,4 +181,3 @@ export default function NotificationsPanel({ client, readOnly }: Props) {
     </Box>
   );
 }
-

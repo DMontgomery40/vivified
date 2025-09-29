@@ -26,6 +26,9 @@ from sqlalchemy import select, update
 import io
 import zipfile
 import re
+import pathlib
+from urllib.parse import urlparse
+import ipaddress
 
 
 admin_router = APIRouter(prefix="/admin", tags=["admin"])
@@ -210,6 +213,142 @@ async def scaffold_plugin(
             "X-Scaffold-Language": language,
         },
     )
+
+
+# Manifest schema + validation for core plugins
+def _load_manifest_schema() -> Dict[str, Any]:
+    schema_path = (
+        pathlib.Path(__file__).resolve().parents[1]
+        / "plugin_manager"
+        / "manifest.schema.json"
+    )
+    try:
+        return json.loads(schema_path.read_text())
+    except Exception:  # pragma: no cover - fallback minimal schema
+        return {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "type": "object",
+            "properties": {
+                "id": {"type": "string"},
+                "name": {"type": "string"},
+                "version": {"type": "string"},
+                "contracts": {"type": "array", "items": {"type": "string"}},
+                "traits": {"type": "array", "items": {"type": "string"}},
+                "security": {"type": "object"},
+                "compliance": {"type": "object"},
+            },
+            "required": [
+                "id",
+                "name",
+                "version",
+                "contracts",
+                "traits",
+                "security",
+                "compliance",
+            ],
+            "additionalProperties": True,
+        }
+
+
+@admin_router.get("/plugins/manifest-schema")
+async def get_plugin_manifest_schema(
+    _: Dict = Depends(require_auth(["admin", "plugin_manager"]))
+):
+    return _load_manifest_schema()
+
+
+@admin_router.post("/plugins/validate-manifest")
+async def validate_plugin_manifest(
+    payload: Dict[str, Any],
+    _: Dict = Depends(require_auth(["admin", "plugin_manager"])),
+):
+    """Validate a plugin manifest against the server's JSON Schema and
+    suggest allowlists.
+
+    Returns a dict: {
+        ok,
+        errors: [{message, path, schema_path}],
+        suggestions: { operations, allowlist, invalid_domains, parsed_domains }
+    }
+    """
+    manifest = payload if isinstance(payload, dict) else {}
+    schema = _load_manifest_schema()
+    from jsonschema import Draft202012Validator
+
+    validator = Draft202012Validator(schema)
+    errors = []
+    for err in validator.iter_errors(manifest):
+        errors.append(
+            {
+                "message": err.message,
+                "path": list(err.path),
+                "schema_path": list(err.schema_path),
+            }
+        )
+
+    # Suggestions
+    operations = []
+    allowlist: Dict[str, Dict[str, list]] = {}
+    invalid_domains: list[str] = []
+    parsed_domains: list[str] = []
+    try:
+        eps = manifest.get("endpoints") or {}
+        if isinstance(eps, dict):
+            operations = [str(k) for k in eps.keys()]
+            for _name, ep in eps.items():
+                if not isinstance(ep, str):
+                    continue
+                try:
+                    u = urlparse(ep)
+                    if u.scheme and u.netloc:
+                        host = u.netloc.split("@")[-1].split(":")[0]
+                        parsed_domains.append(host)
+                        # Validate host is not an IP literal
+                        try:
+                            ipaddress.ip_address(host)
+                            invalid_domains.append(host)
+                            continue
+                        except Exception:
+                            pass
+                        ent = allowlist.setdefault(
+                            host,
+                            {"allowed_methods": ["GET", "POST"], "allowed_paths": []},
+                        )
+                        if u.path and u.path not in ent["allowed_paths"]:
+                            ent["allowed_paths"].append(u.path)
+                except Exception:
+                    continue
+
+        # Merge explicit allowed_domains
+        ad = manifest.get("allowed_domains") or []
+        if isinstance(ad, list):
+            for d in ad:
+                if not isinstance(d, str) or not d:
+                    continue
+                host = d
+                # Skip IPs
+                try:
+                    ipaddress.ip_address(host)
+                    invalid_domains.append(host)
+                    continue
+                except Exception:
+                    pass
+                allowlist.setdefault(
+                    host, {"allowed_methods": ["GET", "POST"], "allowed_paths": []}
+                )
+    except Exception:
+        pass
+
+    return {
+        "ok": len(errors) == 0,
+        "errors": errors,
+        "suggestions": {
+            "operations": operations,
+            "allowlist": allowlist,
+            "invalid_domains": sorted(list(set(invalid_domains))),
+            "parsed_domains": sorted(list(set(parsed_domains))),
+        },
+    }
 
 
 # Operator policy allowlist (fine-grained operator rules)
@@ -454,6 +593,7 @@ async def get_user_traits(user: Dict = Depends(get_current_user)):
             "ui.register",
             "ui.users",
             "ui.storage",
+            "ui.notifications",
             "ui.send_demo",
             "ui.inbound_demo",
             "ui.jobs",
@@ -641,6 +781,285 @@ async def get_health_status(_: Dict = Depends(require_auth(["admin", "viewer"]))
 async def run_diagnostics(_: Dict = Depends(require_auth(["admin", "viewer"]))):
     # Return a safe, empty diagnostics structure so the UI does not error
     return {"checks": {}, "summary": {"ok": True}}
+
+
+# QA Test Suites (Phase 8) — lightweight, in-process smoke tests
+@admin_router.get("/tests")
+async def list_test_suites(_: Dict = Depends(require_auth(["admin", "viewer"]))):
+    """List available lightweight test suites runnable from the Admin Console."""
+    return {
+        "suites": [
+            {"id": "smoke", "label": "Smoke (core flows)"},
+            {"id": "unit-policy", "label": "Unit: Policy Engine"},
+            {"id": "security", "label": "Security (sanity)"},
+            {"id": "compliance", "label": "Compliance (PHI encryption)"},
+            {"id": "integration", "label": "Integration (user onboarding)"},
+            {"id": "owasp", "label": "Security: OWASP Inputs"},
+            {"id": "performance", "label": "Performance (latency/throughput)"},
+            {"id": "chaos", "label": "Chaos (simulated)"},
+        ]
+    }
+
+
+@admin_router.post("/tests/run")
+async def run_test_suite(
+    payload: Dict[str, Any],
+    user: Dict = Depends(require_auth(["admin"])),
+    session=Depends(get_session),
+):
+    """Run a small, deterministic test suite and return structured results.
+
+    This is intentionally scoped to quick, side-effect-safe checks to support
+    Admin Console UX parity without spawning external runners.
+    """
+    suite = str(payload.get("suite") or "smoke").strip().lower()
+
+    logs: list[dict] = []
+
+    def log(level: str, message: str, **kw: Any) -> None:
+        entry = {"level": level, "message": message}
+        if kw:
+            entry.update(kw)
+        logs.append(entry)
+
+    async def run_smoke() -> dict:
+        # Identity: ensure we can list and (logically) create users
+        ids = IdentityService(session, get_auth_manager())
+        log("info", "Listing users…")
+        users = await ids.list_users(page=1, page_size=5)
+        assert isinstance(users, dict) and "users" in users
+        log("pass", f"Listed {len(users.get('users', []))} users")
+
+        # Audit: fetch recent events
+        log("info", "Fetching audit events…")
+        svc = await get_audit_service()
+        events = await svc.list_events(limit=10, offset=0)
+        assert isinstance(events, dict)
+        log("pass", f"Audit entries fetched: {len(events.get('items', []))}")
+
+        # Gateway: read rate policy
+        log("info", "Reading gateway rate policy…")
+        rp = await gateway_rate_policy_get(user)  # type: ignore[arg-type]
+        assert isinstance(rp, dict) and "requests_per_minute" in rp
+        log("pass", "Gateway policy ok", rpm=rp.get("requests_per_minute"))
+        return {"ok": True}
+
+    async def run_unit_policy() -> dict:
+        from core.policy.engine import (
+            PolicyEngine,
+            PolicyRequest,
+            PolicyContext,
+            PolicyDecision,
+        )
+
+        pe = PolicyEngine()
+        # PHI allowed when both sides have trait and audit_required present
+        req_allow = PolicyRequest(
+            user_id=str(user.get("id")),
+            resource_type="record",
+            resource_id="rec-1",
+            action="read",
+            traits=["handles_phi", "audit_required"],
+            context={"data_classification": "phi"},
+            policy_context=PolicyContext.USER_ACTION,
+        )
+        res_allow = await pe.evaluate_request(req_allow)
+        assert res_allow.decision == PolicyDecision.ALLOW
+        log("pass", "PHI allow with traits", reason=res_allow.reason)
+        # PHI denied when trait missing
+        req_deny = PolicyRequest(
+            user_id=str(user.get("id")),
+            resource_type="record",
+            resource_id="rec-2",
+            action="read",
+            traits=["viewer"],
+            context={"data_classification": "phi"},
+            policy_context=PolicyContext.USER_ACTION,
+        )
+        res_deny = await pe.evaluate_request(req_deny)
+        assert res_deny.decision in {PolicyDecision.DENY}
+        log("pass", "PHI blocked without trait", reason=res_deny.reason)
+        return {"ok": True}
+
+    async def run_security() -> dict:
+        # Encryption status endpoint
+        enc = await encryption_status(user)  # type: ignore[arg-type]
+        assert enc.get("algorithm") == "AES-256-GCM"
+        log("pass", "Encryption configured", version=enc.get("version"))
+        # TLS status endpoint
+        tls = await tls_status(user)  # type: ignore[arg-type]
+        assert "configured" in tls
+        log("pass", "TLS status fetched", configured=bool(tls.get("configured")))
+        return {"ok": True}
+
+    async def run_compliance() -> dict:
+        cfg = StorageConfig(
+            default_provider="filesystem",
+            encryption_enabled=True,
+            auto_classify_content=True,
+            filesystem_base_path=os.getenv("TMPDIR", "/tmp"),
+        )
+        svc = StorageService(
+            config=cfg,
+            policy_engine=policy_engine,
+            audit_service=await get_audit_service(),
+        )
+        uid = str(user.get("id")) or "admin"
+        # Store PHI and verify encrypted
+        meta = await svc.store_object(
+            content=b"patient data",
+            filename="phi.txt",
+            user_id=uid,
+            content_type="text/plain",
+            data_classification=None,
+            traits=["handles_phi", "audit_required"],
+        )
+        assert bool(meta.is_encrypted)
+        log("pass", "PHI stored encrypted", key_id=meta.encryption_key_id)
+        # List with minimal details
+        items = await svc.list_objects(query=StorageQuery(limit=5), user_id=uid)
+        assert isinstance(items, list)
+        log("pass", f"Storage list returned {len(items)} items")
+        return {"ok": True}
+
+    async def run_integration() -> dict:
+        """Simulate user onboarding workflow end-to-end within current process."""
+        # Ensure identity schema and create a user
+        from core.api.models import UserCreateRequest
+
+        await _ensure_identity_schema(session)
+        ids = IdentityService(session, get_auth_manager())
+        uname = f"user_{os.urandom(4).hex()}"
+        payload = UserCreateRequest(
+            username=uname, email=f"{uname}@example.com", password="SecureP@ss123!"
+        )
+        log("info", f"Creating user {payload.username}")
+        ok, user_id = await ids.create_user(
+            payload.username, payload.email, payload.password, roles=["viewer"]
+        )
+        assert ok and user_id
+        log("pass", "User created", id=str(user_id))
+
+        # Emit audit event equivalent to endpoint decorator for visibility
+        svc = await get_audit_service()
+        await svc.log_event(
+            event_type="user_created",
+            category="system",
+            action="create_user",
+            result="success",
+            description=f"User {payload.username} created",
+            user_id=str(user.get("id")),
+            details={"new_user": payload.username},
+        )
+        # Verify audit contains the new event
+        events = await svc.list_events(limit=50, offset=0)
+        found = any(it.get("type") == "user_created" for it in events.get("items", []))
+        assert found
+        log("pass", "Audit recorded user_created event")
+        return {"ok": True}
+
+    async def run_owasp() -> dict:
+        """Exercise typical OWASP input payloads against auth endpoint.
+
+        This is a light in-process variant that validates inputs are safely
+        rejected (401) without server errors.
+        """
+        from core.api.auth import login, LoginRequest
+
+        bads = [
+            "'; DROP TABLE users; --",
+            "' OR '1'='1",
+            "admin'--",
+            "' UNION SELECT * FROM users--",
+        ]
+        for inj in bads:
+            try:
+                await login(LoginRequest(username=inj, password="test"))
+                # If no exception, login wrongly succeeded
+                raise AssertionError("Injection login unexpectedly succeeded")
+            except HTTPException as he:  # expected invalid credentials
+                assert he.status_code == 401
+                log("pass", "Injection blocked", payload=inj)
+        return {"ok": True}
+
+    async def run_performance() -> dict:
+        """Measure approximate latency for simple admin call 100x and compute p50/p95/p99."""
+        import time
+
+        samples: list[float] = []
+        for _ in range(100):
+            t0 = time.perf_counter()
+            rp = await gateway_rate_policy_get(user)  # type: ignore[arg-type]
+            assert isinstance(rp, dict)
+            dt_ms = (time.perf_counter() - t0) * 1000.0
+            samples.append(dt_ms)
+        samples.sort()
+        n = len(samples)
+        p50 = samples[int(0.5 * (n - 1))]
+        p95 = samples[int(0.95 * (n - 1))]
+        p99 = samples[int(0.99 * (n - 1))]
+        log(
+            "pass",
+            "Latency percentiles",
+            p50_ms=round(p50, 2),
+            p95_ms=round(p95, 2),
+            p99_ms=round(p99, 2),
+        )
+        # Very loose local thresholds to avoid flakes
+        assert p50 < 50 and p99 < 200
+        return {"ok": True}
+
+    async def run_chaos() -> dict:
+        """Simulate plugin failure isolation by toggling status in registry."""
+        # Register a fake plugin, disable it, ensure core functions still operate
+        pid = f"plugin_{os.urandom(3).hex()}"
+        if _REGISTRY is None:
+            raise HTTPException(status_code=500, detail="Plugin registry not available")
+        _REGISTRY.plugins[pid] = {"id": pid, "name": pid, "status": "active"}
+        log("info", "Registered temp plugin", plugin_id=pid)
+        # Disable via admin helper to simulate operator action
+        await disable_plugin(pid, reason="chaos_test", _=user)  # type: ignore[arg-type]
+        assert _REGISTRY.plugins[pid]["status"] == "disabled"
+        log("pass", "Plugin disabled; core continues healthy")
+        # Read health-like info
+        rp = await gateway_rate_policy_get(user)  # type: ignore[arg-type]
+        assert "requests_per_minute" in rp
+        log("pass", "Gateway still reachable")
+        # Re-enable
+        await enable_plugin(pid, _=user)  # type: ignore[arg-type]
+        assert _REGISTRY.plugins[pid]["status"] == "active"
+        log("pass", "Plugin re-enabled")
+        return {"ok": True}
+
+    try:
+        match suite:
+            case "smoke":
+                result = await run_smoke()
+            case "unit-policy":
+                result = await run_unit_policy()
+            case "security":
+                result = await run_security()
+            case "compliance":
+                result = await run_compliance()
+            case "integration":
+                result = await run_integration()
+            case "owasp":
+                result = await run_owasp()
+            case "performance":
+                result = await run_performance()
+            case "chaos":
+                result = await run_chaos()
+            case _:
+                raise HTTPException(status_code=400, detail="Unknown suite")
+        return {"suite": suite, "ok": bool(result.get("ok")), "logs": logs}
+    except HTTPException:
+        raise
+    except AssertionError as e:  # explicit failure surfaced in logs
+        log("fail", f"Assertion failed: {e!s}")
+        return {"suite": suite, "ok": False, "logs": logs}
+    except Exception as e:  # noqa: BLE001
+        log("error", f"Unexpected error: {type(e).__name__}: {e}")
+        return {"suite": suite, "ok": False, "logs": logs}
 
 
 # Security → Encryption admin endpoints

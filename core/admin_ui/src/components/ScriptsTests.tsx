@@ -152,6 +152,9 @@ const ScriptsTests: React.FC<Props> = ({ client, docsBase, readOnly = false, can
   const [authLines, setAuthLines] = useState<string[]>([]);
   const [inboundLines, setInboundLines] = useState<string[]>([]);
   const [infoLines, setInfoLines] = useState<string[]>([]);
+  const [qaLines, setQaLines] = useState<string[]>([]);
+  const [qaBusy, setQaBusy] = useState<boolean>(false);
+  const [qaSuites, setQaSuites] = useState<Array<{ id: string; label: string }>>([]);
   const [toNumber, setToNumber] = useState<string>('+15551234567');
   const [backend, setBackend] = useState<string>('');
   const [inboundEnabled, setInboundEnabled] = useState<boolean>(false);
@@ -176,6 +179,7 @@ const ScriptsTests: React.FC<Props> = ({ client, docsBase, readOnly = false, can
   const clearInbound = () => setInboundLines([]);
   const pushInfo = (line: string) => setInfoLines((prev) => [...prev, line]);
   const clearInfo = () => setInfoLines([]);
+  const clearQa = () => setQaLines([]);
 
   React.useEffect(() => {
     (async () => {
@@ -195,6 +199,11 @@ const ScriptsTests: React.FC<Props> = ({ client, docsBase, readOnly = false, can
             setActions(filtered);
             if (filtered.length > 0) setActiveActionTab(filtered[0].id);
           }
+        } catch {}
+        // Load QA suites from backend
+        try {
+          const q = await (client as any).listTestSuites?.();
+          setQaSuites(q?.suites || []);
         } catch {}
       } catch (e: any) {
         setError(e?.message || 'Failed to load settings');
@@ -255,6 +264,22 @@ const ScriptsTests: React.FC<Props> = ({ client, docsBase, readOnly = false, can
     } catch (e: any) {
       setError(e?.message || 'Failed to fetch callbacks');
     } finally { setBusyInfo(false); }
+  };
+
+  const runQaSuite = async (suite: string) => {
+    setError(''); clearQa(); setQaBusy(true);
+    try {
+      setQaLines(prev => [...prev, `[i] Running suite: ${suite}`]);
+      const res = await (client as any).runTestSuite?.(suite);
+      const logs: Array<{ level?: string; message?: string }> = (res?.logs || []) as any;
+      logs.forEach(l => {
+        const pfx = l?.level === 'pass' ? '[✓]' : l?.level === 'fail' ? '[!]' : l?.level === 'error' ? '[error]' : '[i]';
+        setQaLines(prev => [...prev, `${pfx} ${l?.message || ''}`]);
+      });
+      setQaLines(prev => [...prev, res?.ok ? '[✓] Suite passed' : '[!] Suite failed']);
+    } catch (e: any) {
+      setError(e?.message || 'QA suite failed');
+    } finally { setQaBusy(false); }
   };
 
   const runPurgeInbound = async () => {
@@ -406,6 +431,29 @@ const ScriptsTests: React.FC<Props> = ({ client, docsBase, readOnly = false, can
       )}
 
       <Grid container spacing={3}>
+        {/* QA Test Suites (Phase 8) */}
+        <Grid item xs={12}>
+          <ResponsiveFormSection
+            title="QA Test Suites"
+            subtitle="Run lightweight platform checks (Policy, Security, Compliance)"
+            icon={<SecurityIcon />}
+          >
+            <Stack spacing={2}>
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+                {qaSuites.map(s => (
+                  <Button key={s.id} variant="contained" size="small" startIcon={<RunIcon />} disabled={qaBusy} onClick={() => runQaSuite(s.id)}>
+                    {s.label}
+                  </Button>
+                ))}
+                {qaSuites.length === 0 && (
+                  <Chip label="No suites available" size="small" />
+                )}
+                <Button variant="text" size="small" startIcon={<ClearIcon />} onClick={clearQa} disabled={qaBusy}>Clear</Button>
+              </Stack>
+              <ConsoleBox lines={qaLines} loading={qaBusy} title="QA Output" />
+            </Stack>
+          </ResponsiveFormSection>
+        </Grid>
         {/* Outbound Smoke Tests */}
         <Grid item xs={12} lg={6}>
           <ResponsiveFormSection

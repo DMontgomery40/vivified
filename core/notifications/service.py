@@ -48,6 +48,11 @@ class NotificationsService:
             "dry_run": True,
             "default_targets": [],
         }
+        # In-memory rules for event-triggered notifications
+        # Rule shape (wrapped for linting):
+        # { id, name, enabled, event_type, channel, template: {title, body},
+        #   audience: { mode: 'traits', traits: [..], scope?: 'tenant'|'org' } }
+        self._rules: List[Dict[str, Any]] = []
 
     async def start(self) -> None:
         if self._running:
@@ -56,6 +61,18 @@ class NotificationsService:
         await self.messaging_service.subscribe_to_events(
             "core-notifications",
             ["NotificationSent"],
+            self._on_event,
+        )
+        # Broad subscription for application events to evaluate rules
+        await self.messaging_service.subscribe_to_events(
+            "core-notifications-rules",
+            [
+                "FaxReceived",
+                "InboundReceived",
+                "NotificationRequest",
+                "UserEvent",
+                "AppEvent",
+            ],
             self._on_event,
         )
         self._running = True
@@ -141,6 +158,35 @@ class NotificationsService:
             if event.event_type == "NotificationSent":
                 sent = NotificationSent(**event.payload)
                 await self._ingest_sent(sent)
+            else:
+                # Evaluate rules for other events
+                for rule in list(self._rules):
+                    if not rule.get("enabled", True):
+                        continue
+                    if str(rule.get("event_type") or "").strip() != event.event_type:
+                        continue
+                    # Build outbound notification payload
+                    tpl = rule.get("template") or {}
+                    title = str(tpl.get("title") or f"{event.event_type}")
+                    body = str(tpl.get("body") or "")
+                    channel = rule.get("channel") or None
+                    audience = rule.get("audience") or {}
+                    targets = None  # Let plugins fan-out based on audience
+                    metadata: Dict[str, Any] = {
+                        "source_event": event.event_type,
+                        "audience": audience,
+                        "source_plugin": source_plugin,
+                    }
+                    await self.send(
+                        {
+                            "title": title,
+                            "body": body or f"Event {event.event_type}",
+                            "channel": channel,
+                            "targets": targets,
+                            "metadata": metadata,
+                        },
+                        source="notifications-rule",
+                    )
         except Exception as e:  # noqa: BLE001
             logger.error("notifications_event_error: %s", e)
 
@@ -166,3 +212,21 @@ class NotificationsService:
     def list_inbox(self, limit: int = 100, offset: int = 0) -> List[Dict[str, Any]]:
         items = self._inbox[offset : offset + limit]
         return [i.model_dump() for i in items]
+
+    # Rules management (in-memory)
+    def list_rules(self) -> List[Dict[str, Any]]:
+        return list(self._rules)
+
+    def upsert_rule(self, rule: Dict[str, Any]) -> Dict[str, Any]:
+        rid = str(rule.get("id") or str(uuid4()))
+        rule["id"] = rid
+        # normalize booleans/fields
+        rule["enabled"] = bool(rule.get("enabled", True))
+        # replace by id
+        self._rules = [r for r in self._rules if r.get("id") != rid] + [rule]
+        return rule
+
+    def delete_rule(self, rid: str) -> bool:
+        before = len(self._rules)
+        self._rules = [r for r in self._rules if r.get("id") != rid]
+        return len(self._rules) != before

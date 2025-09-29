@@ -90,6 +90,7 @@ class SchemaRegistry:
                     updated_by="schema_registry",
                     reason="schema_activate",
                 )
+
             try:
                 loop = asyncio.get_running_loop()
                 loop.create_task(_write())
