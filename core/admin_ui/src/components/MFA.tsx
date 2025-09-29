@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Box, Paper, Typography, Button, TextField, Alert, Stack } from '@mui/material';
+import HelpTip from './common/HelpTip';
 import AdminAPIClient from '../api/client';
 
 type Props = {
@@ -41,7 +42,10 @@ export default function MFA({ client, readOnly }: Props) {
 
   return (
     <Paper elevation={0} sx={{ p: { xs: 2, md: 3 }, borderRadius: 3, border: '1px solid', borderColor: 'divider' }}>
-      <Typography variant="h6" sx={{ mb: 2 }}>MFA & Passkeys</Typography>
+      <Box display="flex" alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
+        <Typography variant="h6">MFA & Passkeys</Typography>
+        <HelpTip topic="mfa" />
+      </Box>
 
       {message && <Alert severity="success" sx={{ mb: 2 }}>{message}</Alert>}
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}

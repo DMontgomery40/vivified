@@ -47,6 +47,9 @@ export default function OperatorPolicy({ client }: { client: AdminAPIClient }) {
         </Stack>
         <Box mt={2}>
           <TextField label="Allowed Operations (CSV)" value={opsCsv} onChange={e=>setOpsCsv(e.target.value)} size="small" fullWidth />
+          <Typography variant="caption" color="text.secondary">
+            Comma‑separated operations, typically matching manifest endpoint keys (e.g., <code>invoice.create</code>). Use Manifest Editor to auto‑generate.
+          </Typography>
           <Button variant="contained" sx={{ mt: 1 }} onClick={save}>Save</Button>
         </Box>
         <Box mt={2}>

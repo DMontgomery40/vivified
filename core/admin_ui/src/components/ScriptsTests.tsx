@@ -31,6 +31,7 @@ import {
 import AdminAPIClient from '../api/client';
 import { useTraits } from '../hooks/useTraits';
 import { ResponsiveFormSection, ResponsiveTextField } from './common/ResponsiveFormFields';
+import HelpTip from './common/HelpTip';
 import InboundWebhookTester from './InboundWebhookTester';
 
 interface Props {
@@ -405,6 +406,10 @@ const ScriptsTests: React.FC<Props> = ({ client, docsBase, readOnly = false, can
             Run fax tests and backend-specific scripts
           </Typography>
         </Box>
+        <Box>
+          {/* Inline help (question icon) per platform convention */}
+          <HelpTip topic="qa-tests" />
+        </Box>
       </Box>
 
       <Alert 
@@ -451,6 +456,40 @@ const ScriptsTests: React.FC<Props> = ({ client, docsBase, readOnly = false, can
                 <Button variant="text" size="small" startIcon={<ClearIcon />} onClick={clearQa} disabled={qaBusy}>Clear</Button>
               </Stack>
               <ConsoleBox lines={qaLines} loading={qaBusy} title="QA Output" />
+            </Stack>
+          </ResponsiveFormSection>
+        </Grid>
+
+        {/* QA Environment (Docker) Controls */}
+        <Grid item xs={12}>
+          <ResponsiveFormSection
+            title="QA Environment"
+            subtitle="Start/Stop containerized E2E environment (Docker required)"
+            icon={<SettingsIcon />}
+          >
+            <Stack spacing={2}>
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'center' }}>
+                <Button variant="outlined" size="small" onClick={async ()=>{
+                  try {
+                    const res = await (client as any).qaEnvStatus?.();
+                    setInfoLines(prev=>[...prev, `[i] QA env status: ${JSON.stringify(res)}`]);
+                  } catch(e:any){ setError(e?.message || 'Status failed'); }
+                }}>Status</Button>
+                <Button variant="contained" size="small" onClick={async ()=>{
+                  try {
+                    const res = await (client as any).qaEnvStart?.({});
+                    setInfoLines(prev=>[...prev, `[i] QA env start: ${JSON.stringify(res)}`]);
+                  } catch(e:any){ setError(e?.message || 'Start failed'); }
+                }}>Start</Button>
+                <Button variant="text" size="small" onClick={async ()=>{
+                  try {
+                    const res = await (client as any).qaEnvStop?.({});
+                    setInfoLines(prev=>[...prev, `[i] QA env stop: ${JSON.stringify(res)}`]);
+                  } catch(e:any){ setError(e?.message || 'Stop failed'); }
+                }}>Stop</Button>
+                <HelpTip topic="qa-env" />
+              </Stack>
+              <ConsoleBox lines={infoLines} title="QA Env Output" />
             </Stack>
           </ResponsiveFormSection>
         </Grid>

@@ -82,7 +82,7 @@ export default function NotificationsPanel({ client, readOnly }: Props) {
         <HelpTip topic="notifications" />
       </Box>
       <Typography variant="body2" color="text.secondary" gutterBottom>
-        Send, manage, and review notifications. Trait <code>ui.notifications</code> controls access; actions are read‑only for non‑admins.
+        Send, manage, and review notifications. Trait <code>ui.notifications</code> controls access; actions are read‑only for non‑admins. Use dry_run in development to preview.
       </Typography>
 
       <Paper variant="outlined" sx={{ p: 0 }}>

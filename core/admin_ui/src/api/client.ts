@@ -99,6 +99,22 @@ export class AdminAPIClient {
     return res.json();
   }
 
+  // Automations (Rules & Flows)
+  async listAutomationRules(): Promise<{ items: any[] }>{
+    const res = await this.fetch('/admin/automation/rules');
+    return res.json();
+  }
+
+  async upsertAutomationRule(rule: any): Promise<any> {
+    const res = await this.fetch('/admin/automation/rules', { method: 'PUT', body: JSON.stringify(rule) });
+    return res.json();
+  }
+
+  async deleteAutomationRule(id: string): Promise<{ ok: boolean }>{
+    const res = await this.fetch(`/admin/automation/rules/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    return res.json();
+  }
+
   private async fetch(path: string, options: RequestInit = {}): Promise<Response> {
     const url = `${this.baseURL}${path}`;
     if ((import.meta as any)?.env?.DEV) {
@@ -648,6 +664,20 @@ export class AdminAPIClient {
       method: 'POST',
       body: JSON.stringify({ suite }),
     });
+    return res.json();
+  }
+
+  // QA env (Docker)
+  async qaEnvStatus(): Promise<any> {
+    const res = await this.fetch('/admin/tests/env/status');
+    return res.json();
+  }
+  async qaEnvStart(payload: { compose_file?: string; project?: string } = {}): Promise<any> {
+    const res = await this.fetch('/admin/tests/env/start', { method: 'POST', body: JSON.stringify(payload) });
+    return res.json();
+  }
+  async qaEnvStop(payload: { compose_file?: string; project?: string } = {}): Promise<any> {
+    const res = await this.fetch('/admin/tests/env/stop', { method: 'POST', body: JSON.stringify(payload) });
     return res.json();
   }
 

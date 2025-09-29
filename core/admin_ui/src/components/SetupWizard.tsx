@@ -22,6 +22,7 @@ import { Chip } from '@mui/material';
 import AdminAPIClient from '../api/client';
 import { useTraits } from '../hooks/useTraits';
 import SecretInput from './common/SecretInput';
+import HelpTip from './common/HelpTip';
 
 interface SetupWizardProps {
   client: AdminAPIClient;
@@ -870,6 +871,10 @@ function SetupWizard({ client, onDone, docsBase, onNavigate }: SetupWizardProps)
 
   return (
     <Box>
+      <Box display="flex" alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
+        <Typography variant="h6">Setup Wizard</Typography>
+        <HelpTip topic="setup" />
+      </Box>
       <Paper sx={{ p: 2, mb: 2 }}>
         <Typography variant="h5" gutterBottom>Setup Wizard</Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>

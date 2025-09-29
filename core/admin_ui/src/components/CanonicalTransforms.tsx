@@ -149,6 +149,9 @@ export default function CanonicalTransforms({ client }: Props) {
           placeholder={TEMPLATE}
           InputProps={{ sx: { fontFamily: 'monospace', fontSize: '0.85rem' } }}
         />
+        <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+          Use dot‑paths to map source → target (e.g., <code>attributes.department</code> ← <code>profile.dept</code>). Missing paths yield null. Keep mappings aligned with the active canonical schema; use Preview to verify.
+        </Typography>
         <Box mt={2}>
           <Button variant="contained" onClick={save}>Save</Button>
         </Box>

@@ -594,6 +594,7 @@ async def get_user_traits(user: Dict = Depends(get_current_user)):
             "ui.users",
             "ui.storage",
             "ui.notifications",
+            "ui.automations",
             "ui.send_demo",
             "ui.inbound_demo",
             "ui.jobs",
@@ -814,10 +815,12 @@ async def qa_env_status(_: Dict = Depends(require_auth(["admin"]))):
             capture_output=True,
             text=True,
         )
-        lines = [l.strip() for l in (out.stdout or "").splitlines() if l.strip()]
+        lines = [
+            line.strip() for line in (out.stdout or "").splitlines() if line.strip()
+        ]
         items = []
-        for l in lines[:50]:
-            parts = l.split("|")
+        for line in lines[:50]:
+            parts = line.split("|")
             if len(parts) >= 3:
                 items.append({"name": parts[0], "status": parts[1], "image": parts[2]})
         status["containers"] = items
@@ -880,6 +883,7 @@ async def qa_env_stop(
         }
     except Exception as e:  # noqa: BLE001
         return {"ok": False, "error": str(e)}
+
 
 # QA Test Suites (Phase 8) — lightweight, in-process smoke tests
 @admin_router.get("/tests")

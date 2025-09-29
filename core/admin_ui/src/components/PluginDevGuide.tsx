@@ -50,6 +50,9 @@ export default function PluginDevGuide({ client }: { client: AdminAPIClient }) {
             minRows={6}
             sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2, fontFamily: 'monospace', fontSize: '0.875rem' } }}
           />
+          <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
+            Paste a manifest and click Validate. Use the suggestions to update Gateway Allowlist and Operator rules before Registering.
+          </Typography>
           <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
             <Button size="small" variant="outlined" onClick={async ()=>{
               try {
