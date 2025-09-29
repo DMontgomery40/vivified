@@ -528,7 +528,7 @@ class RAGService:
                 if resp.status_code < 300:
                     data = resp.json() or {}
                     items = data.get("items") or data.get("results") or []
-                    out: List[Dict[str, str]] = []
+                    out_items: List[Dict[str, str]] = []
                     for it in items:
                         if not isinstance(it, dict):
                             continue
@@ -537,8 +537,8 @@ class RAGService:
                         did = str(
                             it.get("id") or hashlib.sha1(title.encode()).hexdigest()[:8]
                         )
-                        out.append({"id": did, "title": title, "path": path})
-                    return out[:top_k]
+                        out_items.append({"id": did, "title": title, "path": path})
+                    return out_items[:top_k]
             except Exception:
                 logger.debug("plugin query failed", exc_info=True)
         # Try semantic (vector) search first if we have vectors
