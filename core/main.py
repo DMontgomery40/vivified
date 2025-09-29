@@ -10,7 +10,7 @@ from starlette.responses import FileResponse
 
 from .plugin_manager.registry import PluginRegistry
 from .api import admin_router, auth_router
-from .api.dependencies import require_auth
+from .api.dependencies import require_auth, get_current_user
 from .identity.auth import rate_limit
 from .api.admin import configure_admin_api
 from .config.service import get_config_service
@@ -164,8 +164,18 @@ async def startup_event():
         # Optional: auto-train RAG on startup when enabled (dev/local only)
         try:
             if os.getenv("AI_AUTO_TRAIN", "false").lower() in {"1", "true", "yes"}:
-                # Train on local docs and internal plans
-                await ai_rag_service.train(["docs", "internal-plans"])  # type: ignore[union-attr]
+                # Train on local docs, internal plans, and codebase
+                await ai_rag_service.train(
+                    [
+                        "docs",
+                        "internal-plans",
+                        "core",
+                        "plugins",
+                        "sdk",
+                        "tools",
+                        "tests",
+                    ]
+                )  # type: ignore[union-attr]
         except Exception:
             logger.debug("AI auto-train failed", exc_info=True)
         logger.info("Core services started successfully")
@@ -620,6 +630,20 @@ async def mcp_sse():
         yield "event: ping\n\n"
         yield "data: {\"ok\": true}\n\n"
     return StreamingResponse(eventgen(), media_type="text/event-stream")
+
+
+@app.post("/mcp/http/tools/rag/query")
+async def mcp_rag_query(payload: Dict[str, Any], user: Dict = Depends(get_current_user)):
+    # Enforce viewer/admin traits
+    _ = await require_auth(["admin", "viewer"])(lambda u: u)(user)  # type: ignore[misc]
+    global ai_rag_service
+    if ai_rag_service is None:
+        ai_rag_service = RAGService(os.getenv("REDIS_URL"))
+    q = (payload.get("q") or payload.get("query") or "").strip()
+    if not q:
+        raise HTTPException(status_code=400, detail="query required")
+    res = await ai_rag_service.query(q, user_traits=(user.get("traits") or []))  # type: ignore[union-attr]
+    return {"items": res}
 
 
 class PluginConfigModel(BaseModel):

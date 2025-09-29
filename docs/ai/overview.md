@@ -38,7 +38,20 @@ If Redis is unavailable, an in-memory index is used.
 
 ## Auto-train
 
-Set `AI_AUTO_TRAIN=true` in the environment to index `docs/` and `internal-plans/` at startup.
+Set `AI_AUTO_TRAIN=true` in the environment to index `docs/`, `internal-plans/`, and the codebase directories (`core/`, `plugins/`, `sdk/`, `tools/`, `tests/`) at startup.
+
+## TBAC (Trait-Based Access Control)
+
+The RAG index and queries honor user traits. Each indexed document carries metadata with `required_traits` (defaults to empty) and `classification` (defaults to `internal`). At query time, only documents whose `required_traits` are a subset of the user’s traits are considered.
+
+This allows HIPAA-safe usage patterns where the assistant can answer aggregate questions without ever seeing PII fields. For example, you could index randomized patient IDs and diagnosis/outcome fields behind a trait like `analytics_viewer`, while excluding any PII traits entirely. The assistant’s visibility is governed by the same trait system as users.
+
+The current codebase indexing defaults to `required_traits=[]`. Data sources that include sensitive fields should be indexed with appropriate `required_traits` (future enhancement wires this via ingestion policies/config).
+
+## MCP HTTP Tool (preview)
+
+- `POST /mcp/http/tools/rag/query` — body `{ q: string }` returns `{ items }`, gated by user traits (admin or viewer).
+- Health endpoints: `/mcp/sse/health`, `/mcp/http/health`.
 
 ## CLI helper
 
@@ -57,4 +70,3 @@ AI_API_URL=http://localhost:8000 API_KEY=bootstrap_admin_only \
 - Add connector config for OpenAI/Anthropic via ConfigService and proxy allowlist.
 - Expand Admin UI to visualize vector store stats and per-source toggles.
 - MCP integration: expose RAG query as an MCP tool over SSE/HTTP transports.
-

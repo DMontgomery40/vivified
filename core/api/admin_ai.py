@@ -4,7 +4,7 @@ from typing import Any, Dict, Optional
 import os
 from fastapi import APIRouter, Depends, HTTPException
 
-from core.api.dependencies import require_auth
+from core.api.dependencies import require_auth, get_current_user
 from core.ai.service import RAGService, AgentService
 
 
@@ -46,8 +46,8 @@ async def ai_train(payload: Dict[str, Any], _: Dict = Depends(require_auth(["adm
         _RAG = RAGService(os.getenv("REDIS_URL"))
     sources = payload.get("sources") or []
     if not isinstance(sources, list) or not sources:
-        # Default to local docs and internal plans if not provided
-        sources = ["docs", "internal-plans"]
+        # Default to local docs, internal plans, and codebase
+        sources = ["docs", "internal-plans", "core", "plugins", "sdk", "tools", "tests"]
     try:
         count = await _RAG.train([str(s) for s in sources])  # type: ignore[union-attr]
         st = await _RAG.status()  # type: ignore[union-attr]
@@ -58,7 +58,9 @@ async def ai_train(payload: Dict[str, Any], _: Dict = Depends(require_auth(["adm
 
 @ai_router.post("/query")
 async def ai_query(
-    payload: Dict[str, Any], _: Dict = Depends(require_auth(["admin", "viewer"]))
+    payload: Dict[str, Any],
+    user: Dict = Depends(get_current_user),
+    _: Dict = Depends(require_auth(["admin", "viewer"])),
 ):
     global _RAG
     if _RAG is None:
@@ -66,13 +68,13 @@ async def ai_query(
     q = (payload.get("q") or payload.get("query") or "").strip()
     if not q:
         raise HTTPException(status_code=400, detail="query required")
-    res = await _RAG.query(q)  # type: ignore[union-attr]
+    res = await _RAG.query(q, user_traits=(user.get("traits") or []))  # type: ignore[union-attr]
     return {"items": res}
 
 
 @ai_router.post("/agent/run")
 async def ai_agent_run(
-    payload: Dict[str, Any], _: Dict = Depends(require_auth(["admin"]))
+    payload: Dict[str, Any], user: Dict = Depends(get_current_user), _: Dict = Depends(require_auth(["admin"]))
 ):
     global _AGENT, _RAG
     if _AGENT is None:
@@ -82,5 +84,5 @@ async def ai_agent_run(
     prompt = str(payload.get("prompt") or "").strip()
     if not prompt:
         raise HTTPException(status_code=400, detail="prompt required")
-    out = await _AGENT.run(prompt)  # type: ignore[union-attr]
+    out = await _AGENT.run(prompt, user_traits=(user.get("traits") or []))  # type: ignore[union-attr]
     return out
