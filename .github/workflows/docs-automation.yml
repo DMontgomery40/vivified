@@ -4,7 +4,6 @@ on:
     branches: ["development", "main"]
   pull_request:
     branches: ["development"]
-    types: [closed]
   workflow_dispatch:
     inputs:
       regenerate_all:
@@ -22,8 +21,6 @@ permissions:
 jobs:
   generate-docs:
     runs-on: ubuntu-latest
-    # Only run on push to development/main OR when PR to development is merged
-    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.merged == true)
     steps:
       - uses: actions/checkout@v4
         with:
@@ -46,7 +43,7 @@ jobs:
           python tools/scripts/docs_autopilot_enhanced.py
           
       - name: Create PR with documentation updates
-        if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.merged == true)
+        if: github.event_name != 'pull_request'
         uses: peter-evans/create-pull-request@v6
         with:
           token: ${{ secrets.GITHUB_TOKEN }}

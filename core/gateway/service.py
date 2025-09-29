@@ -31,7 +31,7 @@ class GatewayService:
     ):
         self.audit_service = audit_service
         self.policy_engine = policy_engine
-        self.proxy_handler = ProxyHandler(audit_service)
+        self.proxy_handler = ProxyHandler(audit_service, config_service)
         # Map of domain -> DomainAllowlist
         self.domain_allowlists: Dict[str, DomainAllowlist] = {}
         self.stats = ProxyStats()

@@ -35,6 +35,8 @@ export default function GatewayAllowlist({ client }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [rpm, setRpm] = useState<number | ''>('' as any);
+  const [burst, setBurst] = useState<number | ''>('' as any);
 
   const canSave = useMemo(() => pluginId && Object.keys(items).length >= 0, [pluginId, items]);
 
@@ -80,6 +82,28 @@ export default function GatewayAllowlist({ client }: Props) {
     }
   };
 
+  const fetchRatePolicy = async () => {
+    try {
+      setError(null);
+      const res = await client.getGatewayRatePolicy();
+      setRpm(res.requests_per_minute);
+      setBurst(res.burst_limit);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load rate policy');
+    }
+  };
+
+  const saveRatePolicy = async () => {
+    try {
+      setError(null);
+      await client.setGatewayRatePolicy(Number(rpm || 60), Number(burst || 100));
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to save rate policy');
+    }
+  };
+
   useEffect(() => {
     setItems({});
   }, [pluginId]);
@@ -121,6 +145,20 @@ export default function GatewayAllowlist({ client }: Props) {
           <TextField label="Methods (CSV)" value={methods} onChange={(e) => setMethods(e.target.value)} placeholder="GET,POST" size="small" fullWidth />
           <TextField label="Paths (CSV)" value={paths} onChange={(e) => setPaths(e.target.value)} placeholder="/*,/v1/*" size="small" fullWidth />
           <Button variant="outlined" startIcon={<AddIcon />} onClick={handleAdd} sx={{ borderRadius: 2 }}>Add</Button>
+        </Stack>
+      </Paper>
+
+      <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, mt: 2 }}>
+        <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
+          <Typography variant="subtitle2">Global Rate Policy</Typography>
+          <Stack direction="row" spacing={1}>
+            <Button size="small" variant="outlined" onClick={fetchRatePolicy}>Refresh</Button>
+            <Button size="small" variant="contained" onClick={saveRatePolicy}>Save</Button>
+          </Stack>
+        </Box>
+        <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
+          <TextField label="Requests per minute" type="number" value={rpm} onChange={(e)=>setRpm(e.target.value === '' ? '' : Number(e.target.value))} size="small" />
+          <TextField label="Burst limit" type="number" value={burst} onChange={(e)=>setBurst(e.target.value === '' ? '' : Number(e.target.value))} size="small" />
         </Stack>
       </Paper>
 

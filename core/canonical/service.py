@@ -7,6 +7,7 @@ from typing import Dict, Any, Optional, List
 
 from .models import CanonicalUser, CanonicalMessage, CanonicalEvent
 from .transformer import DataTransformer
+from ..config.service import get_config_service
 from ..audit.service import AuditService, AuditLevel
 from ..policy.engine import PolicyEngine, PolicyRequest, PolicyDecision, PolicyContext
 
@@ -19,7 +20,7 @@ class CanonicalService:
     def __init__(self, audit_service: AuditService, policy_engine: PolicyEngine):
         self.audit_service = audit_service
         self.policy_engine = policy_engine
-        self.transformer = DataTransformer(audit_service)
+        self.transformer = DataTransformer(audit_service, get_config_service())
         self.canonical_store: Dict[str, Any] = {}
 
     async def normalize_user(
@@ -224,7 +225,7 @@ class CanonicalService:
         return self.canonical_store.get(key)
 
     async def list_canonical_data(
-        self, data_type: str | None = None, limit: int = 100, offset: int = 0
+        self, data_type: Optional[str] = None, limit: int = 100, offset: int = 0
     ) -> List[Any]:
         """List canonical data with optional filtering."""
         items = list(self.canonical_store.values())

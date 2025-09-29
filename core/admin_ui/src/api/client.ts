@@ -182,9 +182,63 @@ export class AdminAPIClient {
     return res.json();
   }
 
+  // Operator allowlist (policy)
+  async getOperatorAllowlist(caller: string, target: string): Promise<{ caller: string; target: string; operations: string[] }>{
+    const res = await this.fetch(`/admin/operator/allowlist?caller=${encodeURIComponent(caller)}&target=${encodeURIComponent(target)}`);
+    return res.json();
+  }
+
+  async setOperatorAllowlist(payload: { caller: string; target: string; operations: string[] }): Promise<{ ok: boolean }>{
+    const res = await this.fetch('/admin/operator/allowlist', { method: 'PUT', body: JSON.stringify(payload) });
+    return res.json();
+  }
+
+  // Canonical transformations
+  async getCanonicalTransforms(source: string, target: string): Promise<{ source: string; target: string; mappings: Record<string, any> }>{
+    const res = await this.fetch(`/admin/canonical/transforms?source=${encodeURIComponent(source)}&target=${encodeURIComponent(target)}`);
+    return res.json();
+  }
+
+  async setCanonicalTransforms(payload: { source: string; target: string; mappings: Record<string, any> }): Promise<{ ok: boolean }>{
+    const res = await this.fetch('/admin/canonical/transforms', { method: 'PUT', body: JSON.stringify(payload) });
+    return res.json();
+  }
+
+  // Gateway rate policy
+  async getGatewayRatePolicy(): Promise<{ requests_per_minute: number; burst_limit: number }>{
+    const res = await this.fetch('/admin/gateway/rate-policy');
+    return res.json();
+  }
+
+  async setGatewayRatePolicy(rpm: number, burst: number): Promise<{ ok: boolean }>{
+    const res = await this.fetch('/admin/gateway/rate-policy', { method: 'PUT', body: JSON.stringify({ requests_per_minute: rpm, burst_limit: burst }) });
+    return res.json();
+  }
+
   // Canonical
   async getCanonicalStats(): Promise<any> {
     const res = await this.fetch('/canonical/stats');
+    return res.json();
+  }
+
+  // Canonical Schemas
+  async listSchemas(name: string): Promise<{ name: string; versions: Array<[number,number,number]> }>{
+    const res = await this.fetch(`/schemas/${encodeURIComponent(name)}`);
+    return res.json();
+  }
+
+  async getActiveSchema(name: string, major: number): Promise<{ name: string; major: number; active: any }>{
+    const res = await this.fetch(`/schemas/${encodeURIComponent(name)}/active/${encodeURIComponent(String(major))}`);
+    return res.json();
+  }
+
+  async upsertSchema(payload: { name: string; major: number; minor?: number; patch?: number; schema_data?: Record<string, any> }): Promise<any> {
+    const res = await this.fetch('/schemas', { method: 'POST', body: JSON.stringify(payload) });
+    return res.json();
+  }
+
+  async activateSchema(payload: { name: string; major: number; minor?: number; patch?: number }): Promise<any> {
+    const res = await this.fetch('/schemas/activate', { method: 'POST', body: JSON.stringify(payload) });
     return res.json();
   }
 
