@@ -1,90 +1,10 @@
-<div class='grid cards' markdown>
-
--   :material-database:{ .lg .middle } **Encrypted Storage**
-
-    ---
-
-    HIPAA-compliant storage abstraction with automatic classification and retention
-
--   :material-lock:{ .lg .middle } **Encryption & Keys**
-
-    ---
-
-    AES-256 at rest, envelope encryption, and key rotation support
-
--   :material-history:{ .lg .middle } **Retention & Audit**
-
-    ---
-
-    Policy-driven retention with 7-year audit retention
-
-</div>
-
-!!! tip 'Encryption'
-    All PHI/PII must be encrypted at rest and in transit. Use the storage abstraction rather than writing raw blobs to your own tables.
-
-!!! note 'Automatic Classification'
-    The storage layer classifies data on ingest and applies appropriate retention/labeling.
-
-!!! warning 'Key management'
-    Rotate keys regularly and ensure that rotated keys are stored in a secure KM provider. Losing keys can cause irreversible data loss.
-
-## Storage Capabilities
-
-| Feature | Description | Status | HIPAA |
-|---------|-------------|--------|-------|
-| Encryption | AES-256 envelope encryption | ✅ Active | Compliant |
-| Classification | Automatic PHI/PII labeling | ✅ Active | Compliant |
-| Retention | Policy-driven retention (years) | ✅ Active | Compliant |
-| Audit Logs | 7-year retention for auditable changes | ✅ Active | Compliant |
-
-### Example: storing a canonical user
-
-=== "Python"
-    ```python
-    # (1)
-    # Use the storage client to store a canonical record with classification
-    async def store_user(storage_client, canonical_user):
-        await storage_client.put('users', canonical_user.id, canonical_user.dict())
-    ```
-
-=== "Node.js"
-    ```javascript
-    // (1)
-    // Node example: store a user via the storage client
-    await storageClient.put('users', canonicalUser.id, canonicalUser)
-    ```
-
-=== "curl"
-    ```bash
-    # (1)
-    curl -X PUT https://admin.example/api/storage/users/alice -H 'Content-Type: application/json' -d '{"id":"alice"}'
-    ```
-
-1. Always use storage client to centralize encryption and classification
-
-```mermaid
-graph LR
-  App --> StorageAPI
-  StorageAPI -->|classify| Classifier
-  StorageAPI -->|encrypt| KMS[KMS]
-  StorageAPI --> DB[(Encrypted DB)]
-  StorageAPI --> Audit[Audit Logs]
+```json
+{
+  "overview": "\n# Overview\n\nThe **Vivified Storage Service** is a core component of the Vivified platform, providing robust, HIPAA-compliant storage capabilities for sensitive data, including PHI (Protected Health Information) and PII (Personally Identifiable Information). This service ensures data security through encryption, comprehensive audit logging, and strict retention policies.\n\n## Key Features\n- **Automatic Encryption**: All sensitive data is encrypted using advanced cryptographic techniques.\n- **Data Classification**: Supports classification levels such as PUBLIC, INTERNAL, CONFIDENTIAL, PHI, and PII.\n- **Audit Logging**: Detailed logging of all access and modifications to data.\n- **HIPAA-compliant Retention Policies**: Supports standard retention periods to meet HIPAA requirements.\n- **Multiple Storage Providers**: Integrates with Filesystem, S3, and potentially Azure.\n\n!!! note\n    This service is designed to be fully compliant with HIPAA regulations, ensuring secure handling of sensitive healthcare data.\n\n## Architecture\n\n```mermaid\ngraph TD;\n    A[Client Application] -->|API Request| B[Storage Service];\n    B -->|Encrypts Data| C[Storage Provider];\n    C --> D{Filesystem};\n    C --> E{S3};\n    C --> F{Azure};\n    B -->|Audit Log| G[Audit Service];\n    B -->|Policy Check| H[Policy Engine];\n```\n\n!!! tip\n    Use the appropriate StorageProvider for your infrastructure needs, such as S3 for cloud storage or Filesystem for on-premise solutions.\n",
+  "api": "\n# API Reference\n\n## StorageService Class\n\n### Methods\n\n#### `store_object(storage_object: StorageObject) -> StorageMetadata`\nStores an object and returns the updated metadata.\n\n#### `retrieve_object(object_key: str) -> Optional[StorageObject]`\nRetrieves an object by its key.\n\n#### `delete_object(object_key: str) -> bool`\nDeletes an object by its key.\n\n#### `list_objects(query: StorageQuery) -> List[StorageMetadata]`\nLists objects matching the query.\n\n!!! warning\n    Ensure that all API requests are authenticated and authorized to maintain data integrity and security.\n",
+  "config": "\n# Configuration Guide\n\n## Storage Configuration Options\n\n| Option              | Description                                                   | Default       |\n|---------------------|---------------------------------------------------------------|---------------|\n| `storage_provider`  | The storage backend to use (e.g., Filesystem, S3, Azure).    | `filesystem`  |\n| `encryption_key`    | Master key for encryption of sensitive data.                  |               |\n| `retention_policy`  | Data retention policy (e.g., SHORT_TERM, HIPAA_STANDARD).     | `HIPAA_STANDARD` |\n\n!!! note\n    Ensure that the encryption key is kept secure and not exposed in code or logs.\n",
+  "examples": "\n# Usage Examples\n\n## Store an Object\n\n=== \"Python\"\n    ```python\n    from vivified.storage import StorageService, StorageObject\n\n    storage_service = StorageService()\n    obj = StorageObject(data=\"Sensitive Data\", classification=\"PHI\")\n    metadata = await storage_service.store_object(obj)\n    print(metadata)\n    ```\n\n=== \"curl\"\n    ```bash\n    curl -X POST \\\n      -H \"Authorization: Bearer <token>\" \\\n      -d '{\"data\": \"Sensitive Data\", \"classification\": \"PHI\"}' \\\n      https://api.vivified.com/storage/store\n    ```\n\n## Retrieve an Object\n\n=== \"Python\"\n    ```python\n    metadata = await storage_service.retrieve_object(\"object_key\")\n    print(metadata)\n    ```\n\n=== \"curl\"\n    ```bash\n    curl -X GET \\\n      -H \"Authorization: Bearer <token>\" \\\n      https://api.vivified.com/storage/retrieve?object_key=object_key\n    ```\n",
+  "security": "\n# Security Considerations\n\n- **Encryption**: All PHI/PII data is encrypted using AES 128 with HMAC for integrity.\n- **Audit Logging**: Every action is logged with details including user, timestamp, and action type.\n- **Access Control**: Ensure that the Policy Engine is configured to enforce trait-based access control.\n- **Data Integrity**: Use consistent hashing to verify data integrity during storage and retrieval.\n\n!!! warning\n    Never share your encryption keys or tokens. Regularly rotate keys and tokens to enhance security.\n",
+  "troubleshooting": "\n# Troubleshooting\n\n## Common Issues\n\n### Encryption Errors\n- **Symptom**: \"Encryption key not found.\"\n- **Solution**: Ensure the `encryption_key` is configured correctly in the service settings.\n\n### Access Denied\n- **Symptom**: \"403 Forbidden\"\n- **Solution**: Verify that the API token is valid and has the necessary permissions.\n\n### Data Retrieval Issues\n- **Symptom**: \"Object not found\"\n- **Solution**: Check if the object key is correct and the object exists in the storage.\n\n!!! tip\n    Enable debug logging to get more detailed error messages that can assist in troubleshooting.\n"
+}
 ```
-
-## Configuration table (storage)
-
-| Key | Purpose | Example | Required |
-|-----|---------|---------|----------|
-| STORAGE_BACKEND | Storage backend type | s3 | yes |
-| STORAGE_KMS_KEY | KMS key identifier | arn:aws:kms:... | yes |
-| RETENTION_YEARS | Data retention policy (years) | 7 | yes |
-| AUDIT_RETENTION_YEARS | Audit retention | 7 | recommended |
-
-!!! danger 'Irrecoverable loss'
-    If you delete or rotate KMS keys without backup or key escrow, data encrypted with the old key may be unrecoverable.
-
-??? note 'Access patterns'
-    For large attachments, the storage client supports streaming uploads and signed URLs to avoid loading big objects into memory.
-
-[^1]: Storage settings must be centrally managed via Admin Console and auditable.

@@ -49,6 +49,77 @@ _EVENT_BUFFER_LIMIT = 1000
 
 
 class AuditService:
+    SENSITIVE_KEYS = {
+        "ssn",
+        "social_security",
+        "social_security_number",
+        "dob",
+        "date_of_birth",
+        "phone",
+        "phone_number",
+        "email",
+        "email_address",
+        "address",
+        "street",
+        "city",
+        "state",
+        "zip",
+        "mrn",
+        "patient_id",
+        "member_id",
+        "subscriber_id",
+        "diagnosis",
+        "medical_record",
+        "phi",
+        "pii",
+    }
+
+    @staticmethod
+    def _mask_value(value: Any) -> Any:
+        try:
+            if not isinstance(value, (str, bytes)):
+                return "[REDACTED]"
+            s = value.decode() if isinstance(value, bytes) else str(value)
+            if len(s) > 64:
+                s = s[:64] + "…"
+            return "[REDACTED]"
+        except Exception:  # noqa: BLE001
+            return "[REDACTED]"
+
+    @classmethod
+    def _sanitize(cls, data: Any) -> Any:
+        """Recursively sanitize potentially sensitive structures."""
+        try:
+            # Mask obvious string patterns
+            if isinstance(data, str):
+                return (
+                    "[REDACTED]"
+                    if any(c in data for c in ("@", "+", "(", ")", "-"))
+                    else data
+                )
+            if isinstance(data, bytes):
+                return "[REDACTED]"
+            if isinstance(data, dict):
+                out: Dict[str, Any] = {}
+                for k, v in data.items():
+                    key_l = str(k).lower()
+                    if key_l in cls.SENSITIVE_KEYS or any(
+                        t in key_l
+                        for t in ("email", "ssn", "phone", "patient", "diagnosis")
+                    ):
+                        out[k] = cls._mask_value(v)
+                    else:
+                        out[k] = cls._sanitize(v)
+                return out
+            if isinstance(data, list):
+                return [cls._sanitize(x) for x in data[:50]]  # cap length
+            if isinstance(data, (int, float, bool)) or data is None:
+                return data
+            # Fallback to string repr redacted
+            return "[REDACTED]"
+        except Exception:  # noqa: BLE001
+            return "[REDACTED]"
+
     async def log_event(
         self,
         event_type: str,
@@ -73,6 +144,8 @@ class AuditService:
         except Exception:  # noqa: BLE001
             category_str = "unknown"
 
+        safe_details = self._sanitize(details or {})
+
         payload = {
             "type": event_type,
             "category": category_str,
@@ -85,7 +158,7 @@ class AuditService:
             "plugin_id": plugin_id,
             "user_id": user_id,
             "description": description,
-            "details": details or {},
+            "details": safe_details,
             "ts": datetime.now(tz=timezone.utc).isoformat(),
         }
         logger.info("audit_event=%s", json.dumps(payload, separators=(",", ":")))

@@ -133,6 +133,10 @@ class ProxyHandler:
         """
         domain = str(request.url.host)
 
+        # Block localhost-style hostnames even if allowlisted (fail-safe)
+        if domain.lower() in {"localhost"}:
+            return False
+
         # Block literal IPs (private, loopback, etc.) and unsafe domains
         try:
             # Block any literal IP host
@@ -188,19 +192,27 @@ class ProxyHandler:
         if rate_key not in self.rate_limits:
             rpm = 60
             burst = 100
-            # Load defaults from ConfigService if available
+            # Load plugin-specific or global defaults
             if self.config_service is not None:
                 try:
-                    rpm_val = await self.config_service.get(
+                    rpm_p = await self.config_service.get(
+                        f"gateway.rate.{plugin_id}.requests_per_minute"
+                    )
+                    burst_p = await self.config_service.get(
+                        f"gateway.rate.{plugin_id}.burst_limit"
+                    )
+                    rpm_g = await self.config_service.get(
                         "gateway.rate.requests_per_minute"
                     )
-                    burst_val = await self.config_service.get(
-                        "gateway.rate.burst_limit"
-                    )
-                    if isinstance(rpm_val, int):
-                        rpm = rpm_val
-                    if isinstance(burst_val, int):
-                        burst = burst_val
+                    burst_g = await self.config_service.get("gateway.rate.burst_limit")
+                    if isinstance(rpm_p, int):
+                        rpm = rpm_p
+                    elif isinstance(rpm_g, int):
+                        rpm = rpm_g
+                    if isinstance(burst_p, int):
+                        burst = burst_p
+                    elif isinstance(burst_g, int):
+                        burst = burst_g
                 except Exception:
                     pass
             self.rate_limits[rate_key] = RateLimit(

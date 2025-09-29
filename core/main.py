@@ -18,6 +18,7 @@ from .identity.auth import dev_issue_admin_token
 from .messaging.service import MessagingService
 from .canonical.service import CanonicalService
 from .canonical.schema_registry import SchemaRegistry
+from .canonical.schema_loader import load_builtin_schemas
 from .gateway.service import GatewayService
 from .audit.service import get_audit_service
 from .policy.engine import policy_engine
@@ -122,6 +123,14 @@ async def startup_event():
             notifications_service = NotificationsService(
                 audit_service, messaging_service, policy_engine
             )
+
+        # Load any built-in canonical JSON Schemas (idempotent)
+        try:
+            loaded = load_builtin_schemas(schema_registry)
+            if loaded:
+                logger.info("Loaded %d built-in canonical schemas", loaded)
+        except Exception:
+            logger.debug("builtin schema load failed", exc_info=True)
 
         await messaging_service.start()
         await canonical_service.start()
@@ -266,6 +275,42 @@ async def normalize_user(
         raise HTTPException(status_code=400, detail=str(e))
 
 
+@app.post("/canonical/normalize/message")
+async def normalize_message(
+    message_data: Dict[str, Any], source_plugin: str, target_plugin: str
+):
+    """Normalize message data to canonical format."""
+    try:
+        if canonical_service is None:
+            raise HTTPException(status_code=503, detail="Canonical service unavailable")
+        canonical_msg = await canonical_service.normalize_message(
+            message_data=message_data,
+            source_plugin=source_plugin,
+            target_plugin=target_plugin,
+        )
+        return canonical_msg.dict()
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.post("/canonical/normalize/event")
+async def normalize_event(
+    event_data: Dict[str, Any], source_plugin: str, target_plugin: str
+):
+    """Normalize event data to canonical format."""
+    try:
+        if canonical_service is None:
+            raise HTTPException(status_code=503, detail="Canonical service unavailable")
+        canonical_evt = await canonical_service.normalize_event(
+            event_data=event_data,
+            source_plugin=source_plugin,
+            target_plugin=target_plugin,
+        )
+        return canonical_evt.dict()
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
 @app.get("/canonical/stats")
 async def get_canonical_stats():
     """Get canonical service statistics."""
@@ -356,6 +401,29 @@ async def reload_allowlists(
 
 
 # Operator lane endpoint (RPC via core gateway)
+def _is_safe_plugin_host(host: str) -> bool:
+    """Allow only simple service-like hostnames to avoid SSRF.
+
+    Accepts alphanumerics, dash and underscore. Rejects dots, schemes, ports.
+    """
+    import re
+
+    if not isinstance(host, str) or not host:
+        return False
+    if "://" in host or "/" in host or ":" in host:
+        return False
+    return bool(re.fullmatch(r"[A-Za-z0-9_-]+", host))
+
+
+def _is_safe_endpoint_path(path: str) -> bool:
+    """Endpoint path must be an absolute path and not contain scheme or host."""
+    if not isinstance(path, str) or not path:
+        return False
+    if not path.startswith("/"):
+        return False
+    if "://" in path:
+        return False
+    return True
 class OperatorRequestModel(BaseModel):
     caller_plugin: str
     payload: Optional[Dict[str, Any]] = None
@@ -368,9 +436,7 @@ class OperatorRequestModel(BaseModel):
     window_seconds=60,
     key_fn=lambda *a, **k: f"rpc:{getattr(k.get('req', None), 'caller_plugin', 'unknown')}",
 )
-async def operator_invoke(
-    target_plugin: str, operation: str, req: OperatorRequestModel
-):
+async def operator_invoke(target_plugin: str, operation: str, req: Dict[str, Any]):
     """Route an operator (RPC) call from one plugin to another.
 
     This minimal implementation forwards to the target plugin's declared endpoint
@@ -384,12 +450,12 @@ async def operator_invoke(
             pol = PolicyRequest(
                 user_id=None,
                 resource_type="operator",
-                resource_id=f"{req.caller_plugin}->{target_plugin}:{operation}",
+                resource_id=f"{(req or {}).get('caller_plugin','unknown')}->{target_plugin}:{operation}",
                 action="operator_call",
                 traits=[],
                 context={"operation": operation},
                 policy_context=PolicyContext.PLUGIN_INTERACTION,
-                source_plugin=req.caller_plugin,
+                source_plugin=(req or {}).get("caller_plugin", "unknown"),
                 target_plugin=target_plugin,
             )
             decision = await policy_engine.evaluate_request(pol)
@@ -405,7 +471,8 @@ async def operator_invoke(
         try:
             from .config.service import get_config_service
 
-            key = f"operator.allow.{req.caller_plugin}->{target_plugin}"
+            caller = (req or {}).get("caller_plugin", "unknown")
+            key = f"operator.allow.{caller}->{target_plugin}"
             allowed = await get_config_service().get(key) or []
             if isinstance(allowed, list):
                 opset = {str(op) for op in allowed}
@@ -439,19 +506,26 @@ async def operator_invoke(
         # Construct internal URL (docker/k8s service DNS) — default to plugin_id:8080
         plugin_host = manifest.get("host") or target_plugin
         plugin_port = manifest.get("port") or 8080
+
+        # Enforce safe host and path
+        if not _is_safe_plugin_host(str(plugin_host)):
+            raise HTTPException(status_code=400, detail="Unsafe plugin host")
+        if not _is_safe_endpoint_path(str(endpoint_path)):
+            raise HTTPException(status_code=400, detail="Unsafe endpoint path")
         target_url = f"http://{plugin_host}:{plugin_port}{endpoint_path}"
 
         # Forward request
         import httpx
 
-        async with httpx.AsyncClient(timeout=req.timeout or 30) as client:
+        timeout = int((req or {}).get("timeout") or 30)
+        async with httpx.AsyncClient(timeout=timeout) as client:
             resp = await client.post(
                 target_url,
-                json=req.payload or {},
+                json=(req or {}).get("payload") or {},
                 headers={
-                    "X-Caller-Plugin": req.caller_plugin,
+                    "X-Caller-Plugin": caller,
                     "X-Trace-Id": os.getenv("TRACE_ID", "system"),
-                    "Authorization": f"Bearer {registry.plugins.get(req.caller_plugin, {}).get('token', '')}",
+                    "Authorization": f"Bearer {registry.plugins.get(caller, {}).get('token', '')}",
                 },
             )
         if resp.status_code >= 400:
@@ -468,10 +542,10 @@ async def operator_invoke(
                 category="operator",
                 action=operation,
                 result="success",
-                description=f"{req.caller_plugin} -> {target_plugin}:{operation}",
+                description=f"{caller} -> {target_plugin}:{operation}",
                 resource_type="operator",
                 resource_id=target_url,
-                plugin_id=req.caller_plugin,
+                plugin_id=caller,
                 details={"status": resp.status_code},
             )
         except Exception:
@@ -521,12 +595,12 @@ async def set_plugin_config(
 
 
 class DevLoginRequest(BaseModel):
-    enabled: bool | None = True
+    enabled: Optional[bool] = True
 
 
 @app.post("/auth/dev-login")
 @rate_limit(limit=10, window_seconds=60, key="dev_login")
-async def dev_login(_: DevLoginRequest):
+async def dev_login(_: Optional[Dict[str, Any]] = None):
     """Issue a short-lived admin token for development when DEV_MODE is enabled."""
     try:
         token = dev_issue_admin_token()
@@ -676,3 +750,65 @@ async def activate_schema(
     except Exception:
         logger.debug("schema activate audit failed", exc_info=True)
     return {"ok": True, "name": payload.name, "version": list(ver)}
+
+
+class SchemaValidationRequest(BaseModel):
+    payload: Dict[str, Any]
+    major: Optional[int] = None
+    version: Optional[str] = None  # x.y.z
+
+
+@app.post("/schemas/{name}/validate")
+async def validate_payload_against_schema(
+    name: str, req: SchemaValidationRequest, _: Dict = Depends(require_auth(["admin"]))
+):
+    """Validate a JSON payload against a registered canonical JSON Schema.
+
+    Selects the schema by explicit version (x.y.z) if provided, otherwise uses the
+    active schema for the given major version.
+    """
+    try:
+        # Resolve version
+        ver_tuple = None
+        if req.version:
+            try:
+                parts = [int(p) for p in req.version.split(".")]
+                if len(parts) != 3:
+                    raise ValueError("version must be x.y.z")
+                ver_tuple = (parts[0], parts[1], parts[2])
+            except Exception:
+                raise HTTPException(status_code=400, detail="Invalid version string")
+        else:
+            if req.major is None:
+                raise HTTPException(status_code=400, detail="major or version required")
+            active = schema_registry.get_active(name, int(req.major))
+            if not active:
+                raise HTTPException(status_code=404, detail="Active schema not found for major")
+            ver_tuple = active.version
+
+        # Locate schema data
+        schema_obj = schema_registry._schemas.get(name, {}).get(ver_tuple)  # type: ignore[attr-defined]
+        if not schema_obj:
+            raise HTTPException(status_code=404, detail="Schema version not found")
+        schema = schema_obj.schema_data or {}
+
+        # Validate payload
+        from jsonschema import validate as js_validate
+        from jsonschema.exceptions import ValidationError
+
+        try:
+            js_validate(instance=req.payload, schema=schema)
+        except ValidationError as ve:  # noqa: F841
+            return {
+                "ok": False,
+                "error": str(ve.message),
+                "path": list(ve.path),
+                "schema_path": list(ve.schema_path),
+                "version": list(ver_tuple),
+            }
+        return {"ok": True, "version": list(ver_tuple)}
+    except HTTPException:
+        raise
+    except Exception as e:  # noqa: BLE001
+        logger.exception("Schema validation failed: %s", e)
+        raise HTTPException(status_code=500, detail="Validation error")

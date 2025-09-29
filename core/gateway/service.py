@@ -72,6 +72,10 @@ class GatewayService:
                     f"Plugin {plugin_id} not authorized to manage allowlists"
                 )
 
+            # Fail-safe: block unsafe domains regardless of request
+            if not self._is_safe_domain(domain):
+                raise ValueError("unsafe domain not allowed")
+
             allowlist_entry = DomainAllowlist(
                 plugin_id=plugin_id,
                 domain=domain,
@@ -279,6 +283,10 @@ class GatewayService:
         # Normalize and materialize DomainAllowlist entries
         for domain, rules in data.items():
             if not isinstance(rules, dict):
+                continue
+            # Skip unsafe domains from config for fail-safe posture
+            if not self._is_safe_domain(str(domain)):
+                logger.warning("Skipping unsafe domain in allowlist: %s", domain)
                 continue
             raw_methods = rules.get("allowed_methods") or []
             raw_paths = rules.get("allowed_paths") or []

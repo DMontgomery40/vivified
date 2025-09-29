@@ -26,6 +26,8 @@ export default function CanonicalTools({ client }: Props) {
 }`);
   const [activeMajor, setActiveMajor] = useState('1');
   const [schemaNote, setSchemaNote] = useState<string | null>(null);
+  const [samplePayload, setSamplePayload] = useState<string>('{}');
+  const [validation, setValidation] = useState<any | null>(null);
 
   const refresh = async () => {
     try { setStats(await client.getCanonicalStats()); } catch (e: any) { setError(e?.message || 'Failed to load stats'); }
@@ -113,8 +115,30 @@ export default function CanonicalTools({ client }: Props) {
               }}>Get Active</Button>
             </Stack>
           </Grid>
+          <Grid item xs={12}>
+            <TextField label="Sample Payload (JSON)" value={samplePayload} onChange={e=>setSamplePayload(e.target.value)} fullWidth multiline minRows={3} />
+          </Grid>
+          <Grid item xs={12}>
+            <Stack direction="row" spacing={1}>
+              <Button variant="outlined" onClick={async () => {
+                try {
+                  setError(null); setValidation(null);
+                  const payload = JSON.parse(samplePayload || '{}');
+                  const res = await client.validateSchema(schemaName, payload, { major: parseInt(activeMajor||'1',10)||1 });
+                  setValidation(res);
+                  setSchemaNote(res.ok ? 'Payload is valid' : `Invalid: ${res.error}`);
+                } catch (e: any) { setError(e?.message || 'Validate failed'); }
+              }}>Validate Payload</Button>
+            </Stack>
+          </Grid>
         </Grid>
         {schemaNote && <Alert sx={{ mt: 2 }} severity="success" onClose={()=>setSchemaNote(null)}>{schemaNote}</Alert>}
+        {validation && (
+          <Box sx={{ mt: 2 }}>
+            <Typography variant="subtitle2">Validation Result</Typography>
+            <pre style={{ whiteSpace: 'pre-wrap' }}>{JSON.stringify(validation, null, 2)}</pre>
+          </Box>
+        )}
       </Box>
      {error && <Alert sx={{ mt: 2 }} severity="error">{error}</Alert>}
       {result && (

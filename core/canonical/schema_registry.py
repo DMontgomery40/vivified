@@ -57,7 +57,12 @@ class SchemaRegistry:
                     reason="schema_upsert",
                 )
 
-            asyncio.get_event_loop().run_until_complete(_write())
+            try:
+                loop = asyncio.get_running_loop()
+                loop.create_task(_write())
+            except RuntimeError:
+                # No running loop; safe to run synchronously
+                asyncio.get_event_loop().run_until_complete(_write())
 
         versions = self._schemas.setdefault(name, {})
         sch = CanonicalSchema(name=name, version=version, schema_data=schema_data or {})
@@ -85,8 +90,11 @@ class SchemaRegistry:
                     updated_by="schema_registry",
                     reason="schema_activate",
                 )
-
-            asyncio.get_event_loop().run_until_complete(_write())
+            try:
+                loop = asyncio.get_running_loop()
+                loop.create_task(_write())
+            except RuntimeError:
+                asyncio.get_event_loop().run_until_complete(_write())
         return True
 
     def get_active(self, name: str, major: int) -> Optional[CanonicalSchema]:
