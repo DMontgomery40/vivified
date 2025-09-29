@@ -1,10 +1,11 @@
+from __future__ import annotations
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 import logging
 from datetime import datetime
 import os
-from typing import Dict, Any
+from typing import Dict, Any, Optional, List
 from starlette.responses import FileResponse
 
 from .plugin_manager.registry import PluginRegistry
@@ -79,12 +80,12 @@ class ManifestModel(BaseModel):
     id: str
     name: str
     version: str
-    description: str | None = None
-    contracts: list[str]
-    traits: list[str]
-    dependencies: list[str] | None = []
-    allowed_domains: list[str] | None = []
-    endpoints: Dict[str, str] | None = None
+    description: Optional[str] = None
+    contracts: List[str]
+    traits: List[str]
+    dependencies: List[str] = Field(default_factory=list)
+    allowed_domains: List[str] = Field(default_factory=list)
+    endpoints: Optional[Dict[str, str]] = None
     security: Dict[str, Any]
     compliance: Dict[str, Any]
 
@@ -215,8 +216,8 @@ async def publish_event(
     event_type: str,
     payload: Dict[str, Any],
     source_plugin: str,
-    data_traits: list[str] | None = None,
-    metadata: dict[str, str] | None = None,
+    data_traits: Optional[List[str]] = None,
+    metadata: Optional[Dict[str, str]] = None,
 ):
     """Publish an event to the event bus."""
     try:
@@ -288,8 +289,8 @@ async def proxy_request(
     plugin_id: str,
     method: str,
     url: str,
-    headers: dict[str, str] | None = None,
-    body: bytes | None = None,
+    headers: Optional[Dict[str, str]] = None,
+    body: Optional[bytes] = None,
     timeout: int = 30,
 ):
     """Proxy a request to an external API."""
@@ -323,7 +324,7 @@ async def get_gateway_stats():
 
 @app.get("/gateway/allowlist/effective")
 async def get_allowlist_effective(
-    plugin_id: str | None = None,
+    plugin_id: Optional[str] = None,
     _: Dict = Depends(require_auth(["admin", "plugin_manager", "config_manager"])),
 ):
     """Admin: Inspect effective allowlist entries."""
@@ -339,7 +340,7 @@ async def get_allowlist_effective(
 
 @app.post("/gateway/allowlist/reload")
 async def reload_allowlists(
-    plugin_id: str | None = None,
+    plugin_id: Optional[str] = None,
     _: Dict = Depends(require_auth(["admin", "plugin_manager", "config_manager"])),
 ):
     """Admin: Preload/refresh gateway allowlists from config service."""
@@ -357,8 +358,8 @@ async def reload_allowlists(
 # Operator lane endpoint (RPC via core gateway)
 class OperatorRequestModel(BaseModel):
     caller_plugin: str
-    payload: Dict[str, Any] | None = None
-    timeout: int | None = 30
+    payload: Optional[Dict[str, Any]] = None
+    timeout: Optional[int] = 30
 
 
 @app.post("/gateway/{target_plugin}/{operation}")
@@ -399,6 +400,24 @@ async def operator_invoke(
         except Exception:
             # On errors evaluating policy, continue but log; defaults to allow in minimal engine
             logger.debug("operator policy evaluation failed", exc_info=True)
+
+        # Enforce operator allowlist from config
+        try:
+            from .config.service import get_config_service
+
+            key = f"operator.allow.{req.caller_plugin}->{target_plugin}"
+            allowed = await get_config_service().get(key) or []
+            if isinstance(allowed, list):
+                opset = {str(op) for op in allowed}
+                if operation not in opset:
+                    raise HTTPException(
+                        status_code=403,
+                        detail="Operator call not allowed for this operation",
+                    )
+        except HTTPException:
+            raise
+        except Exception:
+            logger.debug("operator allowlist lookup failed", exc_info=True)
 
         # Resolve target plugin info
         target = registry.plugins.get(target_plugin)
@@ -466,7 +485,7 @@ async def operator_invoke(
 
 
 class HeartbeatModel(BaseModel):
-    health: str | None = "healthy"
+    health: Optional[str] = "healthy"
 
 
 @app.post("/plugins/{plugin_id}/heartbeat")
@@ -478,8 +497,8 @@ async def plugin_heartbeat(plugin_id: str, status: HeartbeatModel):
 
 
 class PluginConfigModel(BaseModel):
-    enabled: bool | None = True
-    settings: Dict[str, Any] | None = {}
+    enabled: Optional[bool] = True
+    settings: Optional[Dict[str, Any]] = {}
 
 
 @app.get("/plugins/{plugin_id}/config")
@@ -576,9 +595,9 @@ def _admin_ui_placeholder():
 class SchemaUpsertModel(BaseModel):
     name: str
     major: int
-    minor: int | None = 0
-    patch: int | None = 0
-    schema_data: Dict[str, Any] | None = None
+    minor: Optional[int] = 0
+    patch: Optional[int] = 0
+    schema_data: Optional[Dict[str, Any]] = None
 
 
 @app.get("/schemas/{name}")
@@ -603,6 +622,15 @@ async def get_active_schema(
 async def upsert_schema(
     payload: SchemaUpsertModel, _: Dict = Depends(require_auth(["admin"]))
 ):
+    if payload.schema_data is not None:
+        if not isinstance(payload.schema_data, dict):
+            raise HTTPException(status_code=400, detail="schema_data must be an object")
+        has_type = isinstance(payload.schema_data.get("type"), str)
+        has_dollar = "$schema" in payload.schema_data
+        if not (has_type or has_dollar):
+            raise HTTPException(
+                status_code=400, detail="schema_data must include 'type' or '$schema'"
+            )
     ver = (payload.major, payload.minor or 0, payload.patch or 0)
     schema_registry.upsert(payload.name, ver, payload.schema_data or {})
     try:
@@ -623,8 +651,8 @@ async def upsert_schema(
 class SchemaActivateModel(BaseModel):
     name: str
     major: int
-    minor: int | None = 0
-    patch: int | None = 0
+    minor: Optional[int] = 0
+    patch: Optional[int] = 0
 
 
 @app.post("/schemas/activate")

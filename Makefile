@@ -38,10 +38,10 @@ ci-bootstrap:
 
 # Run the same checks as CI locally (fails on errors)
 ci-local:
-	black --check core/
-	flake8 core/
-	mypy --config-file mypy.ini core/
-	PYTHONPATH=$$(pwd):$$(pwd)/sdk/python/src pytest -q
+	python3 -m black --check core/
+	python3 -m flake8 core/
+	python3 -m mypy --config-file mypy.ini core/
+	PYTHONPATH=$$(pwd):$$(pwd)/sdk/python/src python3 -m pytest -q
 	$(MAKE) sdk-ci-local
 
 # Build Admin Console and UI locally similar to CI

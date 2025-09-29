@@ -10,6 +10,8 @@ import time
 
 from .models import ProxyRequest, ProxyResponse, RateLimit
 from ..audit.service import AuditService, AuditLevel
+from ..config.service import ConfigService
+import ipaddress
 
 logger = logging.getLogger(__name__)
 
@@ -17,8 +19,13 @@ logger = logging.getLogger(__name__)
 class ProxyHandler:
     """Handles external API proxy requests with security and rate limiting."""
 
-    def __init__(self, audit_service: AuditService):
+    def __init__(
+        self,
+        audit_service: AuditService,
+        config_service: Optional[ConfigService] = None,
+    ):
         self.audit_service = audit_service
+        self.config_service = config_service
         self.rate_limits: Dict[str, RateLimit] = {}
         self.active_requests: Dict[str, ProxyRequest] = {}
         self._http_client: Optional[httpx.AsyncClient] = None
@@ -126,6 +133,15 @@ class ProxyHandler:
         """
         domain = str(request.url.host)
 
+        # Block literal IPs (private, loopback, etc.) and unsafe domains
+        try:
+            # Block any literal IP host
+            ipaddress.ip_address(domain)
+            return False
+        except ValueError:
+            # Not an IP literal; proceed
+            pass
+
         # Check if domain is in allowlist
         if domain not in domain_allowlist:
             return False
@@ -170,11 +186,28 @@ class ProxyHandler:
 
         # Get or create rate limit entry
         if rate_key not in self.rate_limits:
+            rpm = 60
+            burst = 100
+            # Load defaults from ConfigService if available
+            if self.config_service is not None:
+                try:
+                    rpm_val = await self.config_service.get(
+                        "gateway.rate.requests_per_minute"
+                    )
+                    burst_val = await self.config_service.get(
+                        "gateway.rate.burst_limit"
+                    )
+                    if isinstance(rpm_val, int):
+                        rpm = rpm_val
+                    if isinstance(burst_val, int):
+                        burst = burst_val
+                except Exception:
+                    pass
             self.rate_limits[rate_key] = RateLimit(
                 plugin_id=plugin_id,
                 domain=domain,
-                requests_per_minute=60,  # Default limit
-                burst_limit=100,
+                requests_per_minute=rpm,
+                burst_limit=burst,
             )
 
         rate_limit = self.rate_limits[rate_key]

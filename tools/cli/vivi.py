@@ -91,10 +91,44 @@ def main(argv=None):
     e.add_argument("--data_traits", nargs="*")
     e.set_defaults(func=cmd_publish)
 
+    v = sub.add_parser("validate-manifest")
+    v.add_argument("manifest")
+    def _validate(args):
+        try:
+            mf = json.loads(pathlib.Path(args.manifest).read_text())
+        except Exception as ex:
+            print(f"invalid json: {ex}")
+            return 1
+        required = ["id","name","version","contracts","traits","security","compliance"]
+        missing = [k for k in required if k not in mf]
+        if missing:
+            print(f"missing fields: {', '.join(missing)}")
+            return 2
+        if not isinstance(mf.get("contracts"), list) or not isinstance(mf.get("traits"), list):
+            print("contracts and traits must be lists")
+            return 3
+        print("manifest looks valid")
+        return 0
+    v.set_defaults(func=_validate)
+
+    t = sub.add_parser("transform-dryrun")
+    t.add_argument("source_plugin")
+    t.add_argument("target_plugin")
+    t.add_argument("--user", help="user data json", default='{}')
+    def _dryrun(args):
+        url = f"{_base()}/canonical/normalize/user"
+        data = json.loads(args.user)
+        r = requests.post(url, headers=_headers(), data=json.dumps({
+            "user_data": data, "source_plugin": args.source_plugin, "target_plugin": args.target_plugin
+        }))
+        r.raise_for_status()
+        print(json.dumps(r.json(), indent=2))
+        return 0
+    t.set_defaults(func=_dryrun)
+
     args = p.parse_args(argv)
     return args.func(args)
 
 
 if __name__ == "__main__":
     sys.exit(main())
-

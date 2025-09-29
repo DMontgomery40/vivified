@@ -2,6 +2,8 @@
 
 ## Local CI Parity — Commit Gate (Read This First)
 
+Status: DONE
+
 Stop the flood of CI errors by running exactly what CI runs before every push. Use Python 3.11 and these pinned tool versions.
 
 Required preflight (run from repo root):
@@ -115,6 +117,8 @@ Common pitfalls that cause “THIS MANY ERRORS”:
 CI mirrors these exact tools and expectations. If any of the above fails locally, fix it before pushing.
 
 ## Admin Console First — Accessibility/Dyslexia Mandate
+
+Status: DONE
 
 Absolutely everything must be operable from the Admin Console. No exceptions.
 

@@ -2,6 +2,8 @@
 Messaging service for inter-plugin communication with HIPAA compliance.
 """
 
+from __future__ import annotations
+
 import logging
 from typing import Dict, List, Optional, Any, Callable
 from datetime import datetime
@@ -49,8 +51,8 @@ class MessagingService:
         event_type: str,
         payload: Dict[str, Any],
         source_plugin: str,
-        data_traits: List[str] | None = None,
-        metadata: Dict[str, str] | None = None,
+        data_traits: Optional[List[str]] = None,
+        metadata: Optional[Dict[str, str]] = None,
     ) -> str:
         """Publish an event to the event bus."""
         event = Event(

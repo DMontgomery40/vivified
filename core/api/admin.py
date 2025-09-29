@@ -212,6 +212,127 @@ async def scaffold_plugin(
     )
 
 
+# Operator policy allowlist (fine-grained operator rules)
+@admin_router.get("/operator/allowlist")
+async def operator_allowlist_get(
+    caller: str,
+    target: str,
+    _: Dict = Depends(require_auth(["admin", "plugin_manager"])),
+):
+    if _CONFIG_SVC is None:
+        raise HTTPException(status_code=500, detail="Config service not available")
+    key = f"operator.allow.{caller}->{target}"
+    try:
+        allowed = await _CONFIG_SVC.get(key) or []
+        if not isinstance(allowed, list):
+            allowed = []
+        return {"caller": caller, "target": target, "operations": allowed}
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@admin_router.put("/operator/allowlist")
+@audit_log("operator_allowlist_update")
+async def operator_allowlist_set(
+    payload: Dict[str, Any],
+    _: Dict = Depends(require_auth(["admin", "plugin_manager"])),
+):
+    if _CONFIG_SVC is None:
+        raise HTTPException(status_code=500, detail="Config service not available")
+    caller = str(payload.get("caller") or "").strip()
+    target = str(payload.get("target") or "").strip()
+    operations = payload.get("operations")
+    if not caller or not target or not isinstance(operations, list):
+        raise HTTPException(
+            status_code=400, detail="caller, target, operations required"
+        )
+    key = f"operator.allow.{caller}->{target}"
+    await _CONFIG_SVC.set(
+        key,
+        [str(op) for op in operations],
+        is_sensitive=False,
+        updated_by="admin",
+        reason="operator_allowlist_update",
+    )
+    return {"ok": True, "caller": caller, "target": target}
+
+
+# Canonical transformation mappings registry
+@admin_router.get("/canonical/transforms")
+async def canonical_transforms_get(
+    source: str, target: str, _: Dict = Depends(require_auth(["admin"]))
+):
+    if _CONFIG_SVC is None:
+        raise HTTPException(status_code=500, detail="Config service not available")
+    key = f"canonical.transforms.{source}->{target}"
+    try:
+        data = await _CONFIG_SVC.get(key) or {}
+        if not isinstance(data, dict):
+            data = {}
+        return {"source": source, "target": target, "mappings": data}
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@admin_router.put("/canonical/transforms")
+@audit_log("canonical_transform_update")
+async def canonical_transforms_set(
+    payload: Dict[str, Any], _: Dict = Depends(require_auth(["admin"]))
+):
+    if _CONFIG_SVC is None:
+        raise HTTPException(status_code=500, detail="Config service not available")
+    source = str(payload.get("source") or "").strip()
+    target = str(payload.get("target") or "").strip()
+    mappings = payload.get("mappings")
+    if not source or not target or not isinstance(mappings, dict):
+        raise HTTPException(status_code=400, detail="source, target, mappings required")
+    key = f"canonical.transforms.{source}->{target}"
+    await _CONFIG_SVC.set(
+        key,
+        mappings,
+        is_sensitive=False,
+        updated_by="admin",
+        reason="canonical_transform_update",
+    )
+    return {"ok": True, "source": source, "target": target}
+
+
+# Gateway rate policy
+@admin_router.get("/gateway/rate-policy")
+async def gateway_rate_policy_get(_: Dict = Depends(require_auth(["admin"]))):
+    if _CONFIG_SVC is None:
+        raise HTTPException(status_code=500, detail="Config service not available")
+    rpm = await _CONFIG_SVC.get("gateway.rate.requests_per_minute")
+    burst = await _CONFIG_SVC.get("gateway.rate.burst_limit")
+    return {"requests_per_minute": int(rpm or 60), "burst_limit": int(burst or 100)}
+
+
+@admin_router.put("/gateway/rate-policy")
+@audit_log("gateway_rate_policy_update")
+async def gateway_rate_policy_set(
+    payload: Dict[str, Any], _: Dict = Depends(require_auth(["admin"]))
+):
+    if _CONFIG_SVC is None:
+        raise HTTPException(status_code=500, detail="Config service not available")
+    rpm = int(payload.get("requests_per_minute") or 60)
+    burst = int(payload.get("burst_limit") or 100)
+    await _CONFIG_SVC.set(
+        "gateway.rate.requests_per_minute",
+        rpm,
+        is_sensitive=False,
+        updated_by="admin",
+        reason="rate_policy_update",
+    )
+    await _CONFIG_SVC.set(
+        "gateway.rate.burst_limit",
+        burst,
+        is_sensitive=False,
+        updated_by="admin",
+        reason="rate_policy_update",
+    )
+    return {"ok": True}
+
+
 @admin_router.get("/users")
 async def list_users(
     _: Dict = Depends(require_auth(["admin"])), session=Depends(get_session)
@@ -497,7 +618,7 @@ async def encryption_status(
 @admin_router.post("/security/encryption/rotate")
 @audit_log("security_encryption_rotated")
 async def encryption_rotate(
-    payload: Dict[str, Any] | None = None, _: Dict = Depends(require_auth(["admin"]))
+    payload: Optional[Dict[str, Any]] = None, _: Dict = Depends(require_auth(["admin"]))
 ):
     new_master_key = None
     if isinstance(payload, dict):
@@ -1055,7 +1176,7 @@ async def inbound_purge(
 @admin_router.post("/inbound/simulate")
 @audit_log("inbound_simulated")
 async def inbound_simulate(
-    payload: Dict[str, Any] | None = None, _: Dict = Depends(require_auth(["admin"]))
+    payload: Optional[Dict[str, Any]] = None, _: Dict = Depends(require_auth(["admin"]))
 ):
     p = payload or {}
     job_id = os.urandom(6).hex()
@@ -1423,7 +1544,7 @@ async def list_event_types(_: Dict = Depends(require_auth(["admin", "viewer"])))
 # Config helpers
 @admin_router.post("/config/import-env")
 async def import_env_vars(
-    payload: Dict[str, Any] | None = None,
+    payload: Optional[Dict[str, Any]] = None,
     user: Dict = Depends(get_current_user),
     _: Dict = Depends(require_auth(["admin", "config_manager"])),
 ):
@@ -1573,7 +1694,7 @@ async def tunnel_status(_: Dict = Depends(require_auth(["admin", "viewer"]))):
 @admin_router.post("/tunnel/config")
 @audit_log("tunnel_config_set")
 async def set_tunnel_config(
-    payload: Dict[str, Any] | None = None, _: Dict = Depends(require_auth(["admin"]))
+    payload: Optional[Dict[str, Any]] = None, _: Dict = Depends(require_auth(["admin"]))
 ):
     cfg = payload or {}
     _TUNNEL_CFG_CACHE.update(cfg)
@@ -1615,7 +1736,7 @@ async def cloudflared_logs(
 
 @admin_router.post("/tunnel/wg/import")
 async def wg_import_json(
-    payload: Dict[str, Any] | None = None, _: Dict = Depends(require_auth(["admin"]))
+    payload: Optional[Dict[str, Any]] = None, _: Dict = Depends(require_auth(["admin"]))
 ):
     target = "/tmp/vivified-wg.conf"
     content = None

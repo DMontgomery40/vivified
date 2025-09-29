@@ -11,6 +11,11 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Dict, Tuple, Optional, Any, List
 
+try:
+    from ..config.service import get_config_service  # type: ignore
+except Exception:  # pragma: no cover
+    get_config_service = None  # type: ignore
+
 
 Version = Tuple[int, int, int]
 
@@ -32,6 +37,28 @@ class SchemaRegistry:
     def upsert(
         self, name: str, version: Version, schema_data: Dict[str, Any]
     ) -> CanonicalSchema:
+        # Persist to ConfigService if available
+        if get_config_service is not None:
+            svc = get_config_service()
+            key_versions = f"canonical.schemas.{name}.versions"
+            import asyncio
+
+            async def _write():
+                existing = await svc.get(key_versions) or {}
+                if not isinstance(existing, dict):
+                    existing = {}
+                ver_str = f"{version[0]}.{version[1]}.{version[2]}"
+                existing[ver_str] = schema_data or {}
+                await svc.set(
+                    key_versions,
+                    existing,
+                    is_sensitive=False,
+                    updated_by="schema_registry",
+                    reason="schema_upsert",
+                )
+
+            asyncio.get_event_loop().run_until_complete(_write())
+
         versions = self._schemas.setdefault(name, {})
         sch = CanonicalSchema(name=name, version=version, schema_data=schema_data or {})
         versions[version] = sch
@@ -43,6 +70,23 @@ class SchemaRegistry:
         major = version[0]
         majors = self._active.setdefault(name, {})
         majors[major] = version
+        # Persist active pointer
+        if get_config_service is not None:
+            svc = get_config_service()
+            key_active = f"canonical.schemas.{name}.active.{major}"
+            import asyncio
+
+            async def _write():
+                ver_str = f"{version[0]}.{version[1]}.{version[2]}"
+                await svc.set(
+                    key_active,
+                    ver_str,
+                    is_sensitive=False,
+                    updated_by="schema_registry",
+                    reason="schema_activate",
+                )
+
+            asyncio.get_event_loop().run_until_complete(_write())
         return True
 
     def get_active(self, name: str, major: int) -> Optional[CanonicalSchema]:

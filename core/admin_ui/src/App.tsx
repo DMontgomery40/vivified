@@ -66,6 +66,7 @@ import MessagingConsole from './components/MessagingConsole';
 import NotificationsPanel from './components/Notifications';
 import CanonicalTools from './components/CanonicalTools';
 import PolicyInspector from './components/PolicyInspector';
+import OperatorPolicy from './components/OperatorPolicy';
 import PluginRegister from './components/PluginRegister';
 import StorageBrowser from './components/StorageBrowser';
 import ProviderSetupWizard from './components/ProviderSetupWizard';
@@ -343,6 +344,7 @@ function AppContent() {
     { label: 'Messaging', icon: <AssessmentIcon />, trait: 'ui.messaging' },
     { label: 'Canonical', icon: <AssessmentIcon />, trait: 'ui.canonical' },
     { label: 'Policy', icon: <AssessmentIcon />, trait: 'ui.policy' },
+    { label: 'Operator Policy', icon: <AssessmentIcon />, trait: 'ui.policy' },
     { label: 'MFA & Passkeys', icon: <VpnKeyIcon />, trait: 'role.admin' },
     { label: 'Register', icon: <ExtensionIcon />, trait: 'ui.register' },
     { label: 'Storage', icon: <DescriptionIcon />, trait: 'ui.storage' },
@@ -929,10 +931,11 @@ function AppContent() {
               {toolsTab === 11 && <MessagingConsole client={client!} />}
               {toolsTab === 12 && <CanonicalTools client={client!} />}
               {toolsTab === 13 && <PolicyInspector client={client!} />}
-              {toolsTab === 14 && <MFA client={client!} readOnly={!isAdmin} />}
-              {toolsTab === 15 && <PluginRegister client={client!} />}
-              {toolsTab === 16 && <StorageBrowser client={client!} />}
-              {toolsTab === 17 && <NotificationsPanel client={client!} readOnly={!isAdmin} />}
+              {toolsTab === 14 && <OperatorPolicy client={client!} />}
+              {toolsTab === 15 && <MFA client={client!} readOnly={!isAdmin} />}
+              {toolsTab === 16 && <PluginRegister client={client!} />}
+              {toolsTab === 17 && <StorageBrowser client={client!} />}
+              {toolsTab === 18 && <NotificationsPanel client={client!} readOnly={!isAdmin} />}
             </Box>
           </Paper>
         </TabPanel>

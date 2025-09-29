@@ -2,6 +2,8 @@
 Event bus implementation for canonical communication.
 """
 
+from __future__ import annotations
+
 import asyncio
 import logging
 from typing import Dict, List, Optional, Callable, Protocol, Any
@@ -53,7 +55,7 @@ class NatsBroker:
 
     def __init__(self, servers: str) -> None:
         self._servers = servers
-        self._nc: Any | None = None
+        self._nc: Optional[Any] = None
         self._subs: List[Any] = []
 
     async def start(self) -> None:
@@ -95,9 +97,9 @@ class RedisBroker:
 
     def __init__(self, url: str) -> None:
         self._url = url
-        self._redis: Any | None = None
-        self._pub: Any | None = None
-        self._ps: Any | None = None
+        self._redis: Optional[Any] = None
+        self._pub: Optional[Any] = None
+        self._ps: Optional[Any] = None
         self._tasks: List[asyncio.Task] = []
 
     async def start(self) -> None:
