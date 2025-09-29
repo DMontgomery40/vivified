@@ -1,35 +1,206 @@
-# Vivified Plugin System Documentation
+# Plugin System Architecture
+
+The Vivified platform is built on a sophisticated plugin architecture that enables secure, modular extensibility while maintaining HIPAA compliance and enterprise-grade security.
+
+<div class='grid cards' markdown>
+
+-   :material-puzzle:{ .lg .middle } **Modular Design**
+    
+    ---
+    Isolated microservices with well-defined contracts
+
+-   :material-security:{ .lg .middle } **Security First**
+    
+    ---
+    Sandboxed execution with comprehensive validation
+
+-   :material-lan-connect:{ .lg .middle } **Three-Lane Communication**
+    
+    ---
+    Canonical events, operator APIs, and controlled proxy access
+
+</div>
 
 ## What Are Plugins?
 
-Vivified plugins are modular, isolated services that add features or integrations to the Vivified platform. Each plugin runs as its own microservice (e.g. a Docker container) and communicates with the core platform via defined interfaces (HTTP/REST or gRPC) GitHub. This isolation means a plugin can be developed in any language or tech stack as long as it follows the communication contract, and if a plugin crashes or misbehaves it won’t take down the core service GitHub.
+Vivified plugins are **containerized microservices** that extend platform functionality without modifying core code. Each plugin operates in complete isolation, communicating through well-defined interfaces.
 
-In simpler terms, plugins are building blocks: you can plug in new capabilities (like user management, messaging, storage, etc.) without modifying the core. Non-technical users can enable/disable plugins from the admin interface, while developers can create new plugins to extend functionality. Vivified’s design is plugin-first – most features are implemented as plugins, and even core services are kept minimal to let plugins do the specialized work.
+### Key Benefits
 
-Key benefits of the plugin approach:
+<div class='grid cards' markdown>
 
-- Extensibility: New features can be added by adding a plugin rather than changing core code.
-- Isolation & Security: Each plugin runs in a sandbox. A faulty or malicious plugin is contained (it can be shut down or limited without affecting others) GitHub. The core mediates all plugin interactions to enforce security and compliance rules.
-- Polyglot Development: Developers aren’t forced into one language – as long as a plugin can communicate over standard protocols and meet the interface, it can be written in Python, Node.js, Go, etc. Vivified provides base templates and images to simplify this process GitHub.
-- Modularity: Even core capabilities (like identity management, notifications, etc.) are implemented as plugins. This makes the platform flexible – deployments can include only the plugins needed for a particular use case.
+-   :material-plus-circle:{ .lg .middle } **Extensibility**
+    
+    ---
+    Add features without changing core code
 
-## Plugin Architecture and Communication
+-   :material-shield-lock:{ .lg .middle } **Isolation & Security**
+    
+    ---
+    Sandboxed execution prevents cascading failures
 
-Plugins don’t talk to each other directly; all communication goes through the Vivified core which acts as a controller and gateway. This ensures consistent enforcement of security policies (authentication, authorization, auditing) no matter which plugins are interacting.
+-   :material-code-tags:{ .lg .middle } **Polyglot Development**
+    
+    ---
+    Build in Python, Node.js, Go, or any language
 
-Vivified’s architecture supports multiple channels for plugin communication (often called a “three-lane” model):
+-   :material-view-module:{ .lg .middle } **Modularity**
+    
+    ---
+    Deploy only the plugins you need
 
-- Canonical Event Lane: For broad, decoupled data flow. Plugins publish events (in a universal, canonical format) to a central event bus (e.g. NATS), and other plugins can subscribe to those events GitHub. For example, a HR plugin might emit a UserCreated event which the Accounting plugin listens for to set up payroll – both using a common User data model defined by the core. This ensures a normalized, publish/subscribe flow where plugins don’t need to know about each other explicitly. (In the current Phase 1, the event bus is set up and ready GitHub, but most plugin actions are still simple and not fully event-driven yet.)
-- Operator API Lane: For direct requests between plugins via well-defined APIs. Here, one plugin can call a specific API of another plugin through the core acting as an API gateway GitHub. For instance, if a plugin needs user details managed by an Identity plugin, it might call GET `/identity/users/{id}`. The core receives this call, checks permissions, and forwards it to the appropriate plugin’s endpoint. This provides request/response style communication under strict governance – the core’s policy engine ensures the caller is authorized (by checking the plugin’s traits and the user’s roles) before allowing the operation.
-- Proxy Lane: A fallback for less standard interactions, especially when reaching external services. If a plugin must call an outside API or perform an action outside the predefined contracts, it goes through the core’s proxy service GitHub. The core heavily sandboxes these calls – e.g. only allowing access to certain whitelisted domains (specified in the plugin’s manifest) GitHub GitHub, filtering responses, and logging everything. This lane is tightly restricted (and can be disabled entirely) to prevent abuse. Only plugins explicitly marked with certain traits and approved by admins can use the proxy lane.
+</div>
 
-Note: All three lanes are governed by the core platform. Whether a plugin is emitting an event, calling another plugin’s API, or accessing an external service, the core is in the loop to authenticate, authorize, and audit the interaction. No plugin can bypass these controls. This multi-lane design gives flexibility (plugins can communicate in different ways) while maintaining central security oversight. In Phase 1, the event bus (NATS) is running and a basic gateway exists, but the richer multi-lane policies will come into play more in later phases as more plugins and interactions are introduced.
+!!! tip "Plugin-First Architecture"
+    Even core capabilities like identity management and notifications are implemented as plugins, making the platform extremely flexible.
 
-## Plugin Manifest and Contracts
+## Communication Architecture
 
-Every plugin must declare what it is and what it can do via a plugin manifest. The manifest is a JSON or dictionary structure (for example, in Python plugins it’s a dict in code) that the plugin sends to the core when registering. This manifest is the core contract between the plugin and the platform – it tells the core how to treat the plugin, what interfaces it implements, what data it handles, and any special requirements.
+All plugin communication flows through the Vivified core, ensuring consistent security policy enforcement.
 
-Manifest Fields: The table below outlines all fields in a plugin manifest and their meaning:
+### Three-Lane Model
+
+```mermaid
+graph TB
+    subgraph "Plugin A"
+        PA[Plugin A]
+    end
+    
+    subgraph "Core Platform"
+        EventBus[Event Bus<br/>Canonical Lane]
+        Gateway[API Gateway<br/>Operator Lane]
+        Proxy[Proxy Service<br/>Proxy Lane]
+    end
+    
+    subgraph "Plugin B"
+        PB[Plugin B]
+    end
+    
+    subgraph "External"
+        EXT[External APIs]
+    end
+    
+    PA -->|Events| EventBus
+    EventBus --> PB
+    PA -->|API Calls| Gateway
+    Gateway --> PB
+    PA -->|Filtered Access| Proxy
+    Proxy --> EXT
+```
+
+#### 1. Canonical Event Lane
+
+**Purpose**: Asynchronous, decoupled communication via normalized events
+
+=== "Event Publishing"
+    ```json
+    {
+      "event_type": "user.created",
+      "data": {
+        "user_id": "123",
+        "email": "user@example.com",
+        "created_at": "2025-01-01T00:00:00Z"
+      },
+      "metadata": {
+        "source": "identity-service",
+        "classification": "pii"
+      }
+    }
+    ```
+
+=== "Event Subscription"
+    ```python
+    @plugin.on_event("user.created")
+    async def handle_user_created(event):
+        # Set up user workspace
+        await create_user_workspace(event.data.user_id)
+    ```
+
+!!! example "Use Cases"
+    - HR plugin emits `UserCreated` → Accounting plugin sets up payroll
+    - Document plugin emits `DocumentProcessed` → Notification plugin sends alerts
+    - Payment plugin emits `PaymentReceived` → Billing plugin updates records
+
+#### 2. Operator API Lane
+
+**Purpose**: Synchronous request/response between plugins
+
+=== "API Call"
+    ```python
+    # Get user details from identity service
+    response = await plugin.call_operator(
+        target="identity-service",
+        method="GET",
+        path="/users/123"
+    )
+    user_data = response.json()
+    ```
+
+=== "Policy Enforcement"
+    ```yaml
+    # Core validates before forwarding
+    - caller_traits: ["user_manager"]
+    - target_endpoint: "/users/{id}"
+    - required_permissions: ["read_user"]
+    ```
+
+!!! warning "Security Governance"
+    The core's policy engine validates every operator call, checking plugin traits and user permissions before forwarding requests.
+
+#### 3. Proxy Lane
+
+**Purpose**: Controlled external API access with domain allowlisting
+
+=== "External API Call"
+    ```python
+    # Call external service through proxy
+    response = await plugin.proxy_request(
+        url="https://api.example.com/data",
+        method="GET",
+        headers={"API-Key": "secret"}
+    )
+    ```
+
+=== "Domain Allowlist"
+    ```json
+    {
+      "allowed_domains": [
+        "api.salesforce.com",
+        "hooks.slack.com",
+        "api.stripe.com"
+      ]
+    }
+    ```
+
+!!! danger "Restricted Access"
+    Only plugins with `external_service` trait can use the proxy lane. All calls are logged and filtered through domain allowlists.
+
+## Plugin Manifest System
+
+Every plugin declares its capabilities through a comprehensive manifest that undergoes strict security validation.
+
+### Core Manifest Structure
+
+```json
+{
+  "id": "user-management",
+  "name": "User Management Service",
+  "version": "1.2.0",
+  "description": "Manages user profiles and authentication",
+  "contracts": ["IdentityPlugin"],
+  "traits": ["handles_pii", "audit_required"],
+  "security": {
+    "authentication_required": true,
+    "data_classification": ["pii"]
+  },
+  "compliance": {
+    "hipaa_controls": ["164.312(a)"],
+    "audit_level": "detailed"
+  }
+}
+```
+
+### Manifest Fields Reference
 
 - id – A unique identifier for the plugin. This is a short string (only lowercase letters, numbers, or hyphens are allowed) GitHub. It’s used as the plugin’s key in the system (e.g., other plugins might refer to this ID if they depend on it). Example: `"user-management"` is the ID of the User Management plugin GitHub.
 - name – Human-readable name of the plugin. Can include spaces or mixed case. This is for display purposes (e.g., in UIs or logs) and can be more descriptive than the ID.
