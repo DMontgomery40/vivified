@@ -330,7 +330,7 @@ function Diagnostics({ client, onNavigate, docsBase }: DiagnosticsProps) {
       }
       else if (key === 'database_connected') {
         docs.push({ text: 'Database stores job records and API keys.' });
-        docs.push({ text: 'Default: SQLite at ./vivified.db' });
+        docs.push({ text: 'Default: PostgreSQL via asyncpg (localhost:5432)' });
         docs.push({ text: 'Production: Use PostgreSQL with DATABASE_URL' });
         if (docsBase) docs.push({ text: 'Database Setup', href: `${docsBase}/deployment/#database-configuration` });
       }

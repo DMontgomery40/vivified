@@ -3,6 +3,31 @@ networks:
     driver: bridge
 
 services:
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    networks:
+      - vivified-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Optional: Redis Stack for native vector search (RediSearch)
+  redis-stack:
+    image: redis/redis-stack-server:7.2.0-v10
+    ports:
+      - "6380:6379"
+    networks:
+      - vivified-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
   postgres:
     image: postgres:15-alpine
     environment:
@@ -37,6 +62,7 @@ services:
     build: ./core
     environment:
       DATABASE_URL: postgresql+asyncpg://vivified:${DB_PASSWORD:-changeme}@postgres:5432/vivified
+      REDIS_URL: redis://redis:6379/0
       NATS_URL: nats://nats:4222
       JWT_SECRET: ${JWT_SECRET:-change-this-secret}
       # When UI is served from the same origin (/admin/ui), CORS is not needed.
@@ -58,6 +84,8 @@ services:
       postgres:
         condition: service_healthy
       nats:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     networks:
       - vivified-net

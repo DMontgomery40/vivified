@@ -127,6 +127,7 @@ nav:
   - Messaging: core/messaging.md
   - Audit: core/audit.md
   - AI & Agents: ai/overview.md
+  - Three-Lane Model: core/three-lanes.md
 - Admin Console:
   - Overview: admin-console.md
   - Dashboard: admin-console/dashboard.md

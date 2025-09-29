@@ -10,13 +10,14 @@ Design goals:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple, Iterable
+from typing import Dict, List, Optional, Tuple, Iterable, Any
 import os
 import re
 import time
 import logging
 import json
 import fnmatch
+import hashlib
 
 logger = logging.getLogger(__name__)
 
@@ -43,11 +44,16 @@ class RAGService:
     """
 
     def __init__(self, redis_url: Optional[str] = None) -> None:
-        self._redis_url = redis_url or os.getenv("REDIS_URL")
+        # Prefer Redis by default for persistence and performance. Fall back to memory if unreachable.
+        self._redis_url = redis_url or os.getenv(
+            "REDIS_URL", "redis://localhost:6379/0"
+        )
         self._rd = None
+        # In-memory fallback stores
         self._docs: Dict[str, Tuple[str, str]] = {}
         self._meta: Dict[str, Dict[str, List[str]]] = {}
         self._tokens: Dict[str, set] = {}
+        self._vectors: Dict[str, List[float]] = {}
         self._last_trained: Optional[float] = None
 
     async def _ensure_redis(self):
@@ -89,6 +95,7 @@ class RAGService:
                     pipe.delete(f"ai:rag:doc:{did_s}:title")
                     pipe.delete(f"ai:rag:doc:{did_s}:path")
                     pipe.delete(f"ai:rag:doc:{did_s}:content")
+                    pipe.delete(f"ai:rag:doc:{did_s}:vec")
                 pipe.delete("ai:rag:docs")
                 await pipe.execute()
             except Exception:  # noqa: BLE001
@@ -96,6 +103,7 @@ class RAGService:
         self._docs.clear()
         self._meta.clear()
         self._tokens.clear()
+        self._vectors.clear()
         self._last_trained = None
 
     async def train(self, sources: List[str]) -> int:
@@ -106,6 +114,15 @@ class RAGService:
         count = 0
         rd = await self._ensure_redis()
         root_base = os.path.abspath(os.getenv("RAG_ROOT", os.getcwd()))
+        try:
+            from ..config.service import get_config_service  # type: ignore
+
+            cfg = get_config_service()
+            cfg_root = await cfg.get("ai.rag.root")
+            if isinstance(cfg_root, str) and cfg_root:
+                root_base = os.path.abspath(cfg_root)
+        except Exception:
+            pass
         ignore_patterns = self._load_ignore_patterns(root_base)
         # Load ingestion rules (required traits/classification) from ConfigService
         trait_rules: Dict[str, List[str]] = {}
@@ -160,51 +177,75 @@ class RAGService:
                         content = raw.decode("utf-8", errors="ignore")
                         if not content:
                             continue
-                        did = str(hash(path))
+                        # Deterministic doc base id using path, size, mtime
+                        stat = os.stat(path)
+                        base_id = hashlib.sha1(
+                            f"{path}:{size}:{int(stat.st_mtime)}".encode()
+                        ).hexdigest()[:16]
                         title = os.path.relpath(path, root_base)
-                        toks = set(_tokenize(content))
-                        required_traits: List[str] = self._traits_for_path(relp, trait_rules)
-                        classification: List[str] = self._traits_for_path(relp, class_rules) or [
-                            "internal"
-                        ]
-                        if rd:
-                            try:
-                                pipe = rd.pipeline()
-                                pipe.sadd("ai:rag:docs", did)
-                                pipe.set(f"ai:rag:doc:{did}:title", title)
-                                pipe.set(f"ai:rag:doc:{did}:path", path)
-                                pipe.set(f"ai:rag:doc:{did}:content", content)
-                                pipe.set(
-                                    f"ai:rag:doc:{did}:meta",
-                                    json.dumps(
-                                        {
-                                            "required_traits": required_traits,
-                                            "classification": classification,
-                                        }
-                                    ),
-                                )
-                                for t in toks:
-                                    pipe.sadd(f"ai:rag:token:{t}", did)
-                                await pipe.execute()
-                            except Exception:  # noqa: BLE001
-                                logger.debug("redis index failed", exc_info=True)
-                                # Also maintain in-memory
-                                self._docs[did] = (title, content)
+                        required_traits: List[str] = self._traits_for_path(
+                            relp, trait_rules
+                        )
+                        classification: List[str] = self._traits_for_path(
+                            relp, class_rules
+                        ) or ["internal"]
+                        # Chunk content for embeddings
+                        chunks = self._chunk_text(content)
+                        for idx, chunk in enumerate(chunks):
+                            did = f"{base_id}:{idx}"
+                            toks = set(_tokenize(chunk))
+                            # Compute embedding (best-effort)
+                            vec = await self._embed_text(chunk)
+                            if rd:
+                                try:
+                                    pipe = rd.pipeline()
+                                    pipe.sadd("ai:rag:docs", did)
+                                    pipe.set(
+                                        f"ai:rag:doc:{did}:title", f"{title}#chunk{idx}"
+                                    )
+                                    pipe.set(f"ai:rag:doc:{did}:path", path)
+                                    # Store small content excerpt for preview only (avoid large payloads)
+                                    preview = chunk[:2000]
+                                    pipe.set(f"ai:rag:doc:{did}:content", preview)
+                                    pipe.set(
+                                        f"ai:rag:doc:{did}:meta",
+                                        json.dumps(
+                                            {
+                                                "required_traits": required_traits,
+                                                "classification": classification,
+                                            }
+                                        ),
+                                    )
+                                    if vec is not None:
+                                        pipe.set(
+                                            f"ai:rag:doc:{did}:vec",
+                                            json.dumps(vec),
+                                        )
+                                    for t in toks:
+                                        pipe.sadd(f"ai:rag:token:{t}", did)
+                                    await pipe.execute()
+                                except Exception:  # noqa: BLE001
+                                    logger.debug("redis index failed", exc_info=True)
+                                    self._docs[did] = (f"{title}#chunk{idx}", chunk)
+                                    self._meta[did] = {
+                                        "required_traits": required_traits,
+                                        "classification": classification,
+                                    }
+                                    if vec is not None:
+                                        self._vectors[did] = vec
+                                    for t in toks:
+                                        self._tokens.setdefault(t, set()).add(did)
+                            else:
+                                self._docs[did] = (f"{title}#chunk{idx}", chunk)
                                 self._meta[did] = {
                                     "required_traits": required_traits,
                                     "classification": classification,
                                 }
+                                if vec is not None:
+                                    self._vectors[did] = vec
                                 for t in toks:
                                     self._tokens.setdefault(t, set()).add(did)
-                        else:
-                            self._docs[did] = (title, content)
-                            self._meta[did] = {
-                                "required_traits": required_traits,
-                                "classification": classification,
-                            }
-                            for t in toks:
-                                self._tokens.setdefault(t, set()).add(did)
-                        count += 1
+                            count += 1
                     except Exception:  # noqa: BLE001
                         logger.debug("index error: %s", path, exc_info=True)
 
@@ -212,7 +253,17 @@ class RAGService:
         return count
 
     def _load_ignore_patterns(self, root_base: str) -> List[str]:
-        patterns: List[str] = []
+        # Built-in safe defaults to avoid noisy/bulky content
+        patterns: List[str] = [
+            "node_modules/",
+            "dist/",
+            "build/",
+            "site/",
+            ".git/",
+            "__pycache__/",
+            ".pytest_cache/",
+            ".mypy_cache/",
+        ]
         for candidate in [".ragignore", ".gitignore"]:
             p = os.path.join(root_base, candidate)
             try:
@@ -247,9 +298,7 @@ class RAGService:
                 return True
         return False
 
-    def _traits_for_path(
-        self, rel_path: str, rules: Dict[str, List[str]]
-    ) -> List[str]:
+    def _traits_for_path(self, rel_path: str, rules: Dict[str, List[str]]) -> List[str]:
         """Return merged list of values for matching glob patterns."""
         p = rel_path.replace(os.sep, "/").lstrip("./")
         vals: List[str] = []
@@ -261,6 +310,114 @@ class RAGService:
                         vals.append(item)
         return vals
 
+    def _chunk_text(self, text: str) -> List[str]:
+        """Chunk text into overlapping windows suitable for embeddings.
+
+        Uses character windows to avoid tokenization dependency.
+        """
+        max_chars = int(os.getenv("RAG_CHUNK_CHARS", "4000"))
+        overlap = int(os.getenv("RAG_OVERLAP_CHARS", "400"))
+        if max_chars <= 0:
+            return [text]
+        chunks: List[str] = []
+        i = 0
+        n = len(text)
+        while i < n:
+            j = min(i + max_chars, n)
+            chunks.append(text[i:j])
+            if j >= n:
+                break
+            i = max(0, j - overlap)
+        return chunks
+
+    async def _embed_text(self, text: str) -> Optional[List[float]]:
+        """Compute embedding via configured provider (OpenAI by default).
+
+        Returns None if embedding fails; query falls back to sparse token search.
+        """
+        text = text.strip()
+        if not text:
+            return None
+        # Resolve connectors/config
+        base_url = None
+        api_key = None
+        model = (
+            os.getenv("EMBEDDING_MODEL")
+            or os.getenv("OPENAI_EMBEDDING_MODEL")
+            or "text-embedding-3-small"
+        )
+        try:
+            from core.config.service import get_config_service  # type: ignore
+
+            cfg = get_config_service()
+            openai_cfg = await cfg.get("ai.connectors.openai") or {}
+            base_url = (
+                openai_cfg.get("base_url")
+                or await cfg.get("ai.llm.base_url")
+                or os.getenv("OPENAI_BASE_URL")
+                or "https://api.openai.com"
+            )
+            secret = await cfg.get("secrets.ai.openai.api_key")
+            api_key = secret or os.getenv("OPENAI_API_KEY")
+            model_cfg = await cfg.get("ai.embeddings.model")
+            if model_cfg:
+                model = str(model_cfg)
+        except Exception:
+            base_url = os.getenv("OPENAI_BASE_URL") or "https://api.openai.com"
+            api_key = os.getenv("OPENAI_API_KEY")
+        # Construct request
+        payload = {"model": model, "input": text}
+        headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
+        url = f"{str(base_url).rstrip('/')}/v1/embeddings"
+
+        # Prefer proxy via core gateway for egress control
+        try:
+            import httpx  # type: ignore
+
+            core_base = os.getenv("PUBLIC_API_URL", "http://localhost:8000").rstrip("/")
+            if api_key and base_url:
+                r = await httpx.AsyncClient(timeout=30).post(
+                    f"{core_base}/gateway/proxy",
+                    json={
+                        "plugin_id": "ai-core",
+                        "method": "POST",
+                        "url": url,
+                        "headers": {**headers, "Content-Type": "application/json"},
+                        "json": payload,
+                        "timeout": 30,
+                    },
+                )
+                if r.status_code < 300:
+                    data = r.json() or {}
+                    emb = ((data.get("data") or [{}])[0] or {}).get("embedding")
+                    if isinstance(emb, list) and all(
+                        isinstance(x, (float, int)) for x in emb
+                    ):
+                        return [float(x) for x in emb]
+        except Exception:
+            logger.debug("proxy embedding failed", exc_info=True)
+
+        # Direct call fallback
+        try:
+            import httpx  # type: ignore
+
+            async with httpx.AsyncClient(timeout=30) as client:
+                resp = await client.post(
+                    url,
+                    json=payload,
+                    headers={**headers, "Content-Type": "application/json"},
+                )
+            if resp.status_code < 300:
+                d = resp.json() or {}
+                emb = ((d.get("data") or [{}])[0] or {}).get("embedding")
+                if isinstance(emb, list) and all(
+                    isinstance(x, (float, int)) for x in emb
+                ):
+                    return [float(x) for x in emb]
+        except Exception:
+            logger.debug("direct embedding failed", exc_info=True)
+        return None
+
     async def query(
         self,
         question: str,
@@ -271,30 +428,65 @@ class RAGService:
         rd = await self._ensure_redis()
         scores: Dict[str, float] = {}
         trait_set = set(user_traits or [])
+        # Try semantic (vector) search first if we have vectors
+        q_vec = await self._embed_text(question)
+        used_vector = q_vec is not None
         if rd:
             try:
-                cand_ids: set = set()
-                for t in toks:
-                    ids = await rd.smembers(f"ai:rag:token:{t}")
+                cand_ids: List[str] = []
+                # If vector available, scan all docs; else restrict by token overlap
+                if used_vector:
+                    ids = await rd.smembers("ai:rag:docs")
                     for did in ids or []:
-                        cand_ids.add(
+                        cand_ids.append(
                             did.decode()
                             if isinstance(did, (bytes, bytearray))
                             else str(did)
                         )
-                for did in cand_ids:
-                    # Simple score: number of overlapping tokens
-                    content = await rd.get(f"ai:rag:doc:{did}:content")
-                    if content:
-                        ct = (
-                            content.decode()
-                            if isinstance(content, (bytes, bytearray))
-                            else str(content)
-                        )
-                        doc_toks = set(_tokenize(ct))
-                        overlap = len(toks.intersection(doc_toks))
-                        if overlap > 0:
-                            scores[did] = float(overlap)
+                else:
+                    seen: set = set()
+                    for t in toks:
+                        ids = await rd.smembers(f"ai:rag:token:{t}")
+                        for did in ids or []:
+                            key = (
+                                did.decode()
+                                if isinstance(did, (bytes, bytearray))
+                                else str(did)
+                            )
+                            if key not in seen:
+                                seen.add(key)
+                                cand_ids.append(key)
+                # Score
+                if used_vector and q_vec is not None:
+                    for did in cand_ids:
+                        v_raw = await rd.get(f"ai:rag:doc:{did}:vec")
+                        if not v_raw:
+                            continue
+                        try:
+                            vec = json.loads(
+                                v_raw.decode()
+                                if isinstance(v_raw, (bytes, bytearray))
+                                else str(v_raw)
+                            )
+                            if isinstance(vec, list) and vec:
+                                scores[did] = float(
+                                    self._cosine_sim(q_vec, [float(x) for x in vec])
+                                )
+                        except Exception:
+                            continue
+                else:
+                    for did in cand_ids:
+                        content = await rd.get(f"ai:rag:doc:{did}:content")
+                        if content:
+                            ct = (
+                                content.decode()
+                                if isinstance(content, (bytes, bytearray))
+                                else str(content)
+                            )
+                            doc_toks = set(_tokenize(ct))
+                            overlap = len(toks.intersection(doc_toks))
+                            if overlap > 0:
+                                scores[did] = float(overlap)
                 # Filter by TBAC required_traits if metadata present
                 allowed: List[Tuple[str, float]] = []
                 for did, sc in scores.items():
@@ -337,11 +529,18 @@ class RAGService:
                 logger.debug("redis query failed", exc_info=True)
 
         # In-memory fallback
-        for did, (_title, content) in self._docs.items():
-            doc_toks = set(_tokenize(content))
-            overlap = len(toks.intersection(doc_toks))
-            if overlap > 0:
-                scores[did] = float(overlap)
+        if used_vector and q_vec is not None and self._vectors:
+            for did, vec in self._vectors.items():
+                try:
+                    scores[did] = float(self._cosine_sim(q_vec, vec))
+                except Exception:
+                    continue
+        else:
+            for did, (_title, content) in self._docs.items():
+                doc_toks = set(_tokenize(content))
+                overlap = len(toks.intersection(doc_toks))
+                if overlap > 0:
+                    scores[did] = float(overlap)
         allowed2: List[Tuple[str, float]] = []
         for did, sc in scores.items():
             req = list(self._meta.get(did, {}).get("required_traits") or [])
@@ -353,6 +552,24 @@ class RAGService:
             title, _content = self._docs.get(did, ("", ""))
             results.append({"id": did, "title": title, "path": title})
         return results
+
+    @staticmethod
+    def _cosine_sim(a: List[float], b: List[float]) -> float:
+        # Handle mismatched lengths safely by truncation
+        n = min(len(a), len(b))
+        if n == 0:
+            return 0.0
+        dot = 0.0
+        na = 0.0
+        nb = 0.0
+        for i in range(n):
+            x = float(a[i])
+            y = float(b[i])
+            dot += x * y
+            na += x * x
+            nb += y * y
+        denom = (na**0.5) * (nb**0.5)
+        return (dot / denom) if denom > 0 else 0.0
 
 
 # Optional LangGraph-backed agent (stub if unavailable)
@@ -366,7 +583,7 @@ class AgentService:
         *,
         user_traits: Optional[Iterable[str]] = None,
         opts: Optional[Dict[str, str]] = None,
-    ) -> Dict[str, str]:
+    ) -> Dict[str, Any]:
         # Attempt tool-calling pipeline if enabled, else simple RAG-informed completion.
         hits = await self.rag.query(prompt, top_k=3, user_traits=user_traits)
         context = "\n".join([f"- {h.get('title')}" for h in hits])
@@ -379,11 +596,16 @@ class AgentService:
             # Resolve connectors from ConfigService if available
             try:
                 from ..config.service import get_config_service  # type: ignore
+
                 cfgsvc = get_config_service()
                 # Prefer explicit fields too
                 openai_cfg = await cfgsvc.get("ai.connectors.openai") or {}
                 anthropic_cfg = await cfgsvc.get("ai.connectors.anthropic") or {}
-                llm_provider = (await cfgsvc.get("ai.llm.provider")) or os.getenv("AI_LLM_PROVIDER") or "openai"
+                llm_provider = (
+                    (await cfgsvc.get("ai.llm.provider"))
+                    or os.getenv("AI_LLM_PROVIDER")
+                    or "openai"
+                )
             except Exception:
                 cfgsvc = None
                 openai_cfg = {}
@@ -392,18 +614,17 @@ class AgentService:
             # Determine provider and connection details
             provider = (opts or {}).get("provider") or llm_provider
             if provider.lower() == "anthropic":
-                model = (
-                    (opts or {}).get("model")
-                    or str((anthropic_cfg or {}).get("default_model") or "claude-3-haiku-20240307")
+                model = (opts or {}).get("model") or str(
+                    (anthropic_cfg or {}).get("default_model")
+                    or "claude-3-haiku-20240307"
                 )
                 api_key = (
                     (opts or {}).get("api_key")
                     or str((anthropic_cfg or {}).get("api_key") or "")
                     or os.getenv("ANTHROPIC_API_KEY")
                 )
-                base_url = (
-                    (opts or {}).get("base_url")
-                    or str((anthropic_cfg or {}).get("base_url") or "https://api.anthropic.com")
+                base_url = (opts or {}).get("base_url") or str(
+                    (anthropic_cfg or {}).get("base_url") or "https://api.anthropic.com"
                 )
             else:
                 model = (
@@ -419,19 +640,19 @@ class AgentService:
                     or os.getenv("OPENAI_API_KEY")
                     or os.getenv("AI_OPENAI_API_KEY")
                 )
-                base_url = (
+                # Ensure base_url is always a string for type-checking
+                base_url = str(
                     (opts or {}).get("base_url")
-                    or str((openai_cfg or {}).get("base_url") or "")
-                    or os.getenv("OPENAI_BASE_URL", "https://api.openai.com")
+                    or (openai_cfg or {}).get("base_url")
+                    or os.getenv("OPENAI_BASE_URL")
+                    or "https://api.openai.com"
                 )
             # Feature flag: enable tool-calling loop
             use_tools = False
             try:
                 flag = os.getenv("AI_AGENT_TOOL_CALLING", "false").lower()
                 env_flag = flag in {"1", "true", "yes"}
-                use_tools = (
-                    (opts or {}).get("tool_calling") == "true" or env_flag
-                )
+                use_tools = (opts or {}).get("tool_calling") == "true" or env_flag
                 if cfgsvc is not None:
                     v = await cfgsvc.get("ai.agent.tool_calling")
                     if isinstance(v, bool):
@@ -446,7 +667,9 @@ class AgentService:
                         url = f"{(base_url or 'https://api.anthropic.com').rstrip('/')}/v1/messages"
                         headers = {
                             "x-api-key": api_key,
-                            "anthropic-version": os.getenv("ANTHROPIC_VERSION", "2023-06-01"),
+                            "anthropic-version": os.getenv(
+                                "ANTHROPIC_VERSION", "2023-06-01"
+                            ),
                             "Content-Type": "application/json",
                         }
                         messages_a = [
@@ -495,7 +718,16 @@ class AgentService:
                         if resp.status_code < 300:
                             data = resp.json() or {}
                             content = data.get("content") or []
-                            tool_uses = [c for c in content if isinstance(c, dict) and c.get("type") == "tool_use"] if isinstance(content, list) else []
+                            tool_uses = (
+                                [
+                                    c
+                                    for c in content
+                                    if isinstance(c, dict)
+                                    and c.get("type") == "tool_use"
+                                ]
+                                if isinstance(content, list)
+                                else []
+                            )
                             if use_tools and tool_uses:
                                 # Build tool_result blocks
                                 tool_results = []
@@ -505,71 +737,135 @@ class AgentService:
                                     inp = tu.get("input") or {}
                                     if name == "rag_search":
                                         q = str(inp.get("q") or prompt)
-                                        tool_hits = await self.rag.query(q, top_k=5, user_traits=user_traits)
-                                        tools_log.append({"name": "rag_search", "args": {"q": q}, "content": tool_hits})
-                                        tool_results.append({
-                                            "type": "tool_result",
-                                            "tool_use_id": tu_id,
-                                            "content": [{"type": "text", "text": json.dumps({"hits": tool_hits})}],
-                                        })
+                                        tool_hits = await self.rag.query(
+                                            q, top_k=5, user_traits=user_traits
+                                        )
+                                        tools_log.append(
+                                            {
+                                                "name": "rag_search",
+                                                "args": {"q": q},
+                                                "content": tool_hits,
+                                            }
+                                        )
+                                        tool_results.append(
+                                            {
+                                                "type": "tool_result",
+                                                "tool_use_id": tu_id,
+                                                "content": [
+                                                    {
+                                                        "type": "text",
+                                                        "text": json.dumps(
+                                                            {"hits": tool_hits}
+                                                        ),
+                                                    }
+                                                ],
+                                            }
+                                        )
                                     elif name == "http_fetch":
                                         f_url = str(inp.get("url") or "")
                                         fetched = ""
                                         if f_url:
                                             try:
                                                 import httpx as _httpx  # type: ignore
-                                                core_base = os.getenv('PUBLIC_API_URL','http://localhost:8000').rstrip('/')
-                                                r2 = await _httpx.AsyncClient(timeout=20).post(
+
+                                                core_base = os.getenv(
+                                                    "PUBLIC_API_URL",
+                                                    "http://localhost:8000",
+                                                ).rstrip("/")
+                                                r2 = await _httpx.AsyncClient(
+                                                    timeout=20
+                                                ).post(
                                                     f"{core_base}/gateway/proxy",
                                                     json={
-                                                        "plugin_id":"ai-core",
-                                                        "method":"GET",
+                                                        "plugin_id": "ai-core",
+                                                        "method": "GET",
                                                         "url": f_url,
                                                         "headers": {},
                                                         "timeout": 20,
-                                                    }
+                                                    },
                                                 )
                                                 if r2.status_code < 300:
-                                                    dj = r2.json(); fetched = dj.get('text') or dj.get('body') or ''
+                                                    dj = r2.json()
+                                                    fetched = (
+                                                        dj.get("text")
+                                                        or dj.get("body")
+                                                        or ""
+                                                    )
                                             except Exception:
                                                 pass
-                                        tools_log.append({"name": "http_fetch", "args": {"url": f_url}, "content": fetched[:200]})
-                                        tool_results.append({
-                                            "type": "tool_result",
-                                            "tool_use_id": tu_id,
-                                            "content": [{"type": "text", "text": fetched[:4000]}],
-                                        })
+                                        tools_log.append(
+                                            {
+                                                "name": "http_fetch",
+                                                "args": {"url": f_url},
+                                                "content": fetched[:200],
+                                            }
+                                        )
+                                        tool_results.append(
+                                            {
+                                                "type": "tool_result",
+                                                "tool_use_id": tu_id,
+                                                "content": [
+                                                    {
+                                                        "type": "text",
+                                                        "text": fetched[:4000],
+                                                    }
+                                                ],
+                                            }
+                                        )
                                 # Second call with tool results
-                                messages_a.append({"role": "assistant", "content": content})
-                                messages_a.append({"role": "user", "content": tool_results})
-                                body2 = {"model": model, "max_tokens": int(os.getenv("ANTHROPIC_MAX_TOKENS", "512")), "messages": messages_a}
+                                messages_a.append(
+                                    {"role": "assistant", "content": content}
+                                )
+                                messages_a.append(
+                                    {"role": "user", "content": tool_results}
+                                )
+                                body2 = {
+                                    "model": model,
+                                    "max_tokens": int(
+                                        os.getenv("ANTHROPIC_MAX_TOKENS", "512")
+                                    ),
+                                    "messages": messages_a,
+                                }
                                 async with httpx.AsyncClient(timeout=30) as client3:
-                                    r3 = await client3.post(url, json=body2, headers=headers)
+                                    r3 = await client3.post(
+                                        url, json=body2, headers=headers
+                                    )
                                 if r3.status_code < 300:
                                     d3 = r3.json() or {}
                                     parts = d3.get("content") or []
                                     text3 = ""
                                     if isinstance(parts, list):
-                                        texts = [p.get("text") for p in parts if isinstance(p, dict) and p.get("type") == "text"]
+                                        texts = [
+                                            p.get("text")
+                                            for p in parts
+                                            if isinstance(p, dict)
+                                            and p.get("type") == "text"
+                                        ]
                                         text3 = "\n".join([t for t in texts if t])
                                     if text3:
-                                        out = {"result": text3}
+                                        out1: Dict[str, Any] = {"result": text3}
                                         if tools_log:
-                                            out["tools_used"] = tools_log
-                                        return out
+                                            out1["tools_used"] = tools_log
+                                        return out1
                             # No tools or no tool_use: extract text
-                            parts = content if isinstance(content, list) else []
+                            alt_parts: List[Dict[str, Any]] = (
+                                content if isinstance(content, list) else []
+                            )
                             text = ""
-                            if parts:
-                                texts = [p.get("text") for p in parts if isinstance(p, dict) and p.get("type") == "text"]
+                            if alt_parts:
+                                texts = [
+                                    p.get("text")
+                                    for p in alt_parts
+                                    if isinstance(p, dict) and p.get("type") == "text"
+                                ]
                                 text = "\n".join([t for t in texts if t])
                             if text:
-                                out = {"result": text}
-                                return out
+                                out2: Dict[str, Any] = {"result": text}
+                                return out2
                     except Exception:
                         pass
                 if use_tools:
-                    tools = [
+                    tools_payload: List[Dict[str, Any]] = [
                         {
                             "type": "function",
                             "function": {
@@ -595,7 +891,7 @@ class AgentService:
                             },
                         },
                     ]
-                    messages = [
+                    messages: List[Dict[str, Any]] = [
                         {
                             "role": "system",
                             "content": "You are a concise assistant. Use tools when helpful.",
@@ -609,7 +905,7 @@ class AgentService:
                     payload = {
                         "model": model,
                         "messages": messages,
-                        "tools": tools,
+                        "tools": tools_payload,
                         "tool_choice": "required",
                         "temperature": 0.2,
                     }
@@ -639,7 +935,7 @@ class AgentService:
                         "Authorization": f"Bearer {api_key}",
                         "Content-Type": "application/json",
                     }
-                    body = json.dumps(payload).encode()
+                    # Use JSON field; avoid assigning bytes to a reused variable name
                     async with httpx.AsyncClient(timeout=30) as client:
                         resp = await client.post(
                             proxy_url,
@@ -666,9 +962,11 @@ class AgentService:
                             except Exception:
                                 parsed = {}
                             choice = ((parsed or {}).get("choices") or [{}])[0]
-                            message = choice.get("message") or {}
+                            message: Dict[str, Any] = choice.get("message") or {}
                             if use_tools and message.get("tool_calls"):
-                                tool_calls = message.get("tool_calls") or []
+                                tool_calls: List[Dict[str, Any]] = (
+                                    message.get("tool_calls") or []
+                                )
                                 # Execute tool calls sequentially (simple loop)
                                 for tc in tool_calls:
                                     fn = tc.get("function") or {}
@@ -678,17 +976,23 @@ class AgentService:
                                         args = json.loads(args_s)
                                     except Exception:
                                         args = {}
-                            if name == "rag_search":
-                                q = str(args.get("q") or prompt)
-                                tool_hits = await self.rag.query(
-                                    q, top_k=5, user_traits=user_traits
-                                )
-                                tools_log.append({"name": "rag_search", "args": {"q": q}, "content": tool_hits})
-                                messages.append(message)
-                                messages.append(
-                                    {
-                                        "role": "tool",
-                                        "tool_call_id": tc.get("id") or "rag1",
+                                    if name == "rag_search":
+                                        q = str(args.get("q") or prompt)
+                                        tool_hits = await self.rag.query(
+                                            q, top_k=5, user_traits=user_traits
+                                        )
+                                        tools_log.append(
+                                            {
+                                                "name": "rag_search",
+                                                "args": {"q": q},
+                                                "content": tool_hits,
+                                            }
+                                        )
+                                        messages.append(message)
+                                        messages.append(
+                                            {
+                                                "role": "tool",
+                                                "tool_call_id": tc.get("id") or "rag1",
                                                 "name": name,
                                                 "content": json.dumps(
                                                     {"hits": tool_hits}
@@ -699,38 +1003,48 @@ class AgentService:
                                         url = str(args.get("url") or "")
                                         if url:
                                             try:
-                                        async with httpx.AsyncClient(
-                                            timeout=20
-                                        ) as client2:
-                                            r2 = await client2.post(
-                                                proxy_url,
-                                                json={
-                                                    "plugin_id": "ai-core",
-                                                    "method": "GET",
-                                                    "url": url,
-                                                    "headers": {},
-                                                    "timeout": 20,
-                                                },
-                                            )
-                                        fetched = ""
-                                        if r2.status_code < 300:
-                                            dj = r2.json()
-                                            fetched = (
-                                                dj.get("text")
-                                                or dj.get("body")
-                                                or ""
-                                            )
-                                        tools_log.append({"name": "http_fetch", "args": {"url": url}, "content": (fetched[:200] if isinstance(fetched, str) else "")})
-                                        messages.append(message)
-                                        messages.append(
-                                            {
-                                                "role": "tool",
-                                                "tool_call_id": tc.get("id")
-                                                or "http1",
-                                                "name": name,
-                                                "content": fetched[:4000],
-                                            }
-                                        )
+                                                async with httpx.AsyncClient(
+                                                    timeout=20
+                                                ) as client2:
+                                                    r2 = await client2.post(
+                                                        proxy_url,
+                                                        json={
+                                                            "plugin_id": "ai-core",
+                                                            "method": "GET",
+                                                            "url": url,
+                                                            "headers": {},
+                                                            "timeout": 20,
+                                                        },
+                                                    )
+                                                fetched = ""
+                                                if r2.status_code < 300:
+                                                    dj = r2.json()
+                                                    fetched = (
+                                                        dj.get("text")
+                                                        or dj.get("body")
+                                                        or ""
+                                                    )
+                                                tools_log.append(
+                                                    {
+                                                        "name": "http_fetch",
+                                                        "args": {"url": url},
+                                                        "content": (
+                                                            fetched[:200]
+                                                            if isinstance(fetched, str)
+                                                            else ""
+                                                        ),
+                                                    }
+                                                )
+                                                messages.append(message)
+                                                messages.append(
+                                                    {
+                                                        "role": "tool",
+                                                        "tool_call_id": tc.get("id")
+                                                        or "http1",
+                                                        "name": name,
+                                                        "content": fetched[:4000],
+                                                    }
+                                                )
                                             except Exception:
                                                 # ignore fetch errors
                                                 pass
@@ -754,11 +1068,11 @@ class AgentService:
                                     )
                                 if r3.status_code < 300:
                                     dj3 = r3.json() or {}
-                                    text3 = dj3.get("text") or dj3.get("body") or ""
+                                    text3_raw = dj3.get("text") or dj3.get("body") or ""
                                     try:
                                         parsed3 = (
-                                            json.loads(text3)
-                                            if isinstance(text3, str)
+                                            json.loads(text3_raw)
+                                            if isinstance(text3_raw, str)
                                             else {}
                                         )
                                     except Exception:
@@ -768,14 +1082,14 @@ class AgentService:
                                         "content"
                                     ) or ""
                                     if msg3:
-                                        out = {"result": msg3}
+                                        out3: Dict[str, Any] = {"result": msg3}
                                         if tools_log:
-                                            out["tools_used"] = tools_log
-                                        return out
+                                            out3["tools_used"] = tools_log
+                                        return out3
                             # Non-tool flow
                             msg = (message or {}).get("content") or ""
                             if msg:
-                                out = {"result": msg}
+                                out: Dict[str, Any] = {"result": msg}
                                 if tools_log:
                                     out["tools_used"] = tools_log
                                 return out
@@ -794,12 +1108,14 @@ class AgentService:
                 if resp.status_code < 300:
                     data = resp.json()
                     choice = ((data or {}).get("choices") or [{}])[0]
-                    message = choice.get("message") or {}
+                    resp_message: Dict[str, Any] = choice.get("message") or {}
                     # Handle tool-calls on direct path
-                    if use_tools and message.get("tool_calls"):
-                        tool_calls = message.get("tool_calls") or []
-                        for tc in tool_calls:
-                            fn = (tc.get("function") or {})
+                    if use_tools and resp_message.get("tool_calls"):
+                        resp_tool_calls: List[Dict[str, Any]] = (
+                            resp_message.get("tool_calls") or []
+                        )
+                        for tc in resp_tool_calls:
+                            fn = tc.get("function") or {}
                             name = fn.get("name")
                             args_s = fn.get("arguments") or "{}"
                             try:
@@ -808,8 +1124,10 @@ class AgentService:
                                 args = {}
                             if name == "rag_search":
                                 q = str(args.get("q") or prompt)
-                                tool_hits = await self.rag.query(q, top_k=5, user_traits=user_traits)
-                                messages.append(message)
+                                tool_hits = await self.rag.query(
+                                    q, top_k=5, user_traits=user_traits
+                                )
+                                messages.append(resp_message)
                                 messages.append(
                                     {
                                         "role": "tool",
@@ -822,10 +1140,13 @@ class AgentService:
                                 fetch_url = str(args.get("url") or "")
                                 if fetch_url:
                                     try:
-                                        async with httpx.AsyncClient(timeout=20) as client2:
+                                        async with httpx.AsyncClient(
+                                            timeout=20
+                                        ) as client2:
                                             proxy_base = os.getenv(
-                                                'PUBLIC_API_URL', 'http://localhost:8000'
-                                            ).rstrip('/')
+                                                "PUBLIC_API_URL",
+                                                "http://localhost:8000",
+                                            ).rstrip("/")
                                             r2 = await client2.post(
                                                 f"{proxy_base}/gateway/proxy",
                                                 json={
@@ -839,8 +1160,10 @@ class AgentService:
                                         fetched = ""
                                         if r2.status_code < 300:
                                             dj = r2.json()
-                                            fetched = dj.get("text") or dj.get("body") or ""
-                                        messages.append(message)
+                                            fetched = (
+                                                dj.get("text") or dj.get("body") or ""
+                                            )
+                                        messages.append(resp_message)
                                         messages.append(
                                             {
                                                 "role": "tool",
@@ -858,7 +1181,9 @@ class AgentService:
                             "temperature": 0.2,
                         }
                         async with httpx.AsyncClient(timeout=30) as client3:
-                            r3 = await client3.post(url, json=final_payload, headers=headers)
+                            r3 = await client3.post(
+                                url, json=final_payload, headers=headers
+                            )
                         if r3.status_code < 300:
                             data3 = r3.json() or {}
                             ch3 = ((data3 or {}).get("choices") or [{}])[0]
@@ -866,12 +1191,12 @@ class AgentService:
                             if msg3:
                                 return {"result": msg3}
                     # Non-tool flow
-                    msg = (message or {}).get("content") or ""
+                    msg = (resp_message or {}).get("content") or ""
                     if msg:
-                        out = {"result": msg}
+                        out4: Dict[str, Any] = {"result": msg}
                         if tools_log:
-                            out["tools_used"] = tools_log
-                        return out
+                            out4["tools_used"] = tools_log
+                        return out4
                 # Fallback to stub if non-2xx or empty
         except Exception:
             # Ignore; fall back to stub
@@ -888,7 +1213,14 @@ class AgentService:
                 if items
                 else "Tool-calling (simulated): no results"
             )
-            out = {"result": result, "tools_used": [{"name": "rag_search", "args": {"q": prompt}, "content": tool_hits}]}
+            out = {
+                "result": result,
+                "tools_used": [
+                    {"name": "rag_search", "args": {"q": prompt}, "content": tool_hits}
+                ],
+            }
             return out
 
-        return {"result": f"Stubbed agent response. Context sources:\n{context}".strip()}
+        return {
+            "result": f"Stubbed agent response. Context sources:\n{context}".strip()
+        }

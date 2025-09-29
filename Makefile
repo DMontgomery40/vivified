@@ -12,6 +12,7 @@ help:
 	@echo "  make docs-serve - Serve MkDocs locally"
 	@echo "  make api-docs - Build static API docs (Swagger + Redoc) to site/api"
 	@echo "  make ui-ci-local - Build React UIs (admin/ui) like CI"
+	@echo "  make smoke-ai - Run local AI/RAG smoke test"
 	@echo "  make clean   - Clean build artifacts"
 
 build:
@@ -49,6 +50,11 @@ ci-local:
 .PHONY: ui-ci-local
 ui-ci-local:
 	bash tools/scripts/ui_build.sh
+
+.PHONY: smoke-ai
+smoke-ai:
+	@echo "[smoke-ai] Running RAG smoke test (requires core running)"
+	@PY=$$(command -v python3.11 || echo python3); $$PY tools/scripts/rag_smoke.py --train --query "Vivified"
 
 .PHONY: sdk-ci-local
 sdk-ci-local:

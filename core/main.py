@@ -34,6 +34,111 @@ from starlette.responses import JSONResponse, StreamingResponse
 import json
 
 
+async def _migrate_env_to_config():
+    """Bootstrap ConfigService from env for dev convenience.
+
+    Only sets values that are currently unset in ConfigService.
+    """
+    try:
+        cfg = get_config_service()
+        # Provider
+        prov_env = os.getenv("AI_LLM_PROVIDER")
+        if prov_env and not await cfg.get("ai.llm.provider"):
+            await cfg.set(
+                "ai.llm.provider",
+                prov_env,
+                is_sensitive=False,
+                updated_by="system",
+                reason="env_migration",
+            )
+        # OpenAI
+        o_base = os.getenv("OPENAI_BASE_URL")
+        if o_base:
+            cur = await cfg.get("ai.connectors.openai") or {}
+            if not cur.get("base_url"):
+                await cfg.set(
+                    "ai.connectors.openai",
+                    {**cur, "base_url": o_base},
+                    is_sensitive=False,
+                    updated_by="system",
+                    reason="env_migration",
+                )
+        o_model = os.getenv("OPENAI_DEFAULT_MODEL") or os.getenv("AI_LLM_MODEL")
+        if o_model:
+            cur = await cfg.get("ai.connectors.openai") or {}
+            if not cur.get("default_model"):
+                await cfg.set(
+                    "ai.connectors.openai",
+                    {**cur, "default_model": o_model},
+                    is_sensitive=False,
+                    updated_by="system",
+                    reason="env_migration",
+                )
+        o_key = os.getenv("OPENAI_API_KEY") or os.getenv("AI_OPENAI_API_KEY")
+        if o_key and not await cfg.get("secrets.ai.openai.api_key"):
+            await cfg.set(
+                "secrets.ai.openai.api_key",
+                o_key,
+                is_sensitive=True,
+                updated_by="system",
+                reason="env_migration",
+            )
+        # Anthropic
+        a_base = os.getenv("ANTHROPIC_BASE_URL")
+        if a_base:
+            cur = await cfg.get("ai.connectors.anthropic") or {}
+            if not cur.get("base_url"):
+                await cfg.set(
+                    "ai.connectors.anthropic",
+                    {**cur, "base_url": a_base},
+                    is_sensitive=False,
+                    updated_by="system",
+                    reason="env_migration",
+                )
+        a_model = os.getenv("ANTHROPIC_DEFAULT_MODEL")
+        if a_model:
+            cur = await cfg.get("ai.connectors.anthropic") or {}
+            if not cur.get("default_model"):
+                await cfg.set(
+                    "ai.connectors.anthropic",
+                    {**cur, "default_model": a_model},
+                    is_sensitive=False,
+                    updated_by="system",
+                    reason="env_migration",
+                )
+        a_key = os.getenv("ANTHROPIC_API_KEY")
+        if a_key and not await cfg.get("secrets.ai.anthropic.api_key"):
+            await cfg.set(
+                "secrets.ai.anthropic.api_key",
+                a_key,
+                is_sensitive=True,
+                updated_by="system",
+                reason="env_migration",
+            )
+        # Tool-calling
+        tc = os.getenv("AI_AGENT_TOOL_CALLING")
+        if tc and not await cfg.get("ai.agent.tool_calling"):
+            await cfg.set(
+                "ai.agent.tool_calling",
+                tc.lower() in {"1", "true", "yes"},
+                is_sensitive=False,
+                updated_by="system",
+                reason="env_migration",
+            )
+        # RAG root
+        rag_root = os.getenv("RAG_ROOT")
+        if rag_root and not await cfg.get("ai.rag.root"):
+            await cfg.set(
+                "ai.rag.root",
+                rag_root,
+                is_sensitive=False,
+                updated_by="system",
+                reason="env_migration",
+            )
+    except Exception:
+        logger.debug("env->config migration failed", exc_info=True)
+
+
 class AddTraceIdFilter(logging.Filter):
     def filter(self, record):
         if not hasattr(record, "trace_id"):
@@ -162,8 +267,13 @@ async def startup_event():
         configure_automation_api(svc=automation_service)  # type: ignore[arg-type]
         # Initialize AI RAG service and admin endpoints
         if ai_rag_service is None:
-            ai_rag_service = RAGService(os.getenv("REDIS_URL"))
+            # Default to Redis for RAG; if not available, RAGService gracefully falls back to memory
+            ai_rag_service = RAGService(
+                os.getenv("REDIS_URL", "redis://localhost:6379/0")
+            )
         configure_ai_api(rag_service=ai_rag_service)  # type: ignore[arg-type]
+        await _migrate_env_to_config()
+
         # Optional: auto-train RAG on startup when enabled (dev/local only)
         try:
             _load_dotenv_if_present()
@@ -183,7 +293,7 @@ async def startup_event():
                         "api.anthropic.com": {
                             "allowed_methods": ["POST", "GET"],
                             "allowed_paths": ["/v1/"],
-                        }
+                        },
                     },
                     is_sensitive=False,
                     updated_by="system",
@@ -453,7 +563,9 @@ async def proxy_request(
                 body_bytes = None
 
         if not (plugin_id and method and url):
-            raise HTTPException(status_code=422, detail="plugin_id, method, url are required")
+            raise HTTPException(
+                status_code=422, detail="plugin_id, method, url are required"
+            )
 
         response = await gateway_service.proxy_request(
             plugin_id=plugin_id,

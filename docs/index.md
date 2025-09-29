@@ -265,8 +265,8 @@ docker-compose logs -f
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `GATEWAY_PORT` | API gateway port | `8080` |
-| `DATABASE_URL` | PostgreSQL connection string | `postgres://localhost/vivified` |
-| `REDIS_URL` | Redis connection for caching | `redis://localhost:6379` |
+| `DATABASE_URL` | PostgreSQL connection string | `postgresql+asyncpg://vivified:changeme@localhost:5432/vivified` |
+| `REDIS_URL` | Redis connection for RAG (default) | `redis://localhost:6379/0` |
 | `LOG_LEVEL` | Logging verbosity | `info` |
 | `PLUGIN_DIR` | Plugin directory path | `./plugins` |
 

@@ -73,7 +73,12 @@
     ```bash
     # (1)
     export APP_ENV=development
-    export DATABASE_URL='sqlite+aiosqlite:///:memory:'
+    # Prefer Postgres by default
+    export DATABASE_URL='postgresql+asyncpg://vivified:changeme@localhost:5432/vivified'
+    # RAG uses Redis by default when available
+    export REDIS_URL='redis://localhost:6379/0'
+    # Tests remain hermetic unless TEST_DB_URL overrides
+    # export TEST_DB_URL='sqlite+aiosqlite:///:memory:'
     ```
 
 1. Prefer a secrets manager for production KMS and DB credentials

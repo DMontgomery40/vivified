@@ -15,7 +15,8 @@ export default function AIStudio({ client, readOnly = false }: Props) {
   const [note, setNote] = useState('');
   const [sources, setSources] = useState<{ docs: boolean; plans: boolean; code: boolean; all: boolean }>({ docs: true, plans: true, code: true, all: false });
   const [cfg, setCfg] = useState<{ provider?: string; model?: string; base_url?: string; api_key_present: boolean } | null>(null);
-  const [cfgEditing, setCfgEditing] = useState<{ provider?: string; model?: string; base_url?: string; openai_api_key?: string }>({});
+  const [embedModel, setEmbedModel] = useState<string>('');
+  const [cfgEditing, setCfgEditing] = useState<{ provider?: string; model?: string; base_url?: string; embeddings_model?: string; openai_api_key?: string }>({});
   const [cfgMsg, setCfgMsg] = useState<string>('');
   const [rulesRequired, setRulesRequired] = useState<string>('{}');
   const [rulesClass, setRulesClass] = useState<string>('{}');
@@ -35,7 +36,7 @@ export default function AIStudio({ client, readOnly = false }: Props) {
 
   useEffect(() => { (async () => {
     await refresh();
-    try { const c = await client.getAiConfig(); setCfg(c?.llm || { api_key_present: false }); } catch {}
+    try { const c = await client.getAiConfig(); setCfg(c?.llm || { api_key_present: false }); setEmbedModel(c?.embeddings?.model || 'text-embedding-3-small'); } catch {}
     try {
       const rr = await client.getAiRagRules();
       setRulesRequired(JSON.stringify(rr.required_traits || {}, null, 2));
@@ -50,6 +51,25 @@ export default function AIStudio({ client, readOnly = false }: Props) {
     try {
       const ut = await client.getUserTraits();
       setUserTraits(ut?.traits || []);
+    } catch {}
+  })(); }, []);
+
+
+  // Defaults prefilled when config missing
+  useEffect(() => { (async () => {
+    try {
+      const cx = await client.aiConnectorsGet();
+      const wantsProvider = !cx?.provider;
+      const wantsOpenaiBase = !cx?.openai?.base_url;
+      const wantsAnthBase = !cx?.anthropic?.base_url;
+      if (wantsProvider || wantsOpenaiBase || wantsAnthBase) {
+        await client.aiConnectorsPut({
+          provider: cx?.provider || 'openai',
+          openai: { base_url: cx?.openai?.base_url || 'https://api.openai.com', default_model: cx?.openai?.default_model || 'gpt-4o-mini' },
+          anthropic: { base_url: cx?.anthropic?.base_url || 'https://api.anthropic.com', default_model: cx?.anthropic?.default_model || 'claude-3-haiku-20240307' },
+        });
+        setConnMsg('Defaults applied');
+      }
     } catch {}
   })(); }, []);
 
@@ -102,11 +122,13 @@ export default function AIStudio({ client, readOnly = false }: Props) {
       if (cfgEditing.provider !== undefined) payload.provider = cfgEditing.provider;
       if (cfgEditing.model !== undefined) payload.model = cfgEditing.model;
       if (cfgEditing.base_url !== undefined) payload.base_url = cfgEditing.base_url;
+      if (cfgEditing.embeddings_model !== undefined) payload.embeddings_model = cfgEditing.embeddings_model;
       if (cfgEditing.openai_api_key) payload.openai_api_key = cfgEditing.openai_api_key;
       const res = await client.setAiConfig(payload);
       setCfgMsg(`Saved (${(res.changed || []).join(', ') || 'no changes'})`);
       const c = await client.getAiConfig();
       setCfg(c?.llm || { api_key_present: false });
+      setEmbedModel(c?.embeddings?.model || 'text-embedding-3-small');
       setCfgEditing({});
     } catch (e: any) {
       setCfgMsg(e?.message || 'Failed to save');
@@ -158,22 +180,51 @@ export default function AIStudio({ client, readOnly = false }: Props) {
           <Alert severity="warning" sx={{ mb: 1 }}>No API key set. The agent will fall back to a local stub.</Alert>
         )}
         <Stack spacing={1} direction={{ xs: 'column', sm: 'row' }} sx={{ mb: 1 }}>
-          <TextField label="Provider" size="small" sx={{ flex: 1 }}
+          <TextField label="Provider" size="small" sx={{ flex: 1 }} select
             value={cfgEditing.provider ?? cfg?.provider ?? 'openai'}
             onChange={e => setCfgEditing(v => ({ ...v, provider: e.target.value }))}
             disabled={busy || readOnly}
-          />
-          <TextField label="Model" size="small" sx={{ flex: 1 }}
-            value={cfgEditing.model ?? cfg?.model ?? 'gpt-5-mini'}
-            onChange={e => setCfgEditing(v => ({ ...v, model: e.target.value }))}
-            disabled={busy || readOnly}
-          />
+          >
+            {providerOptions.map(p => (<MenuItem key={p} value={p}>{p}</MenuItem>))}
+          </TextField>
+          {modelOptions.length > 0 ? (
+            <TextField label="Model" size="small" sx={{ flex: 1 }} select
+              value={cfgEditing.model ?? cfg?.model ?? ''}
+              onChange={e => setCfgEditing(v => ({ ...v, model: e.target.value }))}
+              disabled={busy || readOnly}
+            >
+              {modelOptions.map(m => (<MenuItem key={m} value={m}>{m}</MenuItem>))}
+            </TextField>
+          ) : (
+            <TextField label="Model" size="small" sx={{ flex: 1 }} placeholder="model name"
+              value={cfgEditing.model ?? cfg?.model ?? ''}
+              onChange={e => setCfgEditing(v => ({ ...v, model: e.target.value }))}
+              disabled={busy || readOnly}
+            />
+          )}
           <TextField label="Base URL" size="small" sx={{ flex: 1 }}
             placeholder="https://api.openai.com"
             value={cfgEditing.base_url ?? cfg?.base_url ?? ''}
             onChange={e => setCfgEditing(v => ({ ...v, base_url: e.target.value }))}
             disabled={busy || readOnly}
           />
+        </Stack>
+        <Stack spacing={1} direction={{ xs: 'column', sm: 'row' }} sx={{ mb: 1 }}>
+          {embedOptions.length > 0 ? (
+            <TextField label="Embeddings Model" size="small" sx={{ flex: 1 }} select
+              value={cfgEditing.embeddings_model ?? embedModel}
+              onChange={(e) => setCfgEditing(v => ({ ...v, embeddings_model: e.target.value }))}
+              disabled={busy || readOnly}
+            >
+              {embedOptions.map(m => (<MenuItem key={m} value={m}>{m}</MenuItem>))}
+            </TextField>
+          ) : (
+            <TextField label="Embeddings Model" size="small" sx={{ flex: 1 }} placeholder="text-embedding-3-small"
+              value={cfgEditing.embeddings_model ?? embedModel}
+              onChange={(e) => setCfgEditing(v => ({ ...v, embeddings_model: e.target.value }))}
+              disabled={busy || readOnly}
+            />
+          )}
         </Stack>
         <Stack spacing={1} direction={{ xs: 'column', sm: 'row' }} alignItems={{ xs: 'stretch', sm: 'center' }}>
           <TextField fullWidth type="password" label="OpenAI API Key" placeholder="sk-..."
@@ -288,10 +339,16 @@ export default function AIStudio({ client, readOnly = false }: Props) {
             disabled={busy || readOnly}
           />
         </Stack>
+        <Typography variant="subtitle2" sx={{ mt: 2 }}>Local</Typography>
+        <Stack spacing={1} direction={{ xs: 'column', sm: 'row' }} sx={{ mb: 1 }}>
+          <TextField label="Base URL" size="small" sx={{ flex: 1 }} placeholder="http://localhost:11434" disabled value={'http://localhost:11434'} />
+          <TextField label="Default Model" size="small" sx={{ flex: 1 }} placeholder="llama3.1:8b" disabled value={'llama3.1:8b'} />
+        </Stack>
+        <Alert severity="info" sx={{ mb: 1 }}>Set Provider=local above to use your local LLM (e.g., Ollama). Allowlist is applied automatically when you save connectors.</Alert>
         <Stack spacing={1} direction={{ xs: 'column', sm: 'row' }} alignItems={{ xs: 'stretch', sm: 'center' }}>
           <FormControlLabel control={<Switch checked={toolCalling} onChange={(e) => setToolCalling(e.target.checked)} />} label="Enable tool-calling" />
           <Button variant="outlined" onClick={saveConnectors} disabled={busy || readOnly} sx={{ borderRadius: 2 }}>Save Connectors</Button>
-          <Button variant="outlined" onClick={async()=>{ setBusy(true); setConnMsg(''); try { const res = await client.aiConnectorsPut({ provider: (cfgEditing.provider || cfg?.provider || 'openai'), openai: { base_url: connOpenai.base_url || 'https://api.openai.com' }, anthropic: { base_url: connAnth.base_url || 'https://api.anthropic.com' } }); setConnMsg('Default allowlist applied'); } catch(e:any){ setConnMsg(e?.message || 'Failed'); } finally { setBusy(false); } }} disabled={busy || readOnly} sx={{ borderRadius: 2 }}>Apply Default AI Allowlist</Button>
+          <Button variant="outlined" onClick={async()=>{ setBusy(true); setConnMsg(''); try { await client.aiConnectorsPut({ provider: (cfgEditing.provider || cfg?.provider || 'openai'), openai: { base_url: connOpenai.base_url || 'https://api.openai.com' }, anthropic: { base_url: connAnth.base_url || 'https://api.anthropic.com' }, local: { base_url: 'http://localhost:11434' } }); setConnMsg('Default allowlist applied'); } catch(e:any){ setConnMsg(e?.message || 'Failed'); } finally { setBusy(false); } }} disabled={busy || readOnly} sx={{ borderRadius: 2 }}>Apply Default AI Allowlist</Button>
           {connMsg && <Chip label={connMsg} color="info" variant="outlined" />}
         </Stack>
       </Paper>

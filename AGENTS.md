@@ -1,5 +1,7 @@
 # AGENTS.md - Vivified Platform Development Guidelines
 
+# **ALL PYTHON CODE MUST BE BACK CONFORMANT - your code will not pass CI unless it is**
+
 ## Local CI Parity — Commit Gate (Read This First)
 
 Status: DONE
