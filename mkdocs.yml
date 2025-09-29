@@ -126,6 +126,7 @@ nav:
   - Storage: core/storage.md
   - Messaging: core/messaging.md
   - Audit: core/audit.md
+  - AI & Agents: ai/overview.md
 - Admin Console:
   - Overview: admin-console.md
   - Dashboard: admin-console/dashboard.md
