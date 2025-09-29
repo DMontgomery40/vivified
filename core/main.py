@@ -236,7 +236,7 @@ async def startup_event():
         audit_service = await get_audit_service()
 
         if messaging_service is None:
-            messaging_service = MessagingService(audit_service, policy_engine)
+            messaging_service = MessagingService(audit_service, policy_engine, registry)
         if canonical_service is None:
             canonical_service = CanonicalService(audit_service, policy_engine)
         if gateway_service is None:
@@ -253,8 +253,15 @@ async def startup_event():
                 audit_service, messaging_service, policy_engine
             )
 
-        # Load any built-in canonical JSON Schemas (idempotent)
+        # Load canonical JSON Schemas: persisted first, then built-ins (both idempotent)
         try:
+            try:
+                reloaded = await schema_registry.hydrate_from_config()  # type: ignore[attr-defined]
+                if reloaded:
+                    logger.info("Hydrated %d canonical schemas from ConfigService", reloaded)
+            except Exception:
+                logger.debug("schema hydrate failed", exc_info=True)
+
             loaded = load_builtin_schemas(schema_registry)
             if loaded:
                 logger.info("Loaded %d built-in canonical schemas", loaded)
@@ -703,16 +710,37 @@ async def operator_invoke(target_plugin: str, operation: str, req: Dict[str, Any
             # On errors evaluating policy, continue but log; defaults to allow in minimal engine
             logger.debug("operator policy evaluation failed", exc_info=True)
 
-        # Enforce operator allowlist from config
+        # Enforce operator allowlist from config (dev-mode fallback optional)
         try:
             from .config.service import get_config_service
 
             caller = (req or {}).get("caller_plugin", "unknown")
             key = f"operator.allow.{caller}->{target_plugin}"
             allowed = await get_config_service().get(key) or []
-            if isinstance(allowed, list):
-                opset = {str(op) for op in allowed}
-                if operation not in opset:
+            allowed_set = set(str(op) for op in allowed) if isinstance(allowed, list) else set()
+
+            if operation not in allowed_set:
+                # Optional dev-mode fallback: allow any declared endpoint operation on target
+                # when DEV_MODE=true or operator.allow.dev_all=true.
+                dev_mode = os.getenv("DEV_MODE", "false").lower() in {"1", "true", "yes"}
+                dev_all = False
+                try:
+                    cfg_val = await get_config_service().get("operator.allow.dev_all")
+                    dev_all = bool(cfg_val)
+                except Exception:
+                    dev_all = False
+
+                if dev_mode or dev_all:
+                    tinfo = registry.plugins.get(target_plugin) or {}
+                    t_eps = (tinfo.get("manifest") or {}).get("endpoints") or {}
+                    if isinstance(t_eps, dict) and (operation in t_eps or operation.replace("_", "-") in t_eps):
+                        logger.debug("dev-mode operator allow: %s -> %s:%s", caller, target_plugin, operation)
+                    else:
+                        raise HTTPException(
+                            status_code=403,
+                            detail="Operator call not allowed for this operation",
+                        )
+                else:
                     raise HTTPException(
                         status_code=403,
                         detail="Operator call not allowed for this operation",
@@ -1008,7 +1036,7 @@ def _start_rag_updater() -> None:
     _rag_update_task = asyncio.create_task(_runner())
 
 
-# Canonical Schemas stubs to satisfy Admin UI until registry is implemented
+# Canonical Schemas API (in-memory registry with ConfigService persistence)
 class SchemaUpsertModel(BaseModel):
     name: str
     major: int

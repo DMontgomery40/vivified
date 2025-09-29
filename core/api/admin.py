@@ -436,6 +436,56 @@ async def operator_allowlist_set(
     return {"ok": True, "caller": caller, "target": target}
 
 
+@admin_router.post("/operator/allowlist/auto-generate")
+@audit_log("operator_allowlist_autogen")
+async def operator_allowlist_autogen(
+    payload: Dict[str, Any],
+    _: Dict = Depends(require_auth(["admin", "plugin_manager"])),
+):
+    """Auto-generate operator allowlist from target plugin manifest endpoints.
+
+    Body: { caller: str, target: str, merge?: bool }
+    - If merge is true, merges with existing list; otherwise replaces.
+    """
+    if _CONFIG_SVC is None:
+        raise HTTPException(status_code=500, detail="Config service not available")
+    caller = str(payload.get("caller") or "").strip()
+    target = str(payload.get("target") or "").strip()
+    merge = bool(payload.get("merge") or False)
+    if not caller or not target:
+        raise HTTPException(status_code=400, detail="caller and target required")
+
+    if _REGISTRY is None:
+        raise HTTPException(status_code=500, detail="Plugin registry not available")
+    target_info = _REGISTRY.plugins.get(target)
+    if not target_info or not isinstance(target_info, dict):
+        raise HTTPException(status_code=404, detail="Target plugin not found")
+    endpoints = (target_info.get("manifest") or {}).get("endpoints") or {}
+    if not isinstance(endpoints, dict) or not endpoints:
+        raise HTTPException(status_code=400, detail="No endpoints declared on target")
+
+    operations = sorted([str(k) for k in endpoints.keys()])
+
+    key = f"operator.allow.{caller}->{target}"
+    if merge:
+        try:
+            cur = await _CONFIG_SVC.get(key) or []
+        except Exception:
+            cur = []
+        if not isinstance(cur, list):
+            cur = []
+        merged = sorted(list({*(str(x) for x in cur), *operations}))
+        await _CONFIG_SVC.set(
+            key, merged, is_sensitive=False, updated_by="admin", reason="operator_allowlist_autogen"
+        )
+    else:
+        await _CONFIG_SVC.set(
+            key, operations, is_sensitive=False, updated_by="admin", reason="operator_allowlist_autogen"
+        )
+
+    return {"ok": True, "caller": caller, "target": target, "operations": operations}
+
+
 # Canonical transformation mappings registry
 @admin_router.get("/canonical/transforms")
 async def canonical_transforms_get(

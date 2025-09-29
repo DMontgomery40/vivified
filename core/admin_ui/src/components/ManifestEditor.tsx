@@ -21,6 +21,8 @@ export default function ManifestEditor({ client }: { client: AdminAPIClient }) {
   const [result, setResult] = useState<any | null>(null);
   const [caller, setCaller] = useState<string>('plugin.caller');
   const [target, setTarget] = useState<string>('');
+  const [inboxOk, setInboxOk] = useState<boolean>(true);
+  const [inboxSuggest, setInboxSuggest] = useState<string>('');
 
   useEffect(() => {
     const load = async () => {
@@ -34,6 +36,17 @@ export default function ManifestEditor({ client }: { client: AdminAPIClient }) {
       setError(''); setNote(''); setResult(null);
       const obj = JSON.parse(jsonText || '{}');
       if (!target && obj?.id) setTarget(String(obj.id));
+      // Inline inbox endpoint validation
+      const eps = (obj?.endpoints && typeof obj.endpoints === 'object') ? obj.endpoints : {};
+      const possibleKeys = ['message.receive','messages.receive','inbox','message'];
+      const foundKey = possibleKeys.find(k => typeof eps?.[k] === 'string' && eps[k]);
+      const ok = Boolean(foundKey);
+      setInboxOk(ok);
+      if (!ok) {
+        setInboxSuggest('message.receive');
+      } else {
+        setInboxSuggest(foundKey || '');
+      }
       const res = await client.validatePluginManifest(obj);
       setResult(res);
       setNote(res.ok ? 'Manifest is valid' : 'Manifest has validation issues');
@@ -78,6 +91,24 @@ export default function ManifestEditor({ client }: { client: AdminAPIClient }) {
     } catch (e: any) { setError(e?.message || 'Generate operator allowlist failed'); }
   };
 
+  const insertInboxEndpoint = () => {
+    try {
+      setError(''); setNote('');
+      const obj = JSON.parse(jsonText || '{}');
+      const eps = (obj.endpoints && typeof obj.endpoints === 'object') ? obj.endpoints : {};
+      const key = inboxSuggest || 'message.receive';
+      if (!eps[key]) {
+        eps[key] = '/inbox';
+      }
+      obj.endpoints = eps;
+      setJsonText(JSON.stringify(obj, null, 2));
+      setNote(`Added inbox endpoint: ${key} -> /inbox`);
+      setInboxOk(true);
+    } catch (e: any) {
+      setError(e?.message || 'Failed to insert inbox endpoint');
+    }
+  };
+
   return (
     <Paper variant="outlined" sx={{ p: 2, borderRadius: 2 }}>
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
@@ -91,6 +122,14 @@ export default function ManifestEditor({ client }: { client: AdminAPIClient }) {
         <Typography variant="caption" color="text.secondary">
           Paste your manifest here and click Validate. Fix required fields and enum values as reported. Use “Apply Suggested Allowlist” and “Generate Operator Allowlist” to seed policies before Registering.
         </Typography>
+        {!inboxOk && (
+          <Alert severity="warning" onClose={()=>setInboxOk(true)}>
+            Recommended: Add an inbox endpoint key (e.g., <code>message.receive</code>) pointing to your handler path (e.g., <code>/inbox</code>).
+            <Box sx={{ mt: 1 }}>
+              <Button size="small" variant="outlined" onClick={insertInboxEndpoint}>Insert inbox endpoint</Button>
+            </Box>
+          </Alert>
+        )}
         <Stack direction="row" spacing={1}>
           <Button variant="contained" onClick={validate}>Validate</Button>
           <Button variant="outlined" onClick={applyAllowlist}>Apply Suggested Allowlist</Button>

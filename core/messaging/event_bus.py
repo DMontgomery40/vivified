@@ -11,6 +11,8 @@ import os
 import json
 
 from .models import Event, Message, MessageDeliveryStatus
+from .dispatch import PluginDispatcher
+from .durable import select_durable_from_env
 from ..audit.service import AuditService, AuditLevel
 from ..policy.engine import PolicyEngine, PolicyRequest, PolicyDecision
 
@@ -169,6 +171,8 @@ class EventBus:
         audit_service: AuditService,
         policy_engine: PolicyEngine,
         broker: Optional[BrokerClient] = None,
+        dispatcher: Optional[PluginDispatcher] = None,
+        config_service: Optional[Any] = None,
     ):
         self.audit_service = audit_service
         self.policy_engine = policy_engine
@@ -178,6 +182,22 @@ class EventBus:
         self._running = False
         self._processing_task: Optional[asyncio.Task] = None
         self._broker: BrokerClient = broker or _select_broker_from_env()
+        self._dispatcher = dispatcher
+        # Delivery config
+        self._max_attempts = int(os.getenv("MESSAGE_MAX_ATTEMPTS", "3") or 3)
+        self._base_retry_delay = float(
+            os.getenv("MESSAGE_RETRY_BASE_SECONDS", "2.0") or 2.0
+        )
+        # Optional persistence for pending messages via ConfigService
+        try:
+            if config_service is not None:
+                self._config = config_service
+            else:
+                from ..config.service import get_config_service as _get_cfg
+
+                self._config = _get_cfg()
+        except Exception:
+            self._config = None  # type: ignore[assignment]
 
     async def start(self):
         """Start the event bus processing."""
@@ -186,7 +206,44 @@ class EventBus:
 
         self._running = True
         await self._broker.start()
+        # Rehydrate any pending messages for at-least-once best-effort
+        try:
+            if self._config is not None:
+                items = await self._config.get_all(reveal=True)
+                for k, v in items.items():
+                    if not str(k).startswith("messaging.pending."):
+                        continue
+                    try:
+                        obj = json.loads(json.dumps(v)) if not isinstance(v, dict) else v
+                        msg_data = obj.get("message") or obj
+                        src = obj.get("source_plugin") or msg_data.get("source_plugin")
+                        message = Message(**msg_data)
+                        # Do not republish to broker here; only enqueue local delivery
+                        await self.message_queue.put(("message", message, str(src or "unknown")))
+                    except Exception:
+                        continue
+        except Exception:
+            logger.debug("pending rehydrate failed", exc_info=True)
         self._processing_task = asyncio.create_task(self._process_messages())
+        # Start durable backend if configured
+        try:
+            self._durable = select_durable_from_env()
+        except Exception:
+            self._durable = None  # type: ignore[assignment]
+        if getattr(self, "_durable", None) is not None:
+            async def _cb(msg_obj, src):
+                try:
+                    # msg_obj is a raw dict; construct Message model
+                    m = Message(**msg_obj)
+                except Exception:
+                    return
+                await self._process_message(m, str(src))
+
+            try:
+                await self._durable.start(_cb)  # type: ignore[union-attr]
+                logger.info("Durable message backend started")
+            except Exception:
+                logger.debug("durable backend start failed", exc_info=True)
         logger.info("Event bus started")
 
     async def stop(self):
@@ -199,6 +256,12 @@ class EventBus:
             except asyncio.CancelledError:
                 pass
         await self._broker.stop()
+        # Stop durable backend if running
+        try:
+            if getattr(self, "_durable", None) is not None:
+                await self._durable.stop()  # type: ignore[union-attr]
+        except Exception:
+            logger.debug("durable backend stop failed", exc_info=True)
         logger.info("Event bus stopped")
 
     async def publish_event(self, event: Event, source_plugin: str) -> bool:
@@ -273,16 +336,39 @@ class EventBus:
                 )
                 return False
 
-            # Publish to broker subject for direct messaging and enqueue locally
-            subject = f"messages.{message.target_plugin}"
-            payload = json.dumps(
-                {
-                    "message": message.model_dump(mode="json"),
-                    "source_plugin": source_plugin,
-                }
-            ).encode("utf-8")
-            await self._broker.publish(subject, payload)
-            await self.message_queue.put(("message", message, source_plugin))
+            # Persist pending (best-effort) for at-least-once across restarts
+            try:
+                if self._config is not None:
+                    await self._config.set(
+                        f"messaging.pending.{message.id}",
+                        {
+                            "message": message.model_dump(mode="json"),
+                            "source_plugin": source_plugin,
+                        },
+                        is_sensitive=False,
+                        updated_by=source_plugin,
+                        reason="message_enqueue",
+                    )
+            except Exception:
+                logger.debug("pending persist failed", exc_info=True)
+
+            # If durable backend active, enqueue there; otherwise use broker + local queue
+            if getattr(self, "_durable", None) is not None:
+                try:
+                    await self._durable.enqueue(message.model_dump(mode="json"), source_plugin)  # type: ignore[union-attr]
+                except Exception:
+                    logger.debug("durable enqueue failed", exc_info=True)
+                    raise
+            else:
+                subject = f"messages.{message.target_plugin}"
+                payload = json.dumps(
+                    {
+                        "message": message.model_dump(mode="json"),
+                        "source_plugin": source_plugin,
+                    }
+                ).encode("utf-8")
+                await self._broker.publish(subject, payload)
+                await self.message_queue.put(("message", message, source_plugin))
 
             await self.audit_service.log_event(
                 event_type="message_sent",
@@ -385,14 +471,73 @@ class EventBus:
                     logger.error(f"Error in event callback: {e}")
 
     async def _process_message(self, message: Message, source_plugin: str):
-        """Process a message by delivering to target plugin."""
+        """Process a message by delivering to target plugin with retry/backoff."""
         if not message.target_plugin:
-            logger.warning(f"Message {message.id} has no target plugin")
+            logger.warning("message %s has no target plugin", message.id)
             return
 
-        # In a real implementation, this would route to the actual plugin
-        # For now, we'll just log the delivery
-        logger.info(f"Message {message.id} delivered to {message.target_plugin}")
+        if self._dispatcher is None:
+            logger.info(
+                "no dispatcher configured; dropping message %s -> %s",
+                message.id,
+                message.target_plugin,
+            )
+            return
+
+        attempts = 0
+        delivered = False
+        while attempts < self._max_attempts and self._running:
+            attempts += 1
+            try:
+                ok = await self._dispatcher.deliver_message(message, source_plugin)
+                if ok:
+                    delivered = True
+                    break
+            except Exception as e:  # noqa: BLE001
+                logger.debug("delivery attempt failed: %s", e, exc_info=True)
+
+            # Backoff before retrying
+            delay = self._base_retry_delay * (2 ** (attempts - 1))
+            try:
+                await asyncio.sleep(delay)
+            except asyncio.CancelledError:
+                break
+
+        # Track and audit
+        self.delivery_tracking[message.id] = (
+            MessageDeliveryStatus.DELIVERED if delivered else MessageDeliveryStatus.FAILED
+        )
+        # Clear pending on success
+        try:
+            if delivered and self._config is not None:
+                await self._config.set(
+                    f"messaging.pending.{message.id}",
+                    None,
+                    is_sensitive=False,
+                    updated_by=source_plugin,
+                    reason="message_delivered",
+                )
+        except Exception:
+            logger.debug("pending cleanup failed", exc_info=True)
+        try:
+            await self.audit_service.log_event(
+                event_type="message_delivery",
+                category="messaging",
+                action="deliver",
+                result="success" if delivered else "failed",
+                description=(
+                    f"{source_plugin} -> {message.target_plugin} msg={message.id} attempts={attempts}"
+                ),
+                plugin_id=source_plugin,
+                level=AuditLevel.STANDARD,
+                details={
+                    "message_id": message.id,
+                    "target_plugin": message.target_plugin,
+                    "attempts": attempts,
+                },
+            )
+        except Exception:  # noqa: BLE001
+            logger.debug("message delivery audit failed", exc_info=True)
 
     async def _can_publish_event(self, source_plugin: str, event: Event) -> bool:
         """Check if plugin can publish this event using the policy engine."""
