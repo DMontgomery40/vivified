@@ -270,9 +270,13 @@ async def startup_event():
         configure_automation_api(svc=automation_service)  # type: ignore[arg-type]
         # Initialize AI RAG service and admin endpoints
         if ai_rag_service is None:
-            # Default to Redis for RAG; if not available, RAGService gracefully falls back to memory
+            # Prefer ConfigService key for Redis URL when present
+            try:
+                rag_url = await get_config_service().get("ai.rag.redis_url")
+            except Exception:
+                rag_url = None
             ai_rag_service = RAGService(
-                os.getenv("REDIS_URL", "redis://localhost:6379/0")
+                rag_url or os.getenv("REDIS_URL", "redis://localhost:6379/0")
             )
         configure_ai_api(rag_service=ai_rag_service)  # type: ignore[arg-type]
         await _migrate_env_to_config()

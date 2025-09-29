@@ -140,6 +140,7 @@ async def scaffold_plugin(
     version = str(payload.get("version") or "1.0.0").strip() or "1.0.0"
     traits = payload.get("traits") or []
     capabilities = payload.get("capabilities") or []
+    template = str(payload.get("template") or "").lower().strip()
 
     if not plugin_id or not re.match(r"^[a-z0-9\-_.]+$", plugin_id):
         raise HTTPException(status_code=400, detail="Invalid plugin id")
@@ -161,6 +162,11 @@ async def scaffold_plugin(
         },
         "compliance": {"hipaa_controls": [], "audit_level": "standard"},
     }
+
+    if template == "llm-oss":
+        manifest["endpoints"] = {"health": "/health", "chat": "/chat", "embeddings": "/embeddings"}
+    if template in {"rag-db", "rag-db-pgvector"}:
+        manifest["endpoints"] = {"health": "/health", "rag_index": "/rag/index", "rag_query": "/rag/query"}
 
     if language == "node":
         main_path = f"{plugin_id}/index.js"
@@ -198,6 +204,40 @@ async def scaffold_plugin(
             + plugin_id
             + '"]\n'
         )
+
+        # Optional: template-specific server stub
+        if template in {"llm-oss", "rag-db", "rag-db-pgvector"}:
+            server = [
+                "from fastapi import FastAPI\n",
+                "from pydantic import BaseModel\n",
+                "app = FastAPI()\n\n",
+                "@app.get('/health')\nasync def health(): return {'ok': True}\n\n",
+            ]
+            if template == "llm-oss":
+                server += [
+                    "class Chat(BaseModel): messages: list; tools: list|None=None; model: str|None=None\n",
+                    "class Embeddings(BaseModel): input: str|list; model: str|None=None\n",
+                    "@app.post('/chat')\nasync def chat(req: Chat): return {'text':'hello from llm-oss','tool_calls':[]}\n",
+                    "@app.post('/embeddings')\nasync def emb(req: Embeddings): return {'data':[{'embedding':[0.0]*8}]}\n",
+                ]
+            else:
+                server += [
+                    "class RagIndex(BaseModel): id:str; title:str; path:str; content:str; required_traits:list[str]|None=None; classification:list[str]|None=None; vector:list[float]|None=None\n",
+                    "class RagQuery(BaseModel): q:str; top_k:int=5; user_traits:list[str]|None=None\n",
+                    "@app.post('/rag/index')\nasync def rindex(req: RagIndex): return {'ok':True}\n",
+                    "@app.post('/rag/query')\nasync def rquery(req: RagQuery): return {'items':[]}\n",
+                ]
+                if template == "rag-db-pgvector":
+                    readme = (
+                        "# RAG DB (pgvector)\n\n"
+                        "1) Enable extension in Postgres: `CREATE EXTENSION IF NOT EXISTS vector;`\n\n"
+                        "2) Create tables:\n\n"
+                        "```sql\nCREATE TABLE documents (id text primary key, title text, path text, required_traits jsonb, classification jsonb);\nCREATE TABLE chunks (id text primary key, doc_id text references documents(id), chunk_no int, content text, vector vector(1536));\nCREATE INDEX ON chunks USING hnsw (vector vector_l2_ops);\n```\n\n"
+                        "3) Implement /rag/index to upsert docs and chunks, /rag/query to compute embedding and ANN search (`ORDER BY vector <-> $qvec LIMIT $k`).\n\n"
+                        "4) Set PG_DSN env, add psycopg/async driver to requirements, and wire your DB client.\n"
+                    )
+                    files[f"{plugin_id}/README.md"] = readme
+            files[f"{plugin_id}/server.py"] = "".join(server)
 
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", compression=zipfile.ZIP_DEFLATED) as zf:

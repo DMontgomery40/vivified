@@ -110,6 +110,7 @@ async def ai_get_config(_: Dict = Depends(require_auth(["admin"]))):
     base_url = await cfg.get("ai.llm.base_url")
     emb_model = await cfg.get("ai.embeddings.model")
     api_key_present = bool(await cfg.get("secrets.ai.openai.api_key"))
+    rag_redis = await cfg.get("ai.rag.redis_url") or os.getenv("REDIS_URL")
     safe = {
         "llm": {
             "provider": provider or "openai",
@@ -127,6 +128,9 @@ async def ai_get_config(_: Dict = Depends(require_auth(["admin"]))):
             or os.getenv("EMBEDDING_MODEL")
             or os.getenv("OPENAI_EMBEDDING_MODEL")
             or "text-embedding-3-small",
+        },
+        "rag": {
+            "redis_url": rag_redis,
         },
     }
     return safe
@@ -159,6 +163,15 @@ async def ai_set_config(
             reason="ai_config",
         )
         changed.append("ai.embeddings.model")
+    if "rag_redis_url" in payload and payload["rag_redis_url"]:
+        await cfg.set(
+            "ai.rag.redis_url",
+            str(payload["rag_redis_url"]),
+            is_sensitive=False,
+            updated_by=str(user.get("id")),
+            reason="ai_config",
+        )
+        changed.append("ai.rag.redis_url")
     if "embeddings_model" in payload:
         await cfg.set(
             "ai.embeddings.model",
@@ -286,6 +299,7 @@ async def ai_connectors_get(_: Dict = Depends(require_auth(["admin"]))):
     cfg = _get_cfg()
     openai_cfg = await cfg.get("ai.connectors.openai") or {}
     anthropic_cfg = await cfg.get("ai.connectors.anthropic") or {}
+    deepseek_cfg = await cfg.get("ai.connectors.deepseek") or {}
     local_cfg = await cfg.get("ai.connectors.local") or {}
     agent_cfg = await cfg.get("ai.agent") or {}
     provider = (
@@ -316,6 +330,17 @@ async def ai_connectors_get(_: Dict = Depends(require_auth(["admin"]))):
         or os.getenv("ANTHROPIC_DEFAULT_MODEL")
         or "claude-3-haiku-20240307"
     )
+    deepseek_base = (
+        deepseek_cfg.get("base_url")
+        or os.getenv("DEEPSEEK_BASE_URL")
+        or "https://api.deepseek.com"
+    )
+    deepseek_model = (
+        deepseek_cfg.get("default_model")
+        or os.getenv("DEEPSEEK_DEFAULT_MODEL")
+        or "deepseek-chat"
+    )
+    deepseek_key_present = bool(await cfg.get("secrets.ai.deepseek.api_key"))
     return {
         "provider": provider,
         "openai": {
@@ -327,6 +352,11 @@ async def ai_connectors_get(_: Dict = Depends(require_auth(["admin"]))):
             "base_url": anthropic_base,
             "default_model": anthropic_model,
             "api_key_present": ant_key_present,
+        },
+        "deepseek": {
+            "base_url": deepseek_base,
+            "default_model": deepseek_model,
+            "api_key_present": deepseek_key_present,
         },
         "local": {
             "base_url": local_cfg.get("base_url")
@@ -350,6 +380,7 @@ async def ai_connectors_put(
     changed: list[str] = []
     op = payload.get("openai") or {}
     ap = payload.get("anthropic") or {}
+    dp = payload.get("deepseek") or {}
     ag = payload.get("agent") or {}
     provider = payload.get("provider")
     if provider:
@@ -438,6 +469,40 @@ async def ai_connectors_put(
             reason="ai_agent",
         )
         changed.append("ai.agent.tool_calling")
+    if isinstance(dp, dict):
+        if dp.get("base_url") is not None:
+            await cfg.set(
+                "ai.connectors.deepseek",
+                {
+                    **(await cfg.get("ai.connectors.deepseek") or {}),
+                    "base_url": str(dp.get("base_url")),
+                },
+                is_sensitive=False,
+                updated_by=str(user.get("id")),
+                reason="ai_connectors",
+            )
+            changed.append("ai.connectors.deepseek.base_url")
+        if dp.get("default_model") is not None:
+            await cfg.set(
+                "ai.connectors.deepseek",
+                {
+                    **(await cfg.get("ai.connectors.deepseek") or {}),
+                    "default_model": str(dp.get("default_model")),
+                },
+                is_sensitive=False,
+                updated_by=str(user.get("id")),
+                reason="ai_connectors",
+            )
+            changed.append("ai.connectors.deepseek.default_model")
+        if dp.get("api_key"):
+            await cfg.set(
+                "secrets.ai.deepseek.api_key",
+                str(dp.get("api_key")),
+                is_sensitive=True,
+                updated_by=str(user.get("id")),
+                reason="ai_connectors_secret",
+            )
+            changed.append("secrets.ai.deepseek.api_key")
     # Update gateway allowlist for ai-core based on configured provider base URLs
     try:
         from urllib.parse import urlparse
@@ -462,6 +527,12 @@ async def ai_connectors_put(
 
         o_host = host(o_base)
         a_host = host(a_base)
+        d_host = host(
+            (
+                (isinstance(dp, dict) and dp.get("base_url"))
+                or (await cfg.get("ai.connectors.deepseek") or {}).get("base_url")
+            )
+        )
         if o_host:
             allow[o_host] = {
                 "allowed_methods": ["POST", "GET"],
@@ -469,6 +540,11 @@ async def ai_connectors_put(
             }
         if a_host:
             allow[a_host] = {
+                "allowed_methods": ["POST", "GET"],
+                "allowed_paths": ["/v1/"],
+            }
+        if d_host:
+            allow[d_host] = {
                 "allowed_methods": ["POST", "GET"],
                 "allowed_paths": ["/v1/"],
             }

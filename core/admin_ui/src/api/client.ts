@@ -334,7 +334,7 @@ export class AdminAPIClient {
     return res.json();
   }
 
-  async scaffoldPlugin(payload: { id: string; name?: string; version?: string; language?: string; traits?: string[]; capabilities?: string[] }): Promise<Blob> {
+  async scaffoldPlugin(payload: { id: string; name?: string; version?: string; language?: string; traits?: string[]; capabilities?: string[]; template?: string }): Promise<Blob> {
     const url = `${this.baseURL}/admin/plugins/scaffold`;
     const res = await fetch(url, {
       method: 'POST',
@@ -376,7 +376,7 @@ export class AdminAPIClient {
     return res.json();
   }
 
-  async setAiConfig(payload: { provider?: string; model?: string; base_url?: string; embeddings_model?: string; openai_api_key?: string }): Promise<{ ok: boolean; changed: string[] }>{
+  async setAiConfig(payload: { provider?: string; model?: string; base_url?: string; embeddings_model?: string; rag_redis_url?: string; openai_api_key?: string }): Promise<{ ok: boolean; changed: string[] }>{
     const res = await this.fetch('/admin/ai/config', { method: 'PUT', body: JSON.stringify(payload) });
     return res.json();
   }
@@ -402,7 +402,7 @@ export class AdminAPIClient {
     return res.json();
   }
 
-  async aiModels(provider: string, type?: 'chat' | 'embeddings'): Promise<{ provider: string; type: string; models: string[] }>{
+  async aiModels(provider: string, type?: 'chat' | 'embeddings'): Promise<{ provider: string; type: string; models: string[]; prices?: Record<string, { input?: number; output?: number; unit?: string }> }>{
     const t = type ? `&typ=${encodeURIComponent(type)}` : '';
     const res = await this.fetch(`/admin/ai/models?provider=${encodeURIComponent(provider)}${t}`);
     return res.json();
