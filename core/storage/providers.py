@@ -67,9 +67,12 @@ class FilesystemProvider(StorageProviderBase):
         """Get filesystem path for object based on classification and date."""
         # Organize by classification and year/month for efficient management
         date_path = metadata.created_at.strftime("%Y/%m")
-        classification_path = (
-            self.base_path / metadata.data_classification.value / date_path
+        cls = (
+            metadata.data_classification.value
+            if hasattr(metadata.data_classification, "value")
+            else str(metadata.data_classification)
         )
+        classification_path = self.base_path / cls / date_path
 
         # Use secure filename from metadata
         from .encryption import StorageEncryption

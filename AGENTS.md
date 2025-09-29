@@ -135,6 +135,11 @@ UI structure conventions (must follow):
 - Tools → Tunnels/Audit/Logs/Gateway/Messaging/Canonical/Policy/Register/Storage: each feature is trait‑gated and operates only within its tab.
 - Settings: Setup wizard, core settings, configuration editor, keys, users, and MCP.
 
+Notifications UI wiring
+- New Admin Console Notifications Rules tab: configure event→channel→audience (trait-based) rules.
+- Admin API endpoints for notifications rules (list/upsert/delete) with `notification_manager` trait.
+- Notifications service evaluates rules on events (e.g., FaxReceived), emits NotificationRequest with `audience` metadata (mode=traits, scope=tenant), enabling plugins like Pushover to fan-out to all users with trait (e.g., ‘sales’).
+
 ## Critical Notice
 **THIS PLATFORM HANDLES PHI/PII AND MUST BE HIPAA-COMPLIANT**
 Every decision, implementation, and review must consider security and compliance implications.
@@ -301,6 +306,7 @@ Status: IN PROGRESS
   - Redact PHI/PII in audit logs (DONE)
   - Encryption at rest via StorageService (existing)
   - No PHI/PII in logs enforced by sanitizer (DONE)
+  - Storage compliance smoke (PHI classification, encryption, checksum, audit flags) — DONE (tests)
 
 #### Authentication & Authorization
 - JWT tokens with 15-minute expiry

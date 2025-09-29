@@ -68,7 +68,10 @@ export default function CanonicalTools({ client }: Props) {
         </Grid>
       </Grid>
       <Box sx={{ mt: 3 }}>
-        <Typography variant="subtitle1">Schema Registry</Typography>
+        <Box display="flex" justifyContent="space-between" alignItems="center">
+          <Typography variant="subtitle1">Schema Registry</Typography>
+          <HelpTip topic="canonical-schemas" />
+        </Box>
         <Grid container spacing={2} sx={{ mt: 1 }}>
           <Grid item xs={12} sm={3}>
             <TextField label="Schema Name" value={schemaName} onChange={e=>setSchemaName(e.target.value)} fullWidth />

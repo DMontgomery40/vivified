@@ -30,6 +30,20 @@ export const helpTopics: Record<string, HelpTopic> = {
     ],
     docSlug: 'plugins',
   },
+  'manifest-editor': {
+    id: 'manifest-editor',
+    title: 'Manifest Editor',
+    eli5:
+      'Paste your plugin manifest, validate it against the required schema, and apply suggested safety policies (allowlist and operator rules) with one click.',
+    dev: [
+      'Validate: POST /admin/plugins/validate-manifest returns errors and suggestions.',
+      'Apply Gateway Allowlist: PUT /admin/gateway/allowlist with suggested domains/paths.',
+      'Generate Operator Allowlist: PUT /admin/operator/allowlist using endpoint keys as operations.',
+      'Register Plugin: POST /plugins/register to make it available to Core.',
+      'Avoid IP literals; use hostnames. All actions are audited.',
+    ],
+    docSlug: 'plugins/manifest-editor',
+  },
   'plugin-dev': {
     id: 'plugin-dev',
     title: 'Plugin Development',
@@ -62,6 +76,19 @@ export const helpTopics: Record<string, HelpTopic> = {
     ],
     docSlug: 'gateway',
   },
+  'operator-policy': {
+    id: 'operator-policy',
+    title: 'Operator Policy',
+    eli5:
+      'Controls which plugin is allowed to call which operations on another plugin. This prevents accidental or unsafe cross-calls.',
+    dev: [
+      'Rules live under config key pattern operator.allow.<caller->target>.',
+      'Operations typically match manifest endpoint keys (e.g., invoice.create).',
+      'Set via PUT /admin/operator/allowlist with { caller, target, operations[] }.',
+      'Prefer least privilege. Review with security/audit regularly.',
+    ],
+    docSlug: 'policy/operator-allowlist',
+  },
   messaging: {
     id: 'messaging',
     title: 'Messaging / Event Bus',
@@ -83,6 +110,32 @@ export const helpTopics: Record<string, HelpTopic> = {
       'Maintain canonical schemas; validate in CI.',
     ],
     docSlug: 'canonical',
+  },
+  'canonical-transforms': {
+    id: 'canonical-transforms',
+    title: 'Canonical Transforms',
+    eli5:
+      'Map provider-specific fields to the canonical model (and back) so different systems can talk the same language.',
+    dev: [
+      'Mappings reside under canonical.transforms.<source->target> in config.',
+      'Keys: user_to_canonical, message_to_canonical, event_to_canonical, and *_from_canonical.',
+      'Preview with Normalize endpoints; audit logs record transformations.',
+      'Keep mappings aligned with active canonical schemas.',
+    ],
+    docSlug: 'canonical/transforms',
+  },
+  'canonical-schemas': {
+    id: 'canonical-schemas',
+    title: 'Canonical Schemas',
+    eli5:
+      'Schemas define the expected shape of canonical entities (like LogEvent or Person). Validate payloads before rollout.',
+    dev: [
+      'Manage versions: POST /schemas (upsert) and /schemas/activate.',
+      'Validate payloads: POST /schemas/{name}/validate with major or version.',
+      'Built-ins load at startup from core/canonical/schemas/* and auto-activate per major.',
+      'Pin majors in production; use semver for compatibility.',
+    ],
+    docSlug: 'canonical/schemas',
   },
   policy: {
     id: 'policy',
@@ -196,6 +249,32 @@ export const helpTopics: Record<string, HelpTopic> = {
       'Configure S3/KMS or local storage under Settings.',
     ],
     docSlug: 'storage',
+  },
+  notifications: {
+    id: 'notifications',
+    title: 'Notifications',
+    eli5:
+      'Send alerts across channels (email, Pushover, Slack, etc.). Use Send for one‑offs or Rules to react to events automatically. Audience can target all users with specific traits (e.g., “sales”) without maintaining lists.',
+    dev: [
+      'Ad‑hoc: POST /admin/notifications/send { title?, body, targets?, metadata.audience? }',
+      'Event‑driven: define rules; on matching events, service emits NotificationRequest for plugins to deliver.',
+      'Audience: { mode: "traits", traits: ["sales"], scope: "tenant" } — plugin resolves recipients with trait.',
+      'Inbox shows NotificationSent events; dry_run makes previewing easy during development.',
+    ],
+    docSlug: 'notifications',
+  },
+  'notifications-rules': {
+    id: 'notifications-rules',
+    title: 'Notifications Rules',
+    eli5:
+      'Rules map events like “FaxReceived” to outbound notifications. Choose a channel and audience; the platform will emit notifications when events occur.',
+    dev: [
+      'Rule shape: { id?, enabled, event_type, channel?, template:{title,body}, audience:{ mode:"traits", traits:[...], scope:"tenant"|"org" } }',
+      'Manage via /admin/notifications/rules (GET/PUT/DELETE).',
+      'Plugins fan‑out to recipients based on audience; keep PHI out of titles/bodies where possible.',
+      'Security: audit entries on request/ingest; use dry_run until channels are validated.',
+    ],
+    docSlug: 'notifications/rules',
   },
   'gateway-allowlist': {
     id: 'gateway-allowlist',

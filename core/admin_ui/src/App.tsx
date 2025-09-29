@@ -62,6 +62,7 @@ import ScriptsTests from './components/ScriptsTests';
 import TunnelSettings from './components/TunnelSettings';
 import GatewayTester from './components/GatewayTester';
 import GatewayAllowlist from './components/GatewayAllowlist';
+import ManifestEditor from './components/ManifestEditor';
 import MessagingConsole from './components/MessagingConsole';
 import NotificationsPanel from './components/Notifications';
 import CanonicalTools from './components/CanonicalTools';
@@ -351,6 +352,7 @@ function AppContent() {
     { label: 'Register', icon: <ExtensionIcon />, trait: 'ui.register' },
     { label: 'Storage', icon: <DescriptionIcon />, trait: 'ui.storage' },
     { label: 'Notifications', icon: <InboxIcon />, trait: 'ui.notifications' },
+    { label: 'Manifest Editor', icon: <CodeIcon />, trait: 'ui.plugins' },
   ];
 
   const hasTrait = (t: string) => !!(userTraits && userTraits.includes(t));
@@ -939,6 +941,7 @@ function AppContent() {
               {toolsTab === 17 && <PluginRegister client={client!} />}
               {toolsTab === 18 && <StorageBrowser client={client!} />}
               {toolsTab === 19 && <NotificationsPanel client={client!} readOnly={!isAdmin} />}
+              {toolsTab === 20 && <ManifestEditor client={client!} />}
             </Box>
           </Paper>
         </TabPanel>

@@ -114,7 +114,7 @@ export default function CanonicalTransforms({ client }: Props) {
     <Box>
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
         <Typography variant="h5" fontWeight={600}>Canonical Transforms</Typography>
-        <HelpTip topic="canonical" />
+        <HelpTip topic="canonical-transforms" />
       </Box>
       {error && <Alert severity="error" sx={{ mb: 2 }} onClose={()=>setError(null)}>{error}</Alert>}
       {note && <Alert severity="success" sx={{ mb: 2 }} onClose={()=>setNote(null)}>{note}</Alert>}

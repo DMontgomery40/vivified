@@ -424,6 +424,8 @@ def _is_safe_endpoint_path(path: str) -> bool:
     if "://" in path:
         return False
     return True
+
+
 class OperatorRequestModel(BaseModel):
     caller_plugin: str
     payload: Optional[Dict[str, Any]] = None
@@ -783,7 +785,9 @@ async def validate_payload_against_schema(
                 raise HTTPException(status_code=400, detail="major or version required")
             active = schema_registry.get_active(name, int(req.major))
             if not active:
-                raise HTTPException(status_code=404, detail="Active schema not found for major")
+                raise HTTPException(
+                    status_code=404, detail="Active schema not found for major"
+                )
             ver_tuple = active.version
 
         # Locate schema data

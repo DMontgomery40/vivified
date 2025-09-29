@@ -83,6 +83,22 @@ export class AdminAPIClient {
     return res.json();
   }
 
+  // Notification Rules
+  async listNotificationRules(): Promise<{ items: any[] }>{
+    const res = await this.fetch('/admin/notifications/rules');
+    return res.json();
+  }
+
+  async upsertNotificationRule(rule: any): Promise<any> {
+    const res = await this.fetch('/admin/notifications/rules', { method: 'PUT', body: JSON.stringify(rule) });
+    return res.json();
+  }
+
+  async deleteNotificationRule(id: string): Promise<{ ok: boolean }>{
+    const res = await this.fetch(`/admin/notifications/rules/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    return res.json();
+  }
+
   private async fetch(path: string, options: RequestInit = {}): Promise<Response> {
     const url = `${this.baseURL}${path}`;
     if ((import.meta as any)?.env?.DEV) {
@@ -282,6 +298,20 @@ export class AdminAPIClient {
   // Core plugin registration
   async registerPlugin(manifest: Record<string, any>): Promise<any> {
     const res = await this.fetch('/plugins/register', {
+      method: 'POST',
+      body: JSON.stringify(manifest),
+    });
+    return res.json();
+  }
+
+  // Core plugin manifest schema + validation
+  async getPluginManifestSchema(): Promise<any> {
+    const res = await this.fetch('/admin/plugins/manifest-schema');
+    return res.json();
+  }
+
+  async validatePluginManifest(manifest: any): Promise<{ ok: boolean; errors: Array<{ message: string; path: any[]; schema_path: any[] }>; suggestions: { operations: string[]; allowlist: Record<string, { allowed_methods: string[]; allowed_paths: string[] }>; invalid_domains: string[]; parsed_domains: string[] } }>{
+    const res = await this.fetch('/admin/plugins/validate-manifest', {
       method: 'POST',
       body: JSON.stringify(manifest),
     });
@@ -605,6 +635,20 @@ export class AdminAPIClient {
     const params = new URLSearchParams();
     params.append('X-API-Key', this.apiKey);
     return new EventSource(`${this.baseURL}/admin/diagnostics/events/sse?${params.toString()}`);
+  }
+
+  // QA Test Suites (Phase 8)
+  async listTestSuites(): Promise<{ suites: Array<{ id: string; label: string }> }>{
+    const res = await this.fetch('/admin/tests');
+    return res.json();
+  }
+
+  async runTestSuite(suite: string): Promise<{ suite: string; ok: boolean; logs: Array<{ level: string; message: string }> }>{
+    const res = await this.fetch('/admin/tests/run', {
+      method: 'POST',
+      body: JSON.stringify({ suite }),
+    });
+    return res.json();
   }
 
   // Provider Health Management

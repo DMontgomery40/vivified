@@ -35,7 +35,7 @@ export default function OperatorPolicy({ client }: { client: AdminAPIClient }) {
     <Box>
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
         <Typography variant="h5" fontWeight={600}>Operator Policy</Typography>
-        <HelpTip topic="policy" />
+        <HelpTip topic="operator-policy" />
       </Box>
       {error && <Alert severity="error" sx={{ mb: 2 }} onClose={()=>setError(null)}>{error}</Alert>}
       {note && <Alert severity="success" sx={{ mb: 2 }} onClose={()=>setNote(null)}>{note}</Alert>}
@@ -59,4 +59,3 @@ export default function OperatorPolicy({ client }: { client: AdminAPIClient }) {
     </Box>
   );
 }
-

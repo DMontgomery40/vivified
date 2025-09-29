@@ -125,3 +125,11 @@ def test_ui_feature_gating():
     res = run(eng.evaluate_request(req))
     assert res.decision == PolicyDecision.ALLOW
 
+
+def test_user_ui_traits_mapping_for_admin_and_viewer():
+    eng = EnhancedPolicyEngine()
+    traits_admin = eng.get_user_ui_traits(["admin"])  # adds role.admin and core UI traits
+    assert "ui.plugins" in traits_admin and "ui.audit" in traits_admin
+
+    traits_viewer = eng.get_user_ui_traits(["viewer"])  # minimal
+    assert "role.viewer" in traits_viewer
