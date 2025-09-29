@@ -53,4 +53,3 @@ async def delete_rule(
     if not ok:
         raise HTTPException(status_code=404, detail="rule_not_found")
     return {"ok": True}
-

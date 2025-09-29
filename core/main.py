@@ -126,7 +126,7 @@ async def startup_event():
             notifications_service = NotificationsService(
                 audit_service, messaging_service, policy_engine
             )
-        if 'automation_service' not in globals() or automation_service is None:  # type: ignore[name-defined]
+        if "automation_service" not in globals() or automation_service is None:  # type: ignore[name-defined]
             automation_service = AutomationService(
                 audit_service, messaging_service, policy_engine
             )
