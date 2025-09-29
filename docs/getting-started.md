@@ -141,8 +141,8 @@
 
 ## Admin Console Access
 
-!!! tip 'Accessibility'
-    Admin Console is the primary UI. Ensure keyboard accessibility and dyslexia-friendly settings are enabled in your browser and in the Admin UI.
+!!! tip 'Primary Interface'
+    The Admin Console is the primary UI for managing the platform. All features are accessible through the web interface.
 
 | Area | Description | Access |
 |------|-------------|--------|

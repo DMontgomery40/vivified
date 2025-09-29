@@ -128,6 +128,7 @@ nav:
   - Audit: core/audit.md
   - AI & Agents: ai/overview.md
   - Three-Lane Model: core/three-lanes.md
+  - Operator Allowlist: policy/operator-allowlist.md
 - Admin Console:
   - Overview: admin-console.md
   - Dashboard: admin-console/dashboard.md
@@ -157,6 +158,7 @@ nav:
   - Monitoring: monitoring.md
   - Backup & Recovery: backup.md
   - Troubleshooting: troubleshooting.md
+  - Pilot Guide (LLM + RAG): pilots/llm-pilot.md
 - Reference:
   - Environment Variables: reference/env-vars.md
   - CLI Commands: reference/cli.md

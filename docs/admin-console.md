@@ -20,8 +20,8 @@
 
 </div>
 
-!!! tip 'Accessibility & Dyslexia'
-    The Admin Console uses readable fonts, high-contrast themes, and keyboard-first navigation. Toggle dyslexia settings in Settings > Accessibility.
+!!! tip 'User Experience'
+    The Admin Console uses readable fonts, high-contrast themes, and keyboard-first navigation for better usability.
 
 !!! note 'Admin-first requirement'
     Everything available via CLI must have an equivalent or better experience in the Admin Console.
@@ -62,26 +62,29 @@
 
 ### Building Admin UI locally
 
-=== "Python"
-    ```python
-    # (1)
-    # Build scripts invoked from repo Makefile; these are examples
-    ```
-
 === "Node.js"
-    ```javascript
-    // (1)
-    // Example: build admin UI
-    // cd core/admin_ui && npm ci && npm run build
-    ```
-
-=== "curl"
     ```bash
-    # (1)
-    make ui-ci-local || echo 'UI build failed'
+    # Build the Admin UI locally
+    cd core/admin_ui
+    npm ci
+    npm run build
+    # Build artifacts will be in core/admin_ui/build/
     ```
 
-1. The Admin Console is packaged as an SPA and served under /admin/ui. Ensure UI build artifacts are available in production deploys.
+=== "Make"
+    ```bash
+    # Using the Makefile (recommended)
+    make ui-ci-local
+    # This builds both core/ui and core/admin_ui
+    ```
+
+=== "Docker"
+    ```bash
+    # Build with Docker
+    docker build -f core/admin_ui/Dockerfile -t vivified-admin-ui .
+    ```
+
+The Admin Console is packaged as a Single Page Application (SPA) and served under `/admin/ui`. In production, ensure UI build artifacts are available by running the build process during deployment.
 
 ```mermaid
 graph LR
@@ -95,7 +98,7 @@ graph LR
 
 | Setting | Purpose | Where to edit | Notes |
 |---------|---------|---------------|-------|
-| THEME | UI theme (default/high contrast) | Settings > Appearance | Accessibility setting |
+| THEME | UI theme (default/high contrast) | Settings > Appearance | Visual preference |
 | RETENTION_YEARS | Default PHI retention | Settings > Storage | Overrides per plugin allowed |
 | PLUGIN_APPROVAL | Require approval for plugin install | Settings > Plugins | Recommended for prod |
 
@@ -104,5 +107,3 @@ graph LR
 
 ??? note 'Advanced: embedding widgets'
     Plugins can register Admin UI widgets via the manifest and a JS entrypoint. Follow the UI component style guide in core/ui.
-
-[^1]: The Admin Console is the primary integration point for non-developer users and must support assistive technologies.
