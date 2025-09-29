@@ -65,17 +65,46 @@ class PluginRegistry:
         return {"status": "registered", "token": token, "plugin_id": plugin_id}
 
     def _validate_manifest(self, manifest: Dict) -> bool:
-        """Validate plugin manifest against schema."""
-        required_fields = [
-            "id",
-            "name",
-            "version",
-            "contracts",
-            "traits",
-            "security",
-            "compliance",
-        ]
-        return all(field in manifest for field in required_fields)
+        """Validate plugin manifest against a minimal schema.
+
+        Requirements:
+        - id: str, kebab/underscore allowed
+        - name: str
+        - version: str
+        - contracts: list[str]
+        - traits: list[str]
+        - security: object
+        - compliance: object
+        - optional endpoints: object mapping operation->path
+        - optional allowed_domains: list[str]
+        """
+        try:
+            for key in [
+                "id",
+                "name",
+                "version",
+                "contracts",
+                "traits",
+                "security",
+                "compliance",
+            ]:
+                if key not in manifest:
+                    return False
+            if not isinstance(manifest["id"], str) or not manifest["id"].strip():
+                return False
+            if not isinstance(manifest["contracts"], list):
+                return False
+            if not isinstance(manifest["traits"], list):
+                return False
+            if "endpoints" in manifest and not isinstance(manifest["endpoints"], dict):
+                return False
+            if "allowed_domains" in manifest and not isinstance(
+                manifest["allowed_domains"], list
+            ):
+                return False
+            return True
+        except Exception:
+            return False
 
     def _generate_plugin_token(self, plugin_id: str) -> str:
         """Generate JWT token for plugin authentication."""
