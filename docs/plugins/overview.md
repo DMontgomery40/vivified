@@ -15,3 +15,8 @@ Manifest fields (subset)
 - `security` and `compliance` — HIPAA-related metadata
 
 See `plugins/user_management/main.py` for a concrete example.
+
+
+## Next
+
+- Read the full Plugin System guide: [Plugin System](plugin-system.md)

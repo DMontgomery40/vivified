@@ -74,6 +74,7 @@ nav:
       - Diagrams: architecture/diagrams.md
   - Plugins:
       - Overview: plugins/overview.md
+      - Plugin System: plugins/plugin-system.md
   - Reference:
       - APIs: reference/apis.md
   - Contributing: contributing.md
