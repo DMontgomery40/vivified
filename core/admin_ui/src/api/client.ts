@@ -382,12 +382,12 @@ export class AdminAPIClient {
   }
 
   // AI RAG rules (ingestion traits/classification)
-  async getAiRagRules(): Promise<{ required_traits: Record<string, string[]>; classification: Record<string, string[]> }>{
+  async getAiRagRules(): Promise<{ required_traits: Record<string, string[]>; classification: Record<string, string[]>; chunk_chars?: number; overlap_chars?: number; backend?: string; plugin_id?: string }>{
     const res = await this.fetch('/admin/ai/rag-rules');
     return res.json();
   }
 
-  async setAiRagRules(payload: { required_traits?: Record<string, string[]>; classification?: Record<string, string[]> }): Promise<{ ok: boolean }>{
+  async setAiRagRules(payload: { required_traits?: Record<string, string[]>; classification?: Record<string, string[]>; chunk_chars?: number; overlap_chars?: number; backend?: string; plugin_id?: string }): Promise<{ ok: boolean }>{
     const res = await this.fetch('/admin/ai/rag-rules', { method: 'PUT', body: JSON.stringify(payload || {}) });
     return res.json();
   }
@@ -405,6 +405,13 @@ export class AdminAPIClient {
   async aiModels(provider: string, type?: 'chat' | 'embeddings'): Promise<{ provider: string; type: string; models: string[] }>{
     const t = type ? `&typ=${encodeURIComponent(type)}` : '';
     const res = await this.fetch(`/admin/ai/models?provider=${encodeURIComponent(provider)}${t}`);
+    return res.json();
+  }
+
+  // Gateway allowlist (effective view)
+  async getGatewayAllowlistEffective(pluginId?: string): Promise<{ entries: Array<{ domain: string; allowed_methods: string[]; allowed_paths: string[] }> }>{
+    const q = pluginId ? `?plugin_id=${encodeURIComponent(pluginId)}` : '';
+    const res = await this.fetch(`/gateway/allowlist/effective${q}`);
     return res.json();
   }
 

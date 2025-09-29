@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Box, Paper, Typography, Stack, Button, TextField, Chip, FormGroup, FormControlLabel, Checkbox, Alert, Switch, MenuItem } from '@mui/material';
 import HelpTip from './HelpTip';
 import AdminAPIClient from '../api/client';
@@ -26,7 +26,9 @@ export default function AIStudio({ client, readOnly = false }: Props) {
   const [connAnth, setConnAnth] = useState<{ base_url?: string; default_model?: string; api_key?: string }>({});
   const [toolCalling, setToolCalling] = useState<boolean>(false);
   const [connMsg, setConnMsg] = useState<string>('');
+  const [connAllowlist, setConnAllowlist] = useState<string[]>([]);
   const [userTraits, setUserTraits] = useState<string[]>([]);
+  const defaultsAppliedRef = useRef<boolean>(false);
 
   const refresh = async () => {
     try {
@@ -56,23 +58,27 @@ export default function AIStudio({ client, readOnly = false }: Props) {
   })(); }, []);
 
 
-  // Defaults prefilled when config missing
-  useEffect(() => { (async () => {
-    try {
-      const cx = await client.aiConnectorsGet();
-      const wantsProvider = !cx?.provider;
-      const wantsOpenaiBase = !cx?.openai?.base_url;
-      const wantsAnthBase = !cx?.anthropic?.base_url;
-      if (wantsProvider || wantsOpenaiBase || wantsAnthBase) {
-        await client.aiConnectorsPut({
-          provider: cx?.provider || 'openai',
-          openai: { base_url: cx?.openai?.base_url || 'https://api.openai.com', default_model: cx?.openai?.default_model || 'gpt-4o-mini' },
-          anthropic: { base_url: cx?.anthropic?.base_url || 'https://api.anthropic.com', default_model: cx?.anthropic?.default_model || 'claude-3-haiku-20240307' },
-        });
-        setConnMsg('Defaults applied');
-      }
-    } catch {}
-  })(); }, []);
+  // Defaults prefilled when config missing — guarded to prevent double-save
+  useEffect(() => {
+    (async () => {
+      if (defaultsAppliedRef.current) return;
+      try {
+        const cx = await client.aiConnectorsGet();
+        const wantsProvider = !cx?.provider;
+        const wantsOpenaiBase = !cx?.openai?.base_url;
+        const wantsAnthBase = !cx?.anthropic?.base_url;
+        if (wantsProvider || wantsOpenaiBase || wantsAnthBase) {
+          await client.aiConnectorsPut({
+            provider: cx?.provider || 'openai',
+            openai: { base_url: cx?.openai?.base_url || 'https://api.openai.com', default_model: cx?.openai?.default_model || 'gpt-4o-mini' },
+            anthropic: { base_url: cx?.anthropic?.base_url || 'https://api.anthropic.com', default_model: cx?.anthropic?.default_model || 'claude-3-haiku-20240307' },
+          });
+          defaultsAppliedRef.current = true;
+          setConnMsg('Defaults applied');
+        }
+      } catch { /* ignore */ }
+    })();
+  }, [client]);
 
   const train = async () => {
     try {
@@ -159,6 +165,12 @@ export default function AIStudio({ client, readOnly = false }: Props) {
       setConnMsg('');
       const res = await client.aiConnectorsPut({ openai: connOpenai, anthropic: connAnth, agent: { tool_calling: toolCalling } });
       setConnMsg(res.ok ? 'Saved' : 'Failed');
+      // Refresh effective allowlist for ai-core for user feedback
+      try {
+        const eff = await client.getGatewayAllowlistEffective('ai-core');
+        const entries = (eff.entries || []).map((e: any) => `${e.domain} (${(e.allowed_methods||[]).join('/')})`);
+        setConnAllowlist(entries);
+      } catch { /* ignore */ }
     } catch (e: any) {
       setConnMsg(e?.message || 'Failed to save');
     } finally {
@@ -390,8 +402,41 @@ export default function AIStudio({ client, readOnly = false }: Props) {
         <Stack spacing={1} direction={{ xs: 'column', sm: 'row' }} alignItems={{ xs: 'stretch', sm: 'center' }}>
           <FormControlLabel control={<Switch checked={toolCalling} onChange={(e) => setToolCalling(e.target.checked)} />} label="Enable tool-calling" />
           <Button variant="outlined" onClick={saveConnectors} disabled={busy || readOnly} sx={{ borderRadius: 2 }}>Save Connectors</Button>
-          <Button variant="outlined" onClick={async()=>{ setBusy(true); setConnMsg(''); try { await client.aiConnectorsPut({ provider: (cfgEditing.provider || cfg?.provider || 'openai'), openai: { base_url: connOpenai.base_url || 'https://api.openai.com' }, anthropic: { base_url: connAnth.base_url || 'https://api.anthropic.com' }, local: { base_url: 'http://localhost:11434' } }); setConnMsg('Default allowlist applied'); } catch(e:any){ setConnMsg(e?.message || 'Failed'); } finally { setBusy(false); } }} disabled={busy || readOnly} sx={{ borderRadius: 2 }}>Apply Default AI Allowlist</Button>
+          <Button
+            variant="outlined"
+            onClick={async () => {
+              setBusy(true);
+              setConnMsg('');
+              setConnAllowlist([]);
+              try {
+                await client.aiConnectorsPut({
+                  provider: (cfgEditing.provider || cfg?.provider || 'openai'),
+                  openai: { base_url: connOpenai.base_url || 'https://api.openai.com' },
+                  anthropic: { base_url: connAnth.base_url || 'https://api.anthropic.com' },
+                  local: { base_url: 'http://localhost:11434' }
+                });
+                setConnMsg('Default allowlist applied');
+                // Show effective domains afterward
+                const eff = await client.getGatewayAllowlistEffective('ai-core');
+                const entries = (eff.entries || []).map((e: any) => `${e.domain} (${(e.allowed_methods||[]).join('/')})`);
+                setConnAllowlist(entries);
+              } catch (e:any) {
+                setConnMsg(e?.message || 'Failed');
+              } finally { setBusy(false); }
+            }}
+            disabled={busy || readOnly}
+            sx={{ borderRadius: 2 }}
+          >
+            Apply Default AI Allowlist
+          </Button>
           {connMsg && <Chip label={connMsg} color="info" variant="outlined" />}
+          {connAllowlist.length > 0 && (
+            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+              {connAllowlist.map((s, i) => (
+                <Chip key={i} size="small" label={s} variant="outlined" />
+              ))}
+            </Box>
+          )}
         </Stack>
       </Paper>
 
