@@ -1,189 +1,20 @@
-/* Custom styles for Vivified documentation */
-
-/* Dyslexic-friendly enhancements */
-:root {
-  --md-text-font: "Open Sans", "Roboto", -apple-system, BlinkMacSystemFont, Helvetica, Arial, sans-serif;
-  --md-code-font: "Fira Code", "Roboto Mono", "Courier New", monospace;
-}
-
-/* Increase line height for better readability */
-.md-typeset {
-  line-height: 1.7;
-  font-size: 1rem;
-}
-
-/* Larger spacing between paragraphs */
-.md-typeset p {
-  margin-bottom: 1.2em;
-}
-
-/* Better code block visibility */
-.md-typeset pre {
-  margin: 1.5em 0;
-  border-left: 4px solid var(--md-primary-fg-color);
-}
-
-/* Enhanced admonitions for visual clarity */
-.md-typeset .admonition {
-  font-size: 0.95rem;
-  margin: 1.5em 0;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-}
-
-/* Highlight important information */
-.md-typeset mark {
-  background-color: rgba(255, 235, 59, 0.4);
-  padding: 0.1em 0.2em;
-}
-
-/* Better table styling */
-.md-typeset table {
-  margin: 1.5em 0;
-  font-size: 0.95rem;
-}
-
-.md-typeset table th {
-  background-color: var(--md-primary-fg-color);
-  color: white;
-  font-weight: 600;
-}
-
-.md-typeset table tr:nth-child(even) {
-  background-color: rgba(0, 0, 0, 0.03);
-}
-
-/* Enhanced navigation */
-.md-nav__link {
-  font-size: 0.9rem;
-  padding: 0.4rem 0.6rem;
-}
-
-.md-nav__link--active {
-  font-weight: 600;
-}
-
-/* Better tabs */
-.md-typeset .tabbed-set {
-  margin: 1.5em 0;
-}
-
-.md-typeset .tabbed-labels {
-  border-bottom: 2px solid var(--md-primary-fg-color);
-}
-
-/* API endpoint styling */
-.api-endpoint {
-  display: inline-block;
-  padding: 0.2em 0.5em;
-  margin: 0.2em 0;
-  border-radius: 3px;
-  font-family: var(--md-code-font);
-  font-size: 0.9rem;
-}
-
-.api-endpoint.get {
-  background-color: #61affe;
-  color: white;
-}
-
-.api-endpoint.post {
-  background-color: #49cc90;
-  color: white;
-}
-
-.api-endpoint.put {
-  background-color: #fca130;
-  color: white;
-}
-
-.api-endpoint.delete {
-  background-color: #f93e3e;
-  color: white;
-}
-
-/* HIPAA compliance badge */
-.hipaa-badge {
-  display: inline-block;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  padding: 0.3em 0.8em;
-  border-radius: 20px;
-  font-size: 0.85rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-/* Feature cards */
-.feature-grid {
+/* Material grid helpers and cards tweaks */
+.md-typeset .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 1.5rem;
-  margin: 2rem 0;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.8rem;
+  align-items: stretch;
 }
 
-.feature-card {
-  padding: 1.5rem;
+/* Ensure list items inside grid don't show bullets and fit like cards */
+.md-typeset .grid.cards > * {
+  list-style: none;
+  margin: 0;
+}
+
+/* Optional subtle border if a site uses plain grid without built-in cards */
+.md-typeset .grid.cards > *:where(li, div) {
   border: 1px solid var(--md-default-fg-color--lightest);
-  border-radius: 8px;
-  transition: transform 0.2s, box-shadow 0.2s;
-}
-
-.feature-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-}
-
-.feature-card h3 {
-  margin-top: 0;
-  color: var(--md-primary-fg-color);
-}
-
-/* Progress indicators */
-.progress-bar {
-  height: 8px;
-  background-color: var(--md-default-fg-color--lightest);
-  border-radius: 4px;
-  overflow: hidden;
-  margin: 1rem 0;
-}
-
-.progress-bar-fill {
-  height: 100%;
-  background: linear-gradient(90deg, var(--md-primary-fg-color), var(--md-accent-fg-color));
-  border-radius: 4px;
-  transition: width 0.3s ease;
-}
-
-/* Copy button enhancement */
-.md-clipboard {
-  color: var(--md-default-fg-color--light);
-}
-
-.md-clipboard:hover {
-  color: var(--md-primary-fg-color);
-}
-
-/* Search results enhancement */
-.md-search__output {
-  border-radius: 4px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-}
-
-.md-search-result__link {
-  padding: 0.8rem 1rem;
-}
-
-/* Print styles */
-@media print {
-  .md-sidebar,
-  .md-header,
-  .md-footer,
-  .md-tabs {
-    display: none;
-  }
-  
-  .md-content {
-    max-width: 100%;
-  }
+  border-radius: .5rem;
+  background: var(--md-default-bg-color);
 }

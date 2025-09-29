@@ -1,6 +1,8 @@
 site_name: Vivified Platform Documentation
 site_description: Enterprise-grade modular platform with HIPAA compliance
 site_url: https://docs.vivified.dev
+extra_css:
+  - stylesheets/extra.css
 repo_url: https://github.com/DMontgomery40/vivified
 repo_name: DMontgomery40/vivified
 copyright: Copyright &copy; 2025 Vivified Platform
