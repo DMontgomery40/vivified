@@ -1,0 +1,30 @@
+name: Deploy API Docs to Netlify
+
+on:
+  push:
+    branches: [ main, develop ]
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install deps
+        run: |
+          python -m pip install -q -r core/requirements.txt
+      - name: Build static API docs
+        run: |
+          make api-docs
+      - name: Deploy to Netlify
+        uses: netlify/actions/cli@v4.6.0
+        with:
+          args: deploy --prod --dir=site/api
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+
