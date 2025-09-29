@@ -62,7 +62,8 @@ class NatsBroker:
         import nats  # type: ignore
 
         if self._nc is None:
-            self._nc = await nats.connect(servers=self._servers)
+            # mypy: nats-py provides connect at runtime; ignore attribute typing
+            self._nc = await nats.connect(servers=self._servers)  # type: ignore[attr-defined]
 
     async def stop(self) -> None:
         if self._nc is not None:
