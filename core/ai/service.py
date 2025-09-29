@@ -382,27 +382,48 @@ class AgentService:
                 cfgsvc = get_config_service()
                 # Prefer explicit fields too
                 openai_cfg = await cfgsvc.get("ai.connectors.openai") or {}
+                anthropic_cfg = await cfgsvc.get("ai.connectors.anthropic") or {}
+                llm_provider = (await cfgsvc.get("ai.llm.provider")) or os.getenv("AI_LLM_PROVIDER") or "openai"
             except Exception:
                 cfgsvc = None
                 openai_cfg = {}
-            model = (
-                (opts or {}).get("model")
-                or str((openai_cfg or {}).get("default_model") or "")
-                or os.getenv("AI_LLM_MODEL")
-                or os.getenv("OPENAI_DEFAULT_MODEL")
-                or "gpt-5-mini"
-            )
-            api_key = (
-                (opts or {}).get("api_key")
-                or str((openai_cfg or {}).get("api_key") or "")
-                or os.getenv("OPENAI_API_KEY")
-                or os.getenv("AI_OPENAI_API_KEY")
-            )
-            base_url = (
-                (opts or {}).get("base_url")
-                or str((openai_cfg or {}).get("base_url") or "")
-                or os.getenv("OPENAI_BASE_URL", "https://api.openai.com")
-            )
+                anthropic_cfg = {}
+                llm_provider = os.getenv("AI_LLM_PROVIDER") or "openai"
+            # Determine provider and connection details
+            provider = (opts or {}).get("provider") or llm_provider
+            if provider.lower() == "anthropic":
+                model = (
+                    (opts or {}).get("model")
+                    or str((anthropic_cfg or {}).get("default_model") or "claude-3-haiku-20240307")
+                )
+                api_key = (
+                    (opts or {}).get("api_key")
+                    or str((anthropic_cfg or {}).get("api_key") or "")
+                    or os.getenv("ANTHROPIC_API_KEY")
+                )
+                base_url = (
+                    (opts or {}).get("base_url")
+                    or str((anthropic_cfg or {}).get("base_url") or "https://api.anthropic.com")
+                )
+            else:
+                model = (
+                    (opts or {}).get("model")
+                    or str((openai_cfg or {}).get("default_model") or "")
+                    or os.getenv("AI_LLM_MODEL")
+                    or os.getenv("OPENAI_DEFAULT_MODEL")
+                    or "gpt-5-mini"
+                )
+                api_key = (
+                    (opts or {}).get("api_key")
+                    or str((openai_cfg or {}).get("api_key") or "")
+                    or os.getenv("OPENAI_API_KEY")
+                    or os.getenv("AI_OPENAI_API_KEY")
+                )
+                base_url = (
+                    (opts or {}).get("base_url")
+                    or str((openai_cfg or {}).get("base_url") or "")
+                    or os.getenv("OPENAI_BASE_URL", "https://api.openai.com")
+                )
             # Feature flag: enable tool-calling loop
             use_tools = False
             try:
@@ -419,6 +440,134 @@ class AgentService:
                 pass
 
             if api_key:
+                if provider.lower() == "anthropic":
+                    # Anthropic messages with optional tools; two-step tool_use → tool_result loop
+                    try:
+                        url = f"{(base_url or 'https://api.anthropic.com').rstrip('/')}/v1/messages"
+                        headers = {
+                            "x-api-key": api_key,
+                            "anthropic-version": os.getenv("ANTHROPIC_VERSION", "2023-06-01"),
+                            "Content-Type": "application/json",
+                        }
+                        messages_a = [
+                            {
+                                "role": "user",
+                                "content": [
+                                    {
+                                        "type": "text",
+                                        "text": f"Context sources (internal):\n{context}\n\nQuestion: {prompt}",
+                                    }
+                                ],
+                            }
+                        ]
+                        tools_a = None
+                        if use_tools:
+                            tools_a = [
+                                {
+                                    "name": "rag_search",
+                                    "description": "Search internal docs and return top matches.",
+                                    "input_schema": {
+                                        "type": "object",
+                                        "properties": {"q": {"type": "string"}},
+                                        "required": ["q"],
+                                    },
+                                },
+                                {
+                                    "name": "http_fetch",
+                                    "description": "Fetch a URL via secure proxy (allowlisted domains only).",
+                                    "input_schema": {
+                                        "type": "object",
+                                        "properties": {"url": {"type": "string"}},
+                                        "required": ["url"],
+                                    },
+                                },
+                            ]
+                        body = {
+                            "model": model,
+                            "max_tokens": int(os.getenv("ANTHROPIC_MAX_TOKENS", "512")),
+                            "messages": messages_a,
+                        }
+                        if tools_a:
+                            body["tools"] = tools_a
+                        tools_log = []  # type: ignore[var-annotated]
+                        async with httpx.AsyncClient(timeout=30) as client:
+                            resp = await client.post(url, json=body, headers=headers)
+                        if resp.status_code < 300:
+                            data = resp.json() or {}
+                            content = data.get("content") or []
+                            tool_uses = [c for c in content if isinstance(c, dict) and c.get("type") == "tool_use"] if isinstance(content, list) else []
+                            if use_tools and tool_uses:
+                                # Build tool_result blocks
+                                tool_results = []
+                                for tu in tool_uses:
+                                    name = tu.get("name")
+                                    tu_id = tu.get("id")
+                                    inp = tu.get("input") or {}
+                                    if name == "rag_search":
+                                        q = str(inp.get("q") or prompt)
+                                        tool_hits = await self.rag.query(q, top_k=5, user_traits=user_traits)
+                                        tools_log.append({"name": "rag_search", "args": {"q": q}, "content": tool_hits})
+                                        tool_results.append({
+                                            "type": "tool_result",
+                                            "tool_use_id": tu_id,
+                                            "content": [{"type": "text", "text": json.dumps({"hits": tool_hits})}],
+                                        })
+                                    elif name == "http_fetch":
+                                        f_url = str(inp.get("url") or "")
+                                        fetched = ""
+                                        if f_url:
+                                            try:
+                                                import httpx as _httpx  # type: ignore
+                                                core_base = os.getenv('PUBLIC_API_URL','http://localhost:8000').rstrip('/')
+                                                r2 = await _httpx.AsyncClient(timeout=20).post(
+                                                    f"{core_base}/gateway/proxy",
+                                                    json={
+                                                        "plugin_id":"ai-core",
+                                                        "method":"GET",
+                                                        "url": f_url,
+                                                        "headers": {},
+                                                        "timeout": 20,
+                                                    }
+                                                )
+                                                if r2.status_code < 300:
+                                                    dj = r2.json(); fetched = dj.get('text') or dj.get('body') or ''
+                                            except Exception:
+                                                pass
+                                        tools_log.append({"name": "http_fetch", "args": {"url": f_url}, "content": fetched[:200]})
+                                        tool_results.append({
+                                            "type": "tool_result",
+                                            "tool_use_id": tu_id,
+                                            "content": [{"type": "text", "text": fetched[:4000]}],
+                                        })
+                                # Second call with tool results
+                                messages_a.append({"role": "assistant", "content": content})
+                                messages_a.append({"role": "user", "content": tool_results})
+                                body2 = {"model": model, "max_tokens": int(os.getenv("ANTHROPIC_MAX_TOKENS", "512")), "messages": messages_a}
+                                async with httpx.AsyncClient(timeout=30) as client3:
+                                    r3 = await client3.post(url, json=body2, headers=headers)
+                                if r3.status_code < 300:
+                                    d3 = r3.json() or {}
+                                    parts = d3.get("content") or []
+                                    text3 = ""
+                                    if isinstance(parts, list):
+                                        texts = [p.get("text") for p in parts if isinstance(p, dict) and p.get("type") == "text"]
+                                        text3 = "\n".join([t for t in texts if t])
+                                    if text3:
+                                        out = {"result": text3}
+                                        if tools_log:
+                                            out["tools_used"] = tools_log
+                                        return out
+                            # No tools or no tool_use: extract text
+                            parts = content if isinstance(content, list) else []
+                            text = ""
+                            if parts:
+                                texts = [p.get("text") for p in parts if isinstance(p, dict) and p.get("type") == "text"]
+                                text = "\n".join([t for t in texts if t])
+                            if text:
+                                out = {"result": text}
+                                return out
+                    except Exception:
+                        pass
                 if use_tools:
                     tools = [
                         {

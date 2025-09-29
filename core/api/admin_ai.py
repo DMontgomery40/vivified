@@ -210,17 +210,24 @@ async def ai_connectors_get(_: Dict = Depends(require_auth(["admin"]))):
     openai_cfg = await cfg.get("ai.connectors.openai") or {}
     anthropic_cfg = await cfg.get("ai.connectors.anthropic") or {}
     agent_cfg = await cfg.get("ai.agent") or {}
+    provider = await cfg.get("ai.llm.provider") or os.getenv("AI_LLM_PROVIDER") or "openai"
     api_key_present = bool(await cfg.get("secrets.ai.openai.api_key"))
     ant_key_present = bool(await cfg.get("secrets.ai.anthropic.api_key"))
+    # Provide sensible defaults when not set
+    openai_base = openai_cfg.get("base_url") or await cfg.get("ai.llm.base_url") or os.getenv("OPENAI_BASE_URL") or "https://api.openai.com"
+    openai_model = openai_cfg.get("default_model") or await cfg.get("ai.llm.model") or os.getenv("OPENAI_DEFAULT_MODEL") or "gpt-4o-mini"
+    anthropic_base = anthropic_cfg.get("base_url") or os.getenv("ANTHROPIC_BASE_URL") or "https://api.anthropic.com"
+    anthropic_model = anthropic_cfg.get("default_model") or os.getenv("ANTHROPIC_DEFAULT_MODEL") or "claude-3-haiku-20240307"
     return {
+        "provider": provider,
         "openai": {
-            "base_url": openai_cfg.get("base_url") or await cfg.get("ai.llm.base_url"),
-            "default_model": openai_cfg.get("default_model") or await cfg.get("ai.llm.model"),
+            "base_url": openai_base,
+            "default_model": openai_model,
             "api_key_present": api_key_present,
         },
         "anthropic": {
-            "base_url": anthropic_cfg.get("base_url"),
-            "default_model": anthropic_cfg.get("default_model"),
+            "base_url": anthropic_base,
+            "default_model": anthropic_model,
             "api_key_present": ant_key_present,
         },
         "agent": {"tool_calling": bool(agent_cfg.get("tool_calling"))},
@@ -238,6 +245,16 @@ async def ai_connectors_put(
     op = payload.get("openai") or {}
     ap = payload.get("anthropic") or {}
     ag = payload.get("agent") or {}
+    provider = payload.get("provider")
+    if provider:
+        await cfg.set(
+            "ai.llm.provider",
+            str(provider),
+            is_sensitive=False,
+            updated_by=str(user.get("id")),
+            reason="ai_connectors",
+        )
+        changed.append("ai.llm.provider")
     if isinstance(op, dict):
         if op.get("base_url") is not None:
             await cfg.set(
@@ -303,6 +320,39 @@ async def ai_connectors_put(
             reason="ai_agent",
         )
         changed.append("ai.agent.tool_calling")
+    # Update gateway allowlist for ai-core based on configured provider base URLs
+    try:
+        from urllib.parse import urlparse
+        allow: Dict[str, Any] = {}
+        o_base = (isinstance(op, dict) and op.get("base_url")) or (await cfg.get("ai.connectors.openai") or {}).get("base_url") or "https://api.openai.com"
+        a_base = (isinstance(ap, dict) and ap.get("base_url")) or (await cfg.get("ai.connectors.anthropic") or {}).get("base_url") or None
+        def host(u: Optional[str]) -> Optional[str]:
+            try:
+                return urlparse(str(u)).netloc if u else None
+            except Exception:
+                return None
+        o_host = host(o_base)
+        a_host = host(a_base)
+        if o_host:
+            allow[o_host] = {"allowed_methods": ["POST", "GET"], "allowed_paths": ["/v1/"]}
+        if a_host:
+            allow[a_host] = {"allowed_methods": ["POST", "GET"], "allowed_paths": ["/v1/"]}
+        if allow:
+            await cfg.set(
+                "gateway.allowlist.ai-core",
+                allow,
+                is_sensitive=False,
+                updated_by=str(user.get("id")),
+                reason="ai_connectors_allowlist",
+            )
+            try:
+                from core.main import gateway_service as _gw  # type: ignore
+                if _gw is not None:
+                    await _gw.preload_allowlists(["ai-core"])  # type: ignore[attr-defined]
+            except Exception:
+                pass
+    except Exception:
+        pass
     return {"ok": True, "changed": changed}
 
 

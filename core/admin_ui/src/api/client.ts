@@ -402,6 +402,22 @@ export class AdminAPIClient {
     return res.json();
   }
 
+  ; provider?: string }>{
+    const res = await this.fetch('/admin/ai/connectors');
+    return res.json();
+  }
+
+  async aiConnectorsPut(payload: { provider?: string; openai?: any; anthropic?: any; agent?: { tool_calling?: boolean } }): Promise<{ ok: boolean; changed?: string[] }>{
+    const res = await this.fetch('/admin/ai/connectors', { method: 'PUT', body: JSON.stringify(payload || {}) });
+    return res.json();
+  }
+
+  async aiConfigPut(payload: { provider?: string; model?: string; base_url?: string; openai_api_key?: string }): Promise<{ ok: boolean; changed?: string[] }>{
+    const res = await this.fetch('/admin/ai/config', { method: 'PUT', body: JSON.stringify(payload || {}) });
+    return res.json();
+  }
+
+
   async importEnv(prefixes?: string[]): Promise<{ ok: boolean; discovered: number; prefixes: string[] }>{
     const body = prefixes && prefixes.length ? { prefixes } : {};
     const res = await this.fetch('/admin/config/import-env', {

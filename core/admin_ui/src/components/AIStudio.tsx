@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Box, Paper, Typography, Stack, Button, TextField, Chip, FormGroup, FormControlLabel, Checkbox, Alert } from '@mui/material';
+import { Box, Paper, Typography, Stack, Button, TextField, Chip, FormGroup, FormControlLabel, Checkbox, Alert, Switch } from '@mui/material';
 import AdminAPIClient from '../api/client';
 
 type Props = { client: AdminAPIClient; readOnly?: boolean };
@@ -20,6 +20,11 @@ export default function AIStudio({ client, readOnly = false }: Props) {
   const [rulesRequired, setRulesRequired] = useState<string>('{}');
   const [rulesClass, setRulesClass] = useState<string>('{}');
   const [rulesMsg, setRulesMsg] = useState<string>('');
+  const [connOpenai, setConnOpenai] = useState<{ base_url?: string; default_model?: string; api_key?: string }>({});
+  const [connAnth, setConnAnth] = useState<{ base_url?: string; default_model?: string; api_key?: string }>({});
+  const [toolCalling, setToolCalling] = useState<boolean>(false);
+  const [connMsg, setConnMsg] = useState<string>('');
+  const [userTraits, setUserTraits] = useState<string[]>([]);
 
   const refresh = async () => {
     try {
@@ -35,6 +40,16 @@ export default function AIStudio({ client, readOnly = false }: Props) {
       const rr = await client.getAiRagRules();
       setRulesRequired(JSON.stringify(rr.required_traits || {}, null, 2));
       setRulesClass(JSON.stringify(rr.classification || {}, null, 2));
+    } catch {}
+    try {
+      const cx = await client.aiConnectorsGet();
+      setConnOpenai(cx.openai || {});
+      setConnAnth(cx.anthropic || {});
+      setToolCalling(Boolean(cx.agent?.tool_calling));
+    } catch {}
+    try {
+      const ut = await client.getUserTraits();
+      setUserTraits(ut?.traits || []);
     } catch {}
   })(); }, []);
 
@@ -115,6 +130,19 @@ export default function AIStudio({ client, readOnly = false }: Props) {
     }
   };
 
+  const saveConnectors = async () => {
+    try {
+      setBusy(true);
+      setConnMsg('');
+      const res = await client.aiConnectorsPut({ openai: connOpenai, anthropic: connAnth, agent: { tool_calling: toolCalling } });
+      setConnMsg(res.ok ? 'Saved' : 'Failed');
+    } catch (e: any) {
+      setConnMsg(e?.message || 'Failed to save');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <Box>
       <Typography variant="h4" gutterBottom>AI Studio</Typography>
@@ -177,6 +205,97 @@ export default function AIStudio({ client, readOnly = false }: Props) {
         </Stack>
       </Paper>
 
+      {/* Trait Visibility (TBAC) */}
+      <Paper sx={{ p: 2, borderRadius: 2, mb: 2 }}>
+        <Typography variant="h6" gutterBottom>Access Traits (TBAC)</Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+          Queries only return documents whose required traits are a subset of your traits. Traits shown below reflect
+          the current rules configuration and your user profile.
+        </Typography>
+        <Stack spacing={1} direction={{ xs: 'column', sm: 'row' }} sx={{ mb: 1 }}>
+          <Box sx={{ flex: 1 }}>
+            <Typography variant="subtitle2">Your Traits</Typography>
+            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 1 }}>
+              {(userTraits || []).length ? userTraits.map(t => (<Chip key={t} label={t} size="small" />)) : <Chip label="(none)" size="small" />}
+            </Box>
+          </Box>
+          <Box sx={{ flex: 1 }}>
+            <Typography variant="subtitle2">Required Traits in Rules</Typography>
+            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 1 }}>
+              {(() => {
+                try {
+                  const obj = JSON.parse(rulesRequired || '{}') as Record<string, string[]>;
+                  const uniq = new Set<string>();
+                  Object.values(obj || {}).forEach(arr => (arr || []).forEach(v => uniq.add(String(v))));
+                  return Array.from(uniq).map(t => (<Chip key={t} label={t} size="small" color={userTraits.includes(t) ? 'success' as any : 'default'} />));
+                } catch { return [<Chip key="invalid" label="Invalid JSON" color="warning" size="small" />]; }
+              })()}
+            </Box>
+          </Box>
+          <Box sx={{ flex: 1 }}>
+            <Typography variant="subtitle2">Blocked (Missing)</Typography>
+            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 1 }}>
+              {(() => {
+                try {
+                  const obj = JSON.parse(rulesRequired || '{}') as Record<string, string[]>;
+                  const req = new Set<string>();
+                  Object.values(obj || {}).forEach(arr => (arr || []).forEach(v => req.add(String(v))));
+                  const missing = Array.from(req).filter(t => !userTraits.includes(t));
+                  return missing.length ? missing.map(t => (<Chip key={t} label={t} size="small" color="error" />)) : [<Chip key="none" label="(none)" size="small" />];
+                } catch { return [<Chip key="invalid2" label="Invalid JSON" color="warning" size="small" />]; }
+              })()}
+            </Box>
+          </Box>
+        </Stack>
+      </Paper>
+
+      {/* Connectors (OpenAI / Anthropic) */}
+      <Paper sx={{ p: 2, borderRadius: 2, mb: 2 }}>
+        <Typography variant="h6" gutterBottom>Connectors</Typography>
+        <Typography variant="subtitle2" sx={{ mt: 1 }}>OpenAI</Typography>
+        <Stack spacing={1} direction={{ xs: 'column', sm: 'row' }} sx={{ mb: 1 }}>
+          <TextField label="Base URL" size="small" sx={{ flex: 1 }} placeholder="https://api.openai.com"
+            value={connOpenai.base_url || ''}
+            onChange={e => setConnOpenai(v => ({ ...v, base_url: e.target.value }))}
+            disabled={busy || readOnly}
+          />
+          <TextField label="Default Model" size="small" sx={{ flex: 1 }} placeholder="gpt-5-mini"
+            value={connOpenai.default_model || ''}
+            onChange={e => setConnOpenai(v => ({ ...v, default_model: e.target.value }))}
+            disabled={busy || readOnly}
+          />
+          <TextField label="API Key" type="password" size="small" sx={{ flex: 1 }} placeholder="sk-..."
+            value={connOpenai.api_key || ''}
+            onChange={e => setConnOpenai(v => ({ ...v, api_key: e.target.value }))}
+            disabled={busy || readOnly}
+          />
+        </Stack>
+        <Typography variant="subtitle2" sx={{ mt: 2 }}>Anthropic</Typography>
+        <Stack spacing={1} direction={{ xs: 'column', sm: 'row' }} sx={{ mb: 1 }}>
+          <TextField label="Base URL" size="small" sx={{ flex: 1 }} placeholder="https://api.anthropic.com"
+            value={connAnth.base_url || ''}
+            onChange={e => setConnAnth(v => ({ ...v, base_url: e.target.value }))}
+            disabled={busy || readOnly}
+          />
+          <TextField label="Default Model" size="small" sx={{ flex: 1 }} placeholder="claude-3-opus-20240229"
+            value={connAnth.default_model || ''}
+            onChange={e => setConnAnth(v => ({ ...v, default_model: e.target.value }))}
+            disabled={busy || readOnly}
+          />
+          <TextField label="API Key" type="password" size="small" sx={{ flex: 1 }} placeholder="sk-ant-..."
+            value={connAnth.api_key || ''}
+            onChange={e => setConnAnth(v => ({ ...v, api_key: e.target.value }))}
+            disabled={busy || readOnly}
+          />
+        </Stack>
+        <Stack spacing={1} direction={{ xs: 'column', sm: 'row' }} alignItems={{ xs: 'stretch', sm: 'center' }}>
+          <FormControlLabel control={<Switch checked={toolCalling} onChange={(e) => setToolCalling(e.target.checked)} />} label="Enable tool-calling" />
+          <Button variant="outlined" onClick={saveConnectors} disabled={busy || readOnly} sx={{ borderRadius: 2 }}>Save Connectors</Button>
+          <Button variant="outlined" onClick={async()=>{ setBusy(true); setConnMsg(''); try { const res = await client.aiConnectorsPut({ provider: (cfgEditing.provider || cfg?.provider || 'openai'), openai: { base_url: connOpenai.base_url || 'https://api.openai.com' }, anthropic: { base_url: connAnth.base_url || 'https://api.anthropic.com' } }); setConnMsg('Default allowlist applied'); } catch(e:any){ setConnMsg(e?.message || 'Failed'); } finally { setBusy(false); } }} disabled={busy || readOnly} sx={{ borderRadius: 2 }}>Apply Default AI Allowlist</Button>
+          {connMsg && <Chip label={connMsg} color="info" variant="outlined" />}
+        </Stack>
+      </Paper>
+
       <Paper sx={{ p: 2, borderRadius: 2, mb: 2 }}>
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems={{ xs: 'stretch', sm: 'center' }}>
           <Chip label={`Docs indexed: ${status?.docs_indexed ?? 0}`} />
@@ -187,6 +306,9 @@ export default function AIStudio({ client, readOnly = false }: Props) {
           </Button>
           <Button variant="outlined" onClick={async () => { setBusy(true); setNote(''); try { const res = await client.aiTrain(['.']); setNote(`Indexed ${res.indexed} documents (total ${res.total}).`); await refresh(); } catch (e: any) { setNote(e?.message || 'Training failed'); } finally { setBusy(false); } }} disabled={busy || readOnly} sx={{ borderRadius: 2 }}>
             Train Everything (.)
+          </Button>
+          <Button variant="outlined" onClick={async () => { setBusy(true); setNote(''); try { const res = await client.aiTrain(['/workspace']); setNote(`Indexed ${res.indexed} documents (total ${res.total}).`); await refresh(); } catch (e: any) { setNote(e?.message || 'Training failed'); } finally { setBusy(false); } }} disabled={busy || readOnly} sx={{ borderRadius: 2 }}>
+            Train Full Repo (/workspace)
           </Button>
           {note && <Chip color="info" variant="outlined" label={note} />}
         </Stack>
