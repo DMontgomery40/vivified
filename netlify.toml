@@ -1,0 +1,9 @@
+[build]
+  command = "make api-docs"
+  publish = "site/api"
+
+[[redirects]]
+  from = "/"
+  to = "/index.html"
+  status = 200
+

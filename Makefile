@@ -10,6 +10,7 @@ help:
 	@echo "  make proto   - Compile protobuf files"
 	@echo "  make docs    - Build MkDocs site"
 	@echo "  make docs-serve - Serve MkDocs locally"
+	@echo "  make api-docs - Build static API docs (Swagger + Redoc) to site/api"
 	@echo "  make ui-ci-local - Build React UIs (admin/ui) like CI"
 	@echo "  make clean   - Clean build artifacts"
 
@@ -65,6 +66,11 @@ docs:
 docs-serve:
 	python -m pip install -q mkdocs mkdocs-material mike
 	mkdocs serve --dev-addr=127.0.0.1:8000
+
+# Build static API docs (Swagger UI + Redoc) using app.openapi()
+.PHONY: api-docs
+api-docs:
+	@python3 tools/scripts/build_api_docs.py
 
 clean:
 	find . -type d -name __pycache__ -exec rm -rf {} +
