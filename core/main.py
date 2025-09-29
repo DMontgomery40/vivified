@@ -27,6 +27,9 @@ from .notifications.service import NotificationsService
 from .api.notifications import notifications_router, configure_notifications_api
 from .automation.service import AutomationService
 from .api.automation import automation_router, configure_automation_api
+from .ai.service import RAGService
+from .api.admin_ai import ai_router as admin_ai_router, configure_ai_api
+from starlette.responses import JSONResponse, StreamingResponse
 
 
 class AddTraceIdFilter(logging.Filter):
@@ -70,6 +73,7 @@ schema_registry = SchemaRegistry()
 gateway_service = None  # Will be initialized on startup
 notifications_service = None  # Will be initialized on startup
 storage_service = None  # Will be initialized when needed
+ai_rag_service = None  # Will be initialized on startup
 
 # Wire admin API dependencies
 configure_admin_api(config_service=get_config_service(), registry=registry)
@@ -78,6 +82,7 @@ app.include_router(auth_router)
 app.include_router(metrics_router)
 app.include_router(notifications_router)
 app.include_router(automation_router)
+app.include_router(admin_ai_router)
 
 
 class ManifestModel(BaseModel):
@@ -116,6 +121,7 @@ async def startup_event():
         global gateway_service
         global notifications_service
         global automation_service
+        global ai_rag_service
         audit_service = await get_audit_service()
 
         if messaging_service is None:
@@ -151,6 +157,17 @@ async def startup_event():
         await automation_service.start()  # type: ignore[arg-type]
         configure_notifications_api(svc=notifications_service)
         configure_automation_api(svc=automation_service)  # type: ignore[arg-type]
+        # Initialize AI RAG service and admin endpoints
+        if ai_rag_service is None:
+            ai_rag_service = RAGService(os.getenv("REDIS_URL"))
+        configure_ai_api(rag_service=ai_rag_service)  # type: ignore[arg-type]
+        # Optional: auto-train RAG on startup when enabled (dev/local only)
+        try:
+            if os.getenv("AI_AUTO_TRAIN", "false").lower() in {"1", "true", "yes"}:
+                # Train on local docs and internal plans
+                await ai_rag_service.train(["docs", "internal-plans"])  # type: ignore[union-attr]
+        except Exception:
+            logger.debug("AI auto-train failed", exc_info=True)
         logger.info("Core services started successfully")
     except Exception as e:
         logger.error(f"Failed to start core services: {e}")
@@ -584,6 +601,25 @@ async def plugin_heartbeat(plugin_id: str, status: HeartbeatModel):
     if not ok:
         raise HTTPException(status_code=404, detail="Plugin not found")
     return {"status": "ok"}
+
+
+# Minimal MCP server health endpoints (SSE/HTTP)
+@app.get("/mcp/sse/health")
+async def mcp_sse_health():
+    return JSONResponse({"ok": True, "transport": "sse"})
+
+
+@app.get("/mcp/http/health")
+async def mcp_http_health():
+    return JSONResponse({"ok": True, "transport": "http"})
+
+
+@app.get("/mcp/sse")
+async def mcp_sse():
+    async def eventgen():
+        yield "event: ping\n\n"
+        yield "data: {\"ok\": true}\n\n"
+    return StreamingResponse(eventgen(), media_type="text/event-stream")
 
 
 class PluginConfigModel(BaseModel):

@@ -42,6 +42,7 @@ import ScienceIcon from '@mui/icons-material/Science';
 import LogoutIcon from '@mui/icons-material/Logout';
 import HelpIcon from '@mui/icons-material/Help';
 import Automations from './components/Automations';
+import AIStudio from './components/AIStudio';
 import { Tooltip } from '@mui/material';
 import VpnLockIcon from '@mui/icons-material/VpnLock';
 import AdminAPIClient from './api/client';
@@ -341,6 +342,7 @@ function AppContent() {
     { label: 'Marketplace', icon: <ExtensionIcon />, trait: 'ui.plugins' },
     { label: 'Plugin Dev Guide', icon: <CodeIcon />, trait: 'ui.plugin_dev_guide' },
     { label: 'Scripts & Tests', icon: <ScienceIcon />, trait: 'role.admin' },
+    { label: 'AI Studio', icon: <ScienceIcon />, trait: 'role.admin' },
     { label: 'Tunnels', icon: <VpnLockIcon />, trait: 'ui.monitoring' },
     { label: 'Audit', icon: <DescriptionIcon />, trait: 'ui.audit' },
                 { label: 'HTTP Proxy', icon: <AssessmentIcon />, trait: 'ui.gateway' },
@@ -925,6 +927,9 @@ function AppContent() {
                 </Box>
               )}
               {toolsTab === 7 && (
+                <AIStudio client={client!} readOnly={!isAdmin} />
+              )}
+              {toolsTab === 8 && (
                 <TunnelSettings
                   client={client!}
                   docsBase={uiConfig?.docs_base || adminConfig?.branding?.docs_base}
@@ -934,20 +939,20 @@ function AppContent() {
                   readOnly={!isAdmin}
                 />
               )}
-              {toolsTab === 8 && <Audit client={client!} />}
-              {toolsTab === 9 && <GatewayTester client={client!} />}
-              {toolsTab === 10 && <GatewayAllowlist client={client!} />}
-              {toolsTab === 11 && <MessagingConsole client={client!} />}
-              {toolsTab === 12 && <CanonicalTools client={client!} />}
-              {toolsTab === 13 && <CanonicalTransforms client={client!} />}
-              {toolsTab === 14 && <PolicyInspector client={client!} />}
-              {toolsTab === 15 && <OperatorPolicy client={client!} />}
-              {toolsTab === 16 && <Automations client={client!} readOnly={!isAdmin} />}
-              {toolsTab === 17 && <MFA client={client!} readOnly={!isAdmin} />}
-              {toolsTab === 18 && <PluginRegister client={client!} />}
-              {toolsTab === 19 && <StorageBrowser client={client!} />}
-              {toolsTab === 20 && <NotificationsPanel client={client!} readOnly={!isAdmin} />}
-              {toolsTab === 20 && <ManifestEditor client={client!} />}
+              {toolsTab === 9 && <Audit client={client!} />}
+              {toolsTab === 10 && <GatewayTester client={client!} />}
+              {toolsTab === 11 && <GatewayAllowlist client={client!} />}
+              {toolsTab === 12 && <MessagingConsole client={client!} />}
+              {toolsTab === 13 && <CanonicalTools client={client!} />}
+              {toolsTab === 14 && <CanonicalTransforms client={client!} />}
+              {toolsTab === 15 && <PolicyInspector client={client!} />}
+              {toolsTab === 16 && <OperatorPolicy client={client!} />}
+              {toolsTab === 17 && <Automations client={client!} readOnly={!isAdmin} />}
+              {toolsTab === 18 && <MFA client={client!} readOnly={!isAdmin} />}
+              {toolsTab === 19 && <PluginRegister client={client!} />}
+              {toolsTab === 20 && <StorageBrowser client={client!} />}
+              {toolsTab === 21 && <NotificationsPanel client={client!} readOnly={!isAdmin} />}
+              {toolsTab === 22 && <ManifestEditor client={client!} />}
             </Box>
           </Paper>
         </TabPanel>
