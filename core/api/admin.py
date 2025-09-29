@@ -23,6 +23,9 @@ from core.security.tls_config import create_tls_context
 from core.policy.traits import registry as trait_registry
 from core.identity.models import User, APIKey
 from sqlalchemy import select, update
+import io
+import zipfile
+import re
 
 
 admin_router = APIRouter(prefix="/admin", tags=["admin"])
@@ -111,6 +114,102 @@ async def disable_plugin(
     if reason:
         plugin["disabled_reason"] = reason
     return {"status": "disabled", "plugin_id": plugin_id}
+
+
+@admin_router.post("/plugins/scaffold")
+async def scaffold_plugin(
+    payload: Dict[str, Any],
+    _: Dict = Depends(require_auth(["admin", "plugin_manager"])),
+):
+    """Generate a minimal plugin scaffold as a ZIP archive.
+
+    Payload fields:
+      - id (str, required)
+      - name (str, optional)
+      - version (str, default 1.0.0)
+      - language (str: python|node, default python)
+      - traits (list[str], optional)
+      - capabilities (list[str], optional)
+    """
+    plugin_id = str(payload.get("id") or "").strip()
+    language = str(payload.get("language") or "python").lower()
+    name = str(payload.get("name") or plugin_id or "Plugin").strip() or "Plugin"
+    version = str(payload.get("version") or "1.0.0").strip() or "1.0.0"
+    traits = payload.get("traits") or []
+    capabilities = payload.get("capabilities") or []
+
+    if not plugin_id or not re.match(r"^[a-z0-9\-_.]+$", plugin_id):
+        raise HTTPException(status_code=400, detail="Invalid plugin id")
+
+    # Build files
+    files: Dict[str, str] = {}
+    manifest = {
+        "id": plugin_id,
+        "name": name,
+        "version": version,
+        "description": f"Scaffolded plugin {name}",
+        "categories": ["outbound"],
+        "capabilities": capabilities or ["send"],
+        "traits": traits or ["communication_plugin"],
+        "endpoints": {"health": "/health"},
+        "security": {
+            "authentication_required": True,
+            "data_classification": ["internal"],
+        },
+        "compliance": {"hipaa_controls": [], "audit_level": "standard"},
+    }
+
+    if language == "node":
+        main_path = f"{plugin_id}/index.js"
+        files[main_path] = (
+            "const { FaxPlugin } = require('@faxbot/plugin-dev');\n"
+            f"class {re.sub(r'[^A-Za-z0-9]', '', name) or 'My'}Plugin extends FaxPlugin {{\n"
+            "  constructor(deps){ super(deps); }\n"
+            "  async sendFax(toNumber, filePath){ return { jobId: 'test', status: 'QUEUED' }; }\n"
+            "}\n"
+            "module.exports = { Plugin: "
+            f"{re.sub(r'[^A-Za-z0-9]', '', name) or 'My'}Plugin, manifest: "
+            + __import__("json").dumps(manifest)
+            + " };\n"
+        )
+        files[f"{plugin_id}/package.json"] = (
+            '{\n  "name": "'
+            + plugin_id
+            + '",\n  "version": "'
+            + version
+            + '",\n  "main": "index.js"\n}\n'
+        )
+    else:  # python
+        main_path = f"{plugin_id}/main.py"
+        files[main_path] = (
+            "from vivified_sdk import VivifiedPlugin, rpc_endpoint\n\n"
+            f"class {re.sub(r'[^A-Za-z0-9]', '', name) or 'My'}Plugin(VivifiedPlugin):\n"
+            "    def __init__(self):\n        super().__init__('manifest.json')\n\n"
+            "    @rpc_endpoint('/health')\n    async def health(self):\n        return {'status': 'ok'}\n"
+        )
+        files[f"{plugin_id}/manifest.json"] = __import__("json").dumps(
+            manifest, indent=2
+        )
+        files[f"{plugin_id}/Dockerfile"] = (
+            'FROM python:3.11-slim\nWORKDIR /app\nCOPY . .\nCMD ["python", "-m", "'
+            + plugin_id
+            + '"]\n'
+        )
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+        for path, content in files.items():
+            zf.writestr(path, content)
+    buf.seek(0)
+
+    return StreamingResponse(
+        buf,
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": f"attachment; filename={plugin_id}_scaffold.zip",
+            "X-Scaffold-Language": language,
+        },
+    )
 
 
 @admin_router.get("/users")

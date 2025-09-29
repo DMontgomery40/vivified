@@ -134,6 +134,7 @@ class VivifiedPlugin:
         self.rpc_client = _RpcClient()
         self.notification = _NotificationClient()
         self._bg_tasks: list[asyncio.Task] = []
+        self._handlers: dict[str, list[Callable[..., Any]]] = {}
 
     async def initialize(self) -> None:  # to be overridden
         return None
@@ -145,6 +146,10 @@ class VivifiedPlugin:
 
     def init_metrics(self) -> None:  # placeholder
         return None
+
+    def register_event_handler(self, event_type: str, handler: Callable[..., Any]) -> None:
+        """Register a local event handler (SDK convenience)."""
+        self._handlers.setdefault(event_type, []).append(handler)
 
 
 # ----------------------- Light Clients -----------------------
@@ -166,4 +171,3 @@ class _RpcClient:
 class _NotificationClient:
     async def send_emergency_alert(self, payload: Dict[str, Any]) -> None:
         return None
-

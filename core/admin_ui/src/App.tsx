@@ -901,7 +901,7 @@ function AppContent() {
               {toolsTab === 2 && <Logs client={client!} />}
               {toolsTab === 3 && <Plugins client={client!} readOnly={!hasTrait('role.admin')} />}
               {toolsTab === 4 && <PluginMarketplace client={client!} docsBase={uiConfig?.docs_base || adminConfig?.branding?.docs_base} />}
-              {toolsTab === 5 && <PluginDevGuide />}
+              {toolsTab === 5 && <PluginDevGuide client={client!} />}
               {toolsTab === 6 && (
                 <Box>
                   <ScriptsTests client={client!} docsBase={uiConfig?.docs_base || adminConfig?.branding?.docs_base} canSend={canSend} readOnly={!isAdmin} />
