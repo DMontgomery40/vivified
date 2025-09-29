@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: patient-record-manager
+  labels:
+    app: patient-record-manager
+    type: plugin
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: patient-record-manager
+  template:
+    metadata:
+      labels:
+        app: patient-record-manager
+        handles-phi: "true"
+    spec:
+      containers:
+      - name: patient-record-manager
+        image: ghcr.io/example/patient-record-manager:dev
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8080
+          name: http
+          protocol: TCP
+        env:
+        - name: CORE_URL
+          value: "https://vivified-core:8443"
+        - name: LOG_LEVEL
+          value: "INFO"
+
