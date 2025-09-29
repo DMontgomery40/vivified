@@ -65,6 +65,7 @@ import GatewayAllowlist from './components/GatewayAllowlist';
 import MessagingConsole from './components/MessagingConsole';
 import NotificationsPanel from './components/Notifications';
 import CanonicalTools from './components/CanonicalTools';
+import CanonicalTransforms from './components/CanonicalTransforms';
 import PolicyInspector from './components/PolicyInspector';
 import OperatorPolicy from './components/OperatorPolicy';
 import PluginRegister from './components/PluginRegister';
@@ -343,6 +344,7 @@ function AppContent() {
     { label: 'HTTP Proxy Allowlist', icon: <AssessmentIcon />, trait: 'ui.gateway' },
     { label: 'Messaging', icon: <AssessmentIcon />, trait: 'ui.messaging' },
     { label: 'Canonical', icon: <AssessmentIcon />, trait: 'ui.canonical' },
+    { label: 'Canonical Transforms', icon: <AssessmentIcon />, trait: 'ui.canonical' },
     { label: 'Policy', icon: <AssessmentIcon />, trait: 'ui.policy' },
     { label: 'Operator Policy', icon: <AssessmentIcon />, trait: 'ui.policy' },
     { label: 'MFA & Passkeys', icon: <VpnKeyIcon />, trait: 'role.admin' },
@@ -930,12 +932,13 @@ function AppContent() {
               {toolsTab === 10 && <GatewayAllowlist client={client!} />}
               {toolsTab === 11 && <MessagingConsole client={client!} />}
               {toolsTab === 12 && <CanonicalTools client={client!} />}
-              {toolsTab === 13 && <PolicyInspector client={client!} />}
-              {toolsTab === 14 && <OperatorPolicy client={client!} />}
-              {toolsTab === 15 && <MFA client={client!} readOnly={!isAdmin} />}
-              {toolsTab === 16 && <PluginRegister client={client!} />}
-              {toolsTab === 17 && <StorageBrowser client={client!} />}
-              {toolsTab === 18 && <NotificationsPanel client={client!} readOnly={!isAdmin} />}
+              {toolsTab === 13 && <CanonicalTransforms client={client!} />}
+              {toolsTab === 14 && <PolicyInspector client={client!} />}
+              {toolsTab === 15 && <OperatorPolicy client={client!} />}
+              {toolsTab === 16 && <MFA client={client!} readOnly={!isAdmin} />}
+              {toolsTab === 17 && <PluginRegister client={client!} />}
+              {toolsTab === 18 && <StorageBrowser client={client!} />}
+              {toolsTab === 19 && <NotificationsPanel client={client!} readOnly={!isAdmin} />}
             </Box>
           </Paper>
         </TabPanel>

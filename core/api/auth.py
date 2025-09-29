@@ -1,12 +1,10 @@
-from __future__ import annotations
-
 from typing import Dict
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from core.database import get_session
 from core.identity.service import IdentityService
-from core.identity.auth import get_current_user, get_auth_manager
+from core.identity.auth import get_current_user, get_auth_manager, rate_limit
 
 
 auth_router = APIRouter(prefix="/auth", tags=["auth"])
@@ -18,6 +16,7 @@ class LoginRequest(BaseModel):
 
 
 @auth_router.post("/login")
+@rate_limit(limit=20, window_seconds=60, key="auth_login")
 async def login(payload: LoginRequest, session=Depends(get_session)):
     svc = IdentityService(session, get_auth_manager())
     result = await svc.authenticate(payload.username, payload.password)

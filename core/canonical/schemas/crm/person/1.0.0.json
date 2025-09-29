@@ -1,0 +1,29 @@
+{
+  "$id": "canonical.crm.Person@1.0.0",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CRM Person",
+  "description": "Canonical person record used by CRM providers (Salesforce leads/contacts).",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "id": { "type": "string" },
+    "external_id": { "type": "string" },
+    "first_name": { "type": "string" },
+    "last_name": { "type": "string" },
+    "email": { "type": "string", "format": "email" },
+    "phone": { "type": "string" },
+    "traits": { "type": "array", "items": { "type": "string" } },
+    "created_at": { "type": "string", "format": "date-time" },
+    "updated_at": { "type": "string", "format": "date-time" }
+  },
+  "required": ["first_name","last_name"],
+  "examples": [
+    {
+      "id": "p_123",
+      "first_name": "Jane",
+      "last_name": "Doe",
+      "email": "jane@example.com"
+    }
+  ]
+}
+

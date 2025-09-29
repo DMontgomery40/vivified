@@ -37,6 +37,8 @@ export default function GatewayAllowlist({ client }: Props) {
   const [saved, setSaved] = useState(false);
   const [rpm, setRpm] = useState<number | ''>('' as any);
   const [burst, setBurst] = useState<number | ''>('' as any);
+  const [rpmPlugin, setRpmPlugin] = useState<number | ''>('' as any);
+  const [burstPlugin, setBurstPlugin] = useState<number | ''>('' as any);
 
   const canSave = useMemo(() => pluginId && Object.keys(items).length >= 0, [pluginId, items]);
 
@@ -104,6 +106,30 @@ export default function GatewayAllowlist({ client }: Props) {
     }
   };
 
+  const fetchPluginRatePolicy = async () => {
+    if (!pluginId) return;
+    try {
+      setError(null);
+      const res = await client.getPluginRatePolicy(pluginId);
+      setRpmPlugin(res.requests_per_minute || 0);
+      setBurstPlugin(res.burst_limit || 0);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load plugin rate policy');
+    }
+  };
+
+  const savePluginRatePolicy = async () => {
+    if (!pluginId) return;
+    try {
+      setError(null);
+      await client.setPluginRatePolicy(pluginId, Number(rpmPlugin || 0), Number(burstPlugin || 0));
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to save plugin rate policy');
+    }
+  };
+
   useEffect(() => {
     setItems({});
   }, [pluginId]);
@@ -159,6 +185,20 @@ export default function GatewayAllowlist({ client }: Props) {
         <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
           <TextField label="Requests per minute" type="number" value={rpm} onChange={(e)=>setRpm(e.target.value === '' ? '' : Number(e.target.value))} size="small" />
           <TextField label="Burst limit" type="number" value={burst} onChange={(e)=>setBurst(e.target.value === '' ? '' : Number(e.target.value))} size="small" />
+        </Stack>
+      </Paper>
+
+      <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, mt: 2 }}>
+        <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
+          <Typography variant="subtitle2">Per-Plugin Rate Policy</Typography>
+          <Stack direction="row" spacing={1}>
+            <Button size="small" variant="outlined" onClick={fetchPluginRatePolicy} disabled={!pluginId}>Refresh</Button>
+            <Button size="small" variant="contained" onClick={savePluginRatePolicy} disabled={!pluginId}>Save</Button>
+          </Stack>
+        </Box>
+        <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
+          <TextField label="Requests per minute" type="number" value={rpmPlugin} onChange={(e)=>setRpmPlugin(e.target.value === '' ? '' : Number(e.target.value))} size="small" />
+          <TextField label="Burst limit" type="number" value={burstPlugin} onChange={(e)=>setBurstPlugin(e.target.value === '' ? '' : Number(e.target.value))} size="small" />
         </Stack>
       </Paper>
 

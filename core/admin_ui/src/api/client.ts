@@ -215,6 +215,16 @@ export class AdminAPIClient {
     return res.json();
   }
 
+  async getPluginRatePolicy(pluginId: string): Promise<{ plugin_id: string; requests_per_minute: number; burst_limit: number }>{
+    const res = await this.fetch(`/admin/gateway/rate-policy/${encodeURIComponent(pluginId)}`);
+    return res.json();
+  }
+
+  async setPluginRatePolicy(pluginId: string, rpm: number, burst: number): Promise<{ ok: boolean }>{
+    const res = await this.fetch(`/admin/gateway/rate-policy/${encodeURIComponent(pluginId)}`, { method: 'PUT', body: JSON.stringify({ requests_per_minute: rpm, burst_limit: burst }) });
+    return res.json();
+  }
+
   // Canonical
   async getCanonicalStats(): Promise<any> {
     const res = await this.fetch('/canonical/stats');
@@ -239,6 +249,17 @@ export class AdminAPIClient {
 
   async activateSchema(payload: { name: string; major: number; minor?: number; patch?: number }): Promise<any> {
     const res = await this.fetch('/schemas/activate', { method: 'POST', body: JSON.stringify(payload) });
+    return res.json();
+  }
+
+  async validateSchema(name: string, payload: Record<string, any>, opts: { major?: number; version?: string } = {}): Promise<{ ok: boolean; version?: [number,number,number]; error?: string; path?: any[]; schema_path?: any[] }>{
+    const body: any = { payload };
+    if (typeof opts.major === 'number') body.major = opts.major;
+    if (opts.version) body.version = opts.version;
+    const res = await this.fetch(`/schemas/${encodeURIComponent(name)}/validate`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
     return res.json();
   }
 

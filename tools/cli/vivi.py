@@ -6,6 +6,7 @@ Commands:
   scaffold   - Generate plugin scaffold archive via Admin API
   register   - Register a plugin manifest JSON with core
   publish    - Publish a canonical event
+  schema     - Manage canonical JSON Schemas (list/upsert/activate/validate)
 
 Env:
   VIVI_URL   - Base URL (default http://localhost:8000)
@@ -90,6 +91,71 @@ def main(argv=None):
     e.add_argument("--payload")
     e.add_argument("--data_traits", nargs="*")
     e.set_defaults(func=cmd_publish)
+
+    # schema subcommands
+    sch = sub.add_parser("schema")
+    ssub = sch.add_subparsers(dest="schema_cmd", required=True)
+
+    def _reqs(url: str, payload: dict | None = None):
+        r = requests.get(url, headers=_headers()) if payload is None else requests.post(url, headers=_headers(), data=json.dumps(payload))
+        r.raise_for_status()
+        return r
+
+    def _schema_list(args):
+        r = _reqs(f"{_base()}/schemas/{args.name}")
+        print(json.dumps(r.json(), indent=2))
+        return 0
+
+    l = ssub.add_parser("list")
+    l.add_argument("name")
+    l.set_defaults(func=_schema_list)
+
+    def _schema_upsert(args):
+        data = json.loads(pathlib.Path(args.file).read_text())
+        maj, min_, pat = (args.version or "1.0.0").split(".")
+        payload = {"name": args.name, "major": int(maj), "minor": int(min_ or 0), "patch": int(pat or 0), "schema_data": data}
+        r = _reqs(f"{_base()}/schemas", payload)
+        print(json.dumps(r.json(), indent=2))
+        return 0
+
+    u = ssub.add_parser("upsert")
+    u.add_argument("name")
+    u.add_argument("version")
+    u.add_argument("file")
+    u.set_defaults(func=_schema_upsert)
+
+    def _schema_activate(args):
+        maj, min_, pat = (args.version or "1.0.0").split(".")
+        payload = {"name": args.name, "major": int(maj), "minor": int(min_ or 0), "patch": int(pat or 0)}
+        r = _reqs(f"{_base()}/schemas/activate", payload)
+        print(json.dumps(r.json(), indent=2))
+        return 0
+
+    a = ssub.add_parser("activate")
+    a.add_argument("name")
+    a.add_argument("version")
+    a.set_defaults(func=_schema_activate)
+
+    def _schema_validate(args):
+        payload_data = json.loads(pathlib.Path(args.file).read_text())
+        body = {"payload": payload_data}
+        if args.version:
+            body["version"] = args.version
+        elif args.major is not None:
+            body["major"] = int(args.major)
+        else:
+            print("Provide --version x.y.z or --major N", file=sys.stderr)
+            return 2
+        r = _reqs(f"{_base()}/schemas/{args.name}/validate", body)
+        print(json.dumps(r.json(), indent=2))
+        return 0
+
+    vsch = ssub.add_parser("validate")
+    vsch.add_argument("name")
+    vsch.add_argument("--version")
+    vsch.add_argument("--major", type=int)
+    vsch.add_argument("--file", required=True)
+    vsch.set_defaults(func=_schema_validate)
 
     v = sub.add_parser("validate-manifest")
     v.add_argument("manifest")

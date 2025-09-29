@@ -142,6 +142,11 @@ Every decision, implementation, and review must consider security and compliance
 ## Core Principles
 
 ### 1. Security-First Architecture
+
+Status: Policy & Traits — DONE
+
+- Enhanced policy engine tested for PHI/PII/confidential, plugin/config management, and UI feature gating.
+- UI trait mapping exposed via `/admin/user/traits`; Admin UI consumes these traits to gate surfaces.
 - **ZERO TRUST MODEL**: No component trusts any other by default
 - **ALL COMMUNICATION MEDIATED**: Core intercepts and validates every cross-plugin interaction
 - **AUDIT EVERYTHING**: Every action, decision, and data movement is logged
@@ -149,12 +154,25 @@ Every decision, implementation, and review must consider security and compliance
 - **DATA CLASSIFICATION**: All data must be tagged with sensitivity traits (PHI, PII, confidential)
 
 ### 2. Three-Lane Communication Model
+
+Status: DONE
+
+- Canonical Lane: `core/canonical/*` with audit + policy checks
+- Operator Lane: `/gateway/{target_plugin}/{operation}` with policy + allowlist
+- Proxy Lane: Gateway allowlist + rate limiting + audit; default-deny by domain
 All plugin interactions use exactly one of three supervised lanes:
 - **Canonical Lane**: Event-driven messaging via normalized data models
 - **Operator Lane**: Synchronous RPC calls through core gateway
 - **Proxy Lane**: Controlled external API access with domain allowlists
 
 ### 3. Plugin Sandboxing Requirements
+
+Status: DONE
+
+- Enforced proxy-only egress: Gateway allowlist now rejects unsafe domains and localhost even if misconfigured; proxy blocks IP literals and unallowlisted domains/paths.
+- Operator lane SSRF guard: Core only allows internal-style service hosts (alphanum, dash, underscore); endpoint paths must be absolute and scheme-less.
+- Config-driven allowlist load skips unsafe entries; all actions audited.
+- Smoke tests added: `tests/test_security_hardening.py` for redaction, proxy/IP blocking, event bus PHI denial, operator host/path sanitization.
 - Plugins run as isolated containers with no direct network access
 - All external communication must go through core proxy with explicit allowlists
 - No plugin can access core database or filesystem directly
@@ -273,6 +291,16 @@ stages:
    - Access control testing
 
 ### Security Requirements
+
+Status: IN PROGRESS
+
+- Authentication & Authorization
+  - Rate limiting: /auth/dev-login (existing) and /auth/login (DONE)
+  - JWT expiry 15 minutes (existing)
+- Data Protection
+  - Redact PHI/PII in audit logs (DONE)
+  - Encryption at rest via StorageService (existing)
+  - No PHI/PII in logs enforced by sanitizer (DONE)
 
 #### Authentication & Authorization
 - JWT tokens with 15-minute expiry

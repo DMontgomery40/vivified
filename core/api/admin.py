@@ -333,6 +333,47 @@ async def gateway_rate_policy_set(
     return {"ok": True}
 
 
+@admin_router.get("/gateway/rate-policy/{plugin_id}")
+async def gateway_plugin_rate_policy_get(
+    plugin_id: str, _: Dict = Depends(require_auth(["admin"]))
+):
+    if _CONFIG_SVC is None:
+        raise HTTPException(status_code=500, detail="Config service not available")
+    rpm = await _CONFIG_SVC.get(f"gateway.rate.{plugin_id}.requests_per_minute")
+    burst = await _CONFIG_SVC.get(f"gateway.rate.{plugin_id}.burst_limit")
+    return {
+        "plugin_id": plugin_id,
+        "requests_per_minute": int(rpm or 0),
+        "burst_limit": int(burst or 0),
+    }
+
+
+@admin_router.put("/gateway/rate-policy/{plugin_id}")
+@audit_log("gateway_rate_policy_update_plugin")
+async def gateway_plugin_rate_policy_set(
+    plugin_id: str, payload: Dict[str, Any], _: Dict = Depends(require_auth(["admin"]))
+):
+    if _CONFIG_SVC is None:
+        raise HTTPException(status_code=500, detail="Config service not available")
+    rpm = int(payload.get("requests_per_minute") or 0)
+    burst = int(payload.get("burst_limit") or 0)
+    await _CONFIG_SVC.set(
+        f"gateway.rate.{plugin_id}.requests_per_minute",
+        rpm,
+        is_sensitive=False,
+        updated_by="admin",
+        reason="rate_policy_update_plugin",
+    )
+    await _CONFIG_SVC.set(
+        f"gateway.rate.{plugin_id}.burst_limit",
+        burst,
+        is_sensitive=False,
+        updated_by="admin",
+        reason="rate_policy_update_plugin",
+    )
+    return {"ok": True}
+
+
 @admin_router.get("/users")
 async def list_users(
     _: Dict = Depends(require_auth(["admin"])), session=Depends(get_session)
