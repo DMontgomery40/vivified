@@ -10,12 +10,14 @@ Provides secure, role-based access to:
 """
 
 from .admin import admin_router
+from .admin_ai import admin_ai_router
 from .auth import auth_router
 from .models import ConfigSetRequest, UserCreateRequest  # re-export
 from .dependencies import get_current_user, require_auth  # re-export
 
 __all__ = [
     "admin_router",
+    "admin_ai_router",
     "auth_router",
     "ConfigSetRequest",
     "UserCreateRequest",
