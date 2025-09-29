@@ -20,7 +20,7 @@
       
       
       <link rel="icon" href="../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.5.27">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.20">
     
     
       
@@ -28,7 +28,7 @@
       
     
     
-      <link rel="stylesheet" href="../../assets/stylesheets/main.6543a935.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.e53b48f4.min.css">
       
         
         <link rel="stylesheet" href="../../assets/stylesheets/palette.06af60db.min.css">
@@ -50,7 +50,7 @@
       
     
     
-    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce((e,_)=>(e<<5)-e+_.charCodeAt(0),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
       
 
@@ -76,7 +76,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#vivified-ai-studio-internal-rag-agent" class="md-skip">
+        <a href="#ai-agents-rag-llm" class="md-skip">
           Skip to content
         </a>
       
@@ -99,12 +99,12 @@
     <a href="../.." title="Vivified Docs" class="md-header__button md-logo" aria-label="Vivified Docs" data-md-component="logo">
       
   
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54Z"/></svg>
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
 
     </a>
     <label class="md-header__button md-icon" for="__drawer">
       
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3V6m0 5h18v2H3v-2m0 5h18v2H3v-2Z"/></svg>
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
     </label>
     <div class="md-header__title" data-md-component="header-title">
       <div class="md-header__ellipsis">
@@ -132,7 +132,7 @@
     <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
     
       <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12 20 8.69Z"/></svg>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
       </label>
     
   
@@ -142,7 +142,7 @@
     <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
     
       <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12c0-2.42-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12 20 8.69Z"/></svg>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
       </label>
     
   
@@ -150,30 +150,32 @@
       
     
     
-      <script>var media,input,key,value,palette=__md_get("__palette");if(palette&&palette.color){"(prefers-color-scheme)"===palette.color.media&&(media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']"),palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent"));for([key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
     
     
     
-      <label class="md-header__button md-icon" for="__search">
-        
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5Z"/></svg>
-      </label>
-      <div class="md-search" data-md-component="search" role="dialog">
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
   <label class="md-search__overlay" for="__search"></label>
   <div class="md-search__inner" role="search">
     <form class="md-search__form" name="search">
       <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
       <label class="md-search__icon md-icon" for="__search">
         
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5Z"/></svg>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
         
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12Z"/></svg>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
       </label>
       <nav class="md-search__options" aria-label="Search">
         
         <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
           
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41Z"/></svg>
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
         </button>
       </nav>
       
@@ -190,13 +192,14 @@
     </div>
   </div>
 </div>
+      
     
     
       <div class="md-header__source">
         <a href="https://github.com/DMontgomery40/vivified" title="Go to repository" class="md-source" data-md-component="source">
   <div class="md-source__icon md-icon">
     
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.5.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81z"/></svg>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.0.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
   </div>
   <div class="md-source__repository">
     DMontgomery40/vivified
@@ -232,7 +235,7 @@
     <a href="../.." title="Vivified Docs" class="md-nav__button md-logo" aria-label="Vivified Docs" data-md-component="logo">
       
   
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54Z"/></svg>
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
 
     </a>
     Vivified Docs
@@ -242,7 +245,7 @@
       <a href="https://github.com/DMontgomery40/vivified" title="Go to repository" class="md-source" data-md-component="source">
   <div class="md-source__icon md-icon">
     
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.5.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81z"/></svg>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.0.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
   </div>
   <div class="md-source__repository">
     DMontgomery40/vivified
@@ -262,8 +265,10 @@
       <a href="../.." class="md-nav__link">
         
   
+  
   <span class="md-ellipsis">
     Home
+    
   </span>
   
 
@@ -282,8 +287,10 @@
       <a href="../../getting-started/" class="md-nav__link">
         
   
+  
   <span class="md-ellipsis">
     Getting Started
+    
   </span>
   
 
@@ -298,6 +305,7 @@
   
   
   
+    
     
     
     
@@ -317,8 +325,10 @@
           <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
             
   
+  
   <span class="md-ellipsis">
     Core
+    
   </span>
   
 
@@ -342,8 +352,10 @@
       <a href="../../core/overview/" class="md-nav__link">
         
   
+  
   <span class="md-ellipsis">
     Overview
+    
   </span>
   
 
@@ -369,6 +381,7 @@
     
     
     
+    
       
         
         
@@ -385,8 +398,10 @@
           <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
             
   
+  
   <span class="md-ellipsis">
     SDK
+    
   </span>
   
 
@@ -410,8 +425,10 @@
       <a href="../../sdk/overview/" class="md-nav__link">
         
   
+  
   <span class="md-ellipsis">
     Overview
+    
   </span>
   
 
@@ -437,6 +454,7 @@
     
     
     
+    
       
         
         
@@ -453,8 +471,10 @@
           <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
             
   
+  
   <span class="md-ellipsis">
     Architecture
+    
   </span>
   
 
@@ -478,8 +498,10 @@
       <a href="../../architecture/diagrams/" class="md-nav__link">
         
   
+  
   <span class="md-ellipsis">
     Diagrams
+    
   </span>
   
 
@@ -505,6 +527,7 @@
     
     
     
+    
       
         
         
@@ -521,8 +544,10 @@
           <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
             
   
+  
   <span class="md-ellipsis">
     Plugins
+    
   </span>
   
 
@@ -546,8 +571,10 @@
       <a href="../../plugins/overview/" class="md-nav__link">
         
   
+  
   <span class="md-ellipsis">
     Overview
+    
   </span>
   
 
@@ -567,8 +594,10 @@
       <a href="../../plugins/plugin-system/" class="md-nav__link">
         
   
+  
   <span class="md-ellipsis">
     Plugin System
+    
   </span>
   
 
@@ -594,6 +623,7 @@
     
     
     
+    
       
         
         
@@ -610,8 +640,10 @@
           <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="">
             
   
+  
   <span class="md-ellipsis">
     Reference
+    
   </span>
   
 
@@ -635,8 +667,10 @@
       <a href="../../reference/apis/" class="md-nav__link">
         
   
+  
   <span class="md-ellipsis">
     APIs
+    
   </span>
   
 
@@ -672,8 +706,10 @@
         <label class="md-nav__link md-nav__link--active" for="__toc">
           
   
+  
   <span class="md-ellipsis">
     AI & Agents
+    
   </span>
   
 
@@ -683,8 +719,10 @@
       <a href="./" class="md-nav__link md-nav__link--active">
         
   
+  
   <span class="md-ellipsis">
     AI & Agents
+    
   </span>
   
 
@@ -706,9 +744,18 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#whats-included" class="md-nav__link">
+  <a href="#features" class="md-nav__link">
     <span class="md-ellipsis">
-      What’s included
+      Features
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#quick-start" class="md-nav__link">
+    <span class="md-ellipsis">
+      Quick Start
     </span>
   </a>
   
@@ -724,45 +771,36 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#admin-ui" class="md-nav__link">
+  <a href="#ignore-model" class="md-nav__link">
     <span class="md-ellipsis">
-      Admin UI
+      Ignore Model
     </span>
   </a>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#redis" class="md-nav__link">
+  <a href="#tbac-hipaasafe" class="md-nav__link">
     <span class="md-ellipsis">
-      Redis
+      TBAC (HIPAA‑safe)
     </span>
   </a>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#auto-train" class="md-nav__link">
+  <a href="#llm-via-gateway" class="md-nav__link">
     <span class="md-ellipsis">
-      Auto-train
+      LLM via Gateway
     </span>
   </a>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#tbac-trait-based-access-control" class="md-nav__link">
+  <a href="#mcp-preview" class="md-nav__link">
     <span class="md-ellipsis">
-      TBAC (Trait-Based Access Control)
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#mcp-http-tool-preview" class="md-nav__link">
-    <span class="md-ellipsis">
-      MCP HTTP Tool (preview)
+      MCP (Preview)
     </span>
   </a>
   
@@ -771,16 +809,25 @@
         <li class="md-nav__item">
   <a href="#cli-helper" class="md-nav__link">
     <span class="md-ellipsis">
-      CLI helper
+      CLI Helper
     </span>
   </a>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#next-steps-internal-roadmap" class="md-nav__link">
+  <a href="#troubleshooting" class="md-nav__link">
     <span class="md-ellipsis">
-      Next steps (internal roadmap)
+      Troubleshooting
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#roadmap" class="md-nav__link">
+    <span class="md-ellipsis">
+      Roadmap
     </span>
   </a>
   
@@ -804,8 +851,10 @@
       <a href="../../contributing/" class="md-nav__link">
         
   
+  
   <span class="md-ellipsis">
     Contributing
+    
   </span>
   
 
@@ -841,9 +890,18 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#whats-included" class="md-nav__link">
+  <a href="#features" class="md-nav__link">
     <span class="md-ellipsis">
-      What’s included
+      Features
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#quick-start" class="md-nav__link">
+    <span class="md-ellipsis">
+      Quick Start
     </span>
   </a>
   
@@ -859,45 +917,36 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#admin-ui" class="md-nav__link">
+  <a href="#ignore-model" class="md-nav__link">
     <span class="md-ellipsis">
-      Admin UI
+      Ignore Model
     </span>
   </a>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#redis" class="md-nav__link">
+  <a href="#tbac-hipaasafe" class="md-nav__link">
     <span class="md-ellipsis">
-      Redis
+      TBAC (HIPAA‑safe)
     </span>
   </a>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#auto-train" class="md-nav__link">
+  <a href="#llm-via-gateway" class="md-nav__link">
     <span class="md-ellipsis">
-      Auto-train
+      LLM via Gateway
     </span>
   </a>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#tbac-trait-based-access-control" class="md-nav__link">
+  <a href="#mcp-preview" class="md-nav__link">
     <span class="md-ellipsis">
-      TBAC (Trait-Based Access Control)
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#mcp-http-tool-preview" class="md-nav__link">
-    <span class="md-ellipsis">
-      MCP HTTP Tool (preview)
+      MCP (Preview)
     </span>
   </a>
   
@@ -906,16 +955,25 @@
         <li class="md-nav__item">
   <a href="#cli-helper" class="md-nav__link">
     <span class="md-ellipsis">
-      CLI helper
+      CLI Helper
     </span>
   </a>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#next-steps-internal-roadmap" class="md-nav__link">
+  <a href="#troubleshooting" class="md-nav__link">
     <span class="md-ellipsis">
-      Next steps (internal roadmap)
+      Troubleshooting
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#roadmap" class="md-nav__link">
+    <span class="md-ellipsis">
+      Roadmap
     </span>
   </a>
   
@@ -935,65 +993,113 @@
                 
                   
 
+
   
   
 
 
-<h1 id="vivified-ai-studio-internal-rag-agent">Vivified AI Studio — Internal RAG + Agent</h1>
-<p>This document describes the internal AI features wired into the Admin Console.
-It is intended for internal development. Customer docs will be carved later.</p>
-<h2 id="whats-included">What’s included</h2>
+<h1 id="ai-agents-rag-llm">AI &amp; Agents (RAG + LLM)</h1>
+<p>This page documents Vivified’s internal AI features: repository‑wide RAG (indexing your code and docs), a trait‑aware query path, and an agent that can call an LLM through the Core gateway with strict allowlists.</p>
+<p>Important: This is an internal/developer feature set. Customer‑facing docs will be derived from this page later.</p>
+<h2 id="features">Features</h2>
 <ul>
-<li>RAG Service (Redis-backed, memory fallback) that indexes local <code>docs/</code> and <code>internal-plans/</code>.</li>
-<li>Admin API endpoints under <code>/admin/ai/*</code> to train, query, and run a stub agent.</li>
-<li>Admin UI panel “AI Studio” under Tools.</li>
-<li>Optional auto-train on startup with <code>AI_AUTO_TRAIN=true</code>.</li>
+<li>Repository‑wide RAG</li>
+<li>Indexes the entire repo (<code>.</code>) by default and respects <code>.ragignore</code> first, then <code>.gitignore</code>.</li>
+<li>Ignore patterns support anchored paths (<code>/path</code>), directory suffix (<code>dir/</code>), and globbing (<code>*.log</code>).</li>
+<li>Reads any text‑decodable file up to <code>RAG_MAX_BYTES</code> (default 2 MB); binary blobs are skipped.</li>
+<li>Trait‑aware querying (TBAC)</li>
+<li>Only returns documents where <code>required_traits ⊆ user.traits</code>.</li>
+<li>Defaults to <code>required_traits=[]</code> for code/docs; add traits to sensitive datasets to gate access.</li>
+<li>LLM agent through Core gateway (egress allowlist)</li>
+<li>Proxies to OpenAI via <code>/gateway/proxy</code> with plugin_id <code>ai-core</code> (allowlist seeded for chat completions).</li>
+<li>Falls back to a direct call if proxy is unavailable.</li>
+<li>Default model: <code>gpt-5-mini</code> (override with <code>AI_LLM_MODEL</code> or <code>OPENAI_DEFAULT_MODEL</code>).</li>
+<li>Auto‑training on startup (optional) and periodic updates</li>
+<li><code>AI_AUTO_TRAIN=true</code> indexes <code>.</code> on startup.</li>
+<li><code>RAG_UPDATE_INTERVAL_MINUTES</code> controls retraining cadence (default 20 minutes).</li>
 </ul>
-<p>No external LLM calls are required for basic operation. All data stays local.</p>
+<h2 id="quick-start">Quick Start</h2>
+<p>1) Start Core with <code>.env</code> (OpenAI key optional):</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>uvicorn core.main:app --reload
+</span></code></pre></div>
+<p>2) (Optional) Auto‑train on startup and enable 20‑minute updates:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>export AI_AUTO_TRAIN=true
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>export RAG_UPDATE_INTERVAL_MINUTES=20
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>uvicorn core.main:app --reload
+</span></code></pre></div>
+<p>3) Open Admin Console → Tools → “AI Studio”
+   - Click “Train from Docs” to index the repo now (respects ignore files).
+   - Search the index and run Agent to get a human‑readable answer with code/docs context.</p>
 <h2 id="admin-api">Admin API</h2>
 <ul>
-<li><code>GET /admin/ai/status</code> — returns <code>{ docs_indexed, last_trained_ts }</code> (admin trait)</li>
-<li><code>POST /admin/ai/train</code> — body <code>{ sources?: string[] }</code>, returns <code>{ ok, indexed, total }</code> (admin trait)</li>
-<li><code>POST /admin/ai/query</code> — body <code>{ q: string }</code>, returns top hits (admin/viewer)</li>
-<li><code>POST /admin/ai/agent/run</code> — body <code>{ prompt: string }</code>, returns <code>{ result }</code> (admin)</li>
+<li><code>GET /admin/ai/status</code> → <code>{ docs_indexed, last_trained_ts }</code> (admin)</li>
+<li><code>POST /admin/ai/train</code> → <code>{ ok, indexed, total }</code> (admin)</li>
+<li>Body: <code>{ sources?: string[] }</code> (defaults to <code>"."</code>)</li>
+<li><code>POST /admin/ai/query</code> → <code>{ items }</code> (viewer/admin)</li>
+<li>Body: <code>{ q: string }</code> (filters by user traits)</li>
+<li><code>POST /admin/ai/agent/run</code> → <code>{ result }</code> (admin)</li>
+<li>Body: <code>{ prompt: string }</code></li>
 </ul>
-<p>All calls are audited through FastAPI logging; no PHI is logged.</p>
-<h2 id="admin-ui">Admin UI</h2>
+<p>Notes:
+- The server reads <code>.env</code> at startup; set <code>OPENAI_API_KEY</code> to use a live LLM.
+- Default model string is <code>gpt-5-mini</code>; override via <code>AI_LLM_MODEL</code>.</p>
+<h2 id="ignore-model">Ignore Model</h2>
 <ul>
-<li>Tools → AI Studio: train RAG and run queries from the console.</li>
-<li>Uses your current API key. DEV_MODE supports <code>bootstrap_admin_only</code> for quick testing.</li>
+<li><code>.ragignore</code> (optional) has priority over <code>.gitignore</code>.</li>
+<li>Patterns:</li>
+<li>Anchored path: <code>/build/</code> matches from repo root.</li>
+<li>Directory: <code>cache/</code> prunes entire subtree.</li>
+<li>Glob: <code>*.log</code>, <code>*.tmp</code>, <code>node_modules/</code>, etc.</li>
 </ul>
-<h2 id="redis">Redis</h2>
-<p>If <code>REDIS_URL</code> is set, the RAG service uses Redis structures:</p>
-<ul>
-<li><code>ai:rag:docs</code> — set of doc IDs</li>
-<li><code>ai:rag:doc:{id}:title</code>, <code>:path</code>, <code>:content</code></li>
-<li><code>ai:rag:token:{token}</code> — set of doc IDs for inverted index</li>
-</ul>
-<p>If Redis is unavailable, an in-memory index is used.</p>
-<h2 id="auto-train">Auto-train</h2>
-<p>Set <code>AI_AUTO_TRAIN=true</code> in the environment to index the entire repository (<code>.</code>) at startup. Indexing respects <code>.ragignore</code> (first) and <code>.gitignore</code> (second).</p>
-<h2 id="tbac-trait-based-access-control">TBAC (Trait-Based Access Control)</h2>
-<p>The RAG index and queries honor user traits. Each indexed document carries metadata with <code>required_traits</code> (defaults to empty) and <code>classification</code> (defaults to <code>internal</code>). At query time, only documents whose <code>required_traits</code> are a subset of the user’s traits are considered.</p>
-<p>This allows HIPAA-safe usage patterns where the assistant can answer aggregate questions without ever seeing PII fields. For example, you could index randomized patient IDs and diagnosis/outcome fields behind a trait like <code>analytics_viewer</code>, while excluding any PII traits entirely. The assistant’s visibility is governed by the same trait system as users.</p>
-<p>The current codebase indexing defaults to <code>required_traits=[]</code>. Data sources that include sensitive fields should be indexed with appropriate <code>required_traits</code> (future enhancement wires this via ingestion policies/config).</p>
-<h2 id="mcp-http-tool-preview">MCP HTTP Tool (preview)</h2>
-<ul>
-<li><code>POST /mcp/http/tools/rag/query</code> — body <code>{ q: string }</code> returns <code>{ items }</code>, gated by user traits (admin or viewer).</li>
-<li>Health endpoints: <code>/mcp/sse/health</code>, <code>/mcp/http/health</code>.</li>
-</ul>
-<h2 id="cli-helper">CLI helper</h2>
-<p><code>tools/scripts/rag_train.py</code> calls the API to trigger training.</p>
-<p>Example:</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>AI_API_URL=http://localhost:8000 API_KEY=bootstrap_admin_only \
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>  python tools/scripts/rag_train.py --sources docs internal-plans
+<p>Example <code>.ragignore</code>:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>/site/
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>/node_modules/
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>*.png
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>*.jpg
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>*.pdf
 </span></code></pre></div>
-<h2 id="next-steps-internal-roadmap">Next steps (internal roadmap)</h2>
+<h2 id="tbac-hipaasafe">TBAC (HIPAA‑safe)</h2>
 <ul>
-<li>Wire optional LangGraph pipeline and tool calling (feature flag controlled).</li>
-<li>Add connector config for OpenAI/Anthropic via ConfigService and proxy allowlist.</li>
-<li>Expand Admin UI to visualize vector store stats and per-source toggles.</li>
-<li>MCP integration: expose RAG query as an MCP tool over SSE/HTTP transports.</li>
+<li>Each document has <code>required_traits</code> (default <code>[]</code>) and <code>classification</code> (default <code>internal</code>).</li>
+<li>Query filters results to those with <code>required_traits ⊆ user.traits</code>.</li>
+<li>Pattern: Place analytics‑safe data behind a trait such as <code>analytics_viewer</code> and exclude PII traits entirely. The agent can answer aggregate questions without ever seeing names/addresses.</li>
+</ul>
+<h2 id="llm-via-gateway">LLM via Gateway</h2>
+<ul>
+<li>The agent calls OpenAI via Core’s <code>/gateway/proxy</code> using plugin_id <code>ai-core</code>.</li>
+<li>On startup we seed an allowlist for <code>api.openai.com</code> POST <code>/v1/chat/completions</code>.</li>
+<li>Configure:</li>
+<li><code>OPENAI_API_KEY</code> in <code>.env</code> (loaded automatically at startup)</li>
+<li><code>AI_LLM_MODEL</code> or <code>OPENAI_DEFAULT_MODEL</code></li>
+<li><code>OPENAI_BASE_URL</code> if using a custom gateway/backbone</li>
+</ul>
+<h2 id="mcp-preview">MCP (Preview)</h2>
+<ul>
+<li>Health: <code>GET /mcp/sse/health</code>, <code>GET /mcp/http/health</code>.</li>
+<li>Tool: <code>POST /mcp/http/tools/rag/query</code> → <code>{ items }</code> (viewer/admin), body <code>{ q: string }</code>.</li>
+<li>Settings (Admin → Settings → MCP) toggle SSE/HTTP and optional OAuth.</li>
+</ul>
+<h2 id="cli-helper">CLI Helper</h2>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>AI_API_URL=http://localhost:8000 API_KEY=bootstrap_admin_only \
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>  python tools/scripts/rag_train.py --sources .
+</span></code></pre></div>
+<h2 id="troubleshooting">Troubleshooting</h2>
+<ul>
+<li>“Docs haven’t updated”</li>
+<li>The site publishes from <code>gh-pages</code> via mike. Re‑deploy: <code>mike deploy latest -u -p &amp;&amp; mike set-default latest -p</code>.</li>
+<li>Hard refresh the browser to bypass CDN caching.</li>
+<li>“LLM calls failing”</li>
+<li>Confirm <code>OPENAI_API_KEY</code> is present and not expired.</li>
+<li>Check <code>/gateway/allowlist/effective?plugin_id=ai-core</code> shows OpenAI allowlist.</li>
+<li>Review <code>/gateway/stats</code> and audit logs.</li>
+<li>“Index skipped files unexpectedly”</li>
+<li>Inspect <code>.ragignore</code> and <code>.gitignore</code> matches (anchored vs glob). Remove overly broad patterns.</li>
+</ul>
+<h2 id="roadmap">Roadmap</h2>
+<ul>
+<li>Config v4 secrets for provider keys + traited ingestion rules per path.</li>
+<li>LangGraph agent pipeline with RAG retriever + HTTP/Storage tools.</li>
+<li>Expose RAG query as a full MCP tool bundle (SSE/HTTP) with schemas.</li>
 </ul>
 
 
@@ -1012,14 +1118,14 @@ It is intended for internal development. Customer docs will be carved later.</p>
             </div>
           
           
-  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var tab,labels=set.querySelector(".tabbed-labels");for(tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
 
 <script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
         </div>
         
           <button type="button" class="md-top md-icon" data-md-component="top" hidden>
   
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8v12Z"/></svg>
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
   Back to top
 </button>
         
@@ -1049,10 +1155,12 @@ It is intended for internal development. Customer docs will be carved later.</p>
     </div>
     
     
-    <script id="__config" type="application/json">{"base": "../..", "features": ["navigation.instant", "navigation.sections", "navigation.top", "content.code.copy", "content.code.annotate", "content.tabs.link"], "search": "../../assets/javascripts/workers/search.b8dbb3d2.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"default": "latest", "provider": "mike"}}</script>
+    
+      
+      <script id="__config" type="application/json">{"base": "../..", "features": ["navigation.instant", "navigation.sections", "navigation.top", "content.code.copy", "content.code.annotate", "content.tabs.link"], "search": "../../assets/javascripts/workers/search.973d3a69.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"default": "latest", "provider": "mike"}}</script>
     
     
-      <script src="../../assets/javascripts/bundle.ad660dcc.min.js"></script>
+      <script src="../../assets/javascripts/bundle.f55a23d4.min.js"></script>
       
     
   </body>
