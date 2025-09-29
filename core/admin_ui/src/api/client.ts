@@ -349,6 +349,27 @@ export class AdminAPIClient {
     return await res.blob();
   }
 
+  // AI / RAG
+  async aiStatus(): Promise<{ docs_indexed: number; last_trained_ts?: number | null }>{
+    const res = await this.fetch('/admin/ai/status');
+    return res.json();
+  }
+
+  async aiTrain(sources?: string[]): Promise<{ ok: boolean; indexed: number; total: number }>{
+    const res = await this.fetch('/admin/ai/train', { method: 'POST', body: JSON.stringify({ sources: sources || [] }) });
+    return res.json();
+  }
+
+  async aiQuery(query: string): Promise<{ items: Array<{ id: string; title: string; path?: string }> }>{
+    const res = await this.fetch('/admin/ai/query', { method: 'POST', body: JSON.stringify({ q: query }) });
+    return res.json();
+  }
+
+  async aiAgentRun(prompt: string): Promise<{ result: string }>{
+    const res = await this.fetch('/admin/ai/agent/run', { method: 'POST', body: JSON.stringify({ prompt }) });
+    return res.json();
+  }
+
   async importEnv(prefixes?: string[]): Promise<{ ok: boolean; discovered: number; prefixes: string[] }>{
     const body = prefixes && prefixes.length ? { prefixes } : {};
     const res = await this.fetch('/admin/config/import-env', {

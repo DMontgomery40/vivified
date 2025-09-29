@@ -661,6 +661,7 @@ async def get_ui_config(
             "plugin_install": bool(plugin_install_enabled),
             "sessions_enabled": bool(sessions_enabled),
             "csrf_enabled": bool(csrf_enabled),
+            "ai": {"enabled": True},
         },
         "endpoints": {},
     }
@@ -2057,6 +2058,17 @@ async def update_settings(
         "backend": "backend.type",
         "outbound_backend": "hybrid.outbound_backend",
         "inbound_backend": "hybrid.inbound_backend",
+        # MCP toggles
+        "enable_mcp_sse": "mcp.sse_enabled",
+        "enable_mcp_http": "mcp.http_enabled",
+        "require_mcp_oauth": "mcp.require_oauth",
+        "oauth_issuer": "mcp.oauth.issuer",
+        "oauth_audience": "mcp.oauth.audience",
+        "oauth_jwks_url": "mcp.oauth.jwks_url",
+        # AI LLM defaults (provider/model)
+        "ai_llm_provider": "ai.llm.provider",
+        "ai_llm_model": "ai.llm.model",
+        "ai_llm_base_url": "ai.llm.base_url",
         "require_api_key": "security.require_api_key",
         "enforce_public_https": "security.enforce_https",
         "public_api_url": "security.public_api_url",
