@@ -65,6 +65,7 @@ import TunnelSettings from './components/TunnelSettings';
 import GatewayTester from './components/GatewayTester';
 import GatewayAllowlist from './components/GatewayAllowlist';
 import ManifestEditor from './components/ManifestEditor';
+import ChatBot from './components/ChatBot';
 import HelpOverlayToggle from './components/common/HelpOverlayToggle';
 import MessagingConsole from './components/MessagingConsole';
 import NotificationsPanel from './components/Notifications';
@@ -358,6 +359,7 @@ function AppContent() {
     { label: 'Storage', icon: <DescriptionIcon />, trait: 'ui.storage' },
     { label: 'Notifications', icon: <InboxIcon />, trait: 'ui.notifications' },
     { label: 'Manifest Editor', icon: <CodeIcon />, trait: 'ui.plugins' },
+    { label: 'Chat', icon: <ScienceIcon />, trait: 'role.admin' },
   ];
 
   const hasTrait = (t: string) => !!(userTraits && userTraits.includes(t));
@@ -955,6 +957,7 @@ function AppContent() {
               {toolsTab === 20 && <StorageBrowser client={client!} />}
               {toolsTab === 21 && <NotificationsPanel client={client!} readOnly={!isAdmin} />}
               {toolsTab === 22 && <ManifestEditor client={client!} />}
+              {toolsTab === 23 && <ChatBot client={client!} />}
             </Box>
           </Paper>
         </TabPanel>

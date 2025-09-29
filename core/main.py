@@ -179,6 +179,10 @@ async def startup_event():
                         "api.openai.com": {
                             "allowed_methods": ["POST", "GET"],
                             "allowed_paths": ["/v1/"],
+                        },
+                        "api.anthropic.com": {
+                            "allowed_methods": ["POST", "GET"],
+                            "allowed_paths": ["/v1/"],
                         }
                     },
                     is_sensitive=False,

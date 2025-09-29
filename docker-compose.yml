@@ -50,6 +50,7 @@ services:
       LOG_LEVEL: INFO
       USE_TLS: "false"
       PUBLIC_API_URL: http://vivified-core:8000
+      RAG_ROOT: /workspace
     ports:
       - "8000:8000"
       - "8443:8443"
@@ -62,6 +63,7 @@ services:
       - vivified-net
     volumes:
       - ./tls:/certs:ro
+      - .:/workspace:ro
     healthcheck:
       test: ["CMD", "curl", "-fk", "https://localhost:8443/health"]
       interval: 30s
