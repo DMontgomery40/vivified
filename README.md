@@ -2,13 +2,13 @@
 
 # Vivified Platform
 
-**Zero-Trust Enterprise Application Kernel**
+Secure, extensible enterprise application kernel
 
-Vivified is the first platform that solves the fundamental problem of enterprise software: **how to build secure, compliant applications that can safely handle PHI/PII while remaining infinitely extensible.**
+Vivified is a secure, extensible platform for building enterprise applications that handle PHI/PII with strong compliance controls.
 
-Build anything - ERP systems, security operations centers, healthcare platforms, financial services - on a foundation that makes data breaches mathematically impossible.
+Build ERP systems, security operations centers, healthcare platforms, financial services, and more with a security-first foundation.
 
-## The Breakthrough
+## What It Provides
 
 ### **Complete Plugin Isolation**
 Plugins run in containers with **zero network access**. They cannot:
@@ -38,22 +38,22 @@ All data movement happens through three supervised channels:
 - **Automatic secret injection** - plugins never see credentials
 
 ### **Trait-Based Access Control (TBAC)**
-Revolutionary security model where access is based on **what you can do**, not **who you are**:
+Trait-based access control (TBAC) determines access based on capabilities and data classification:
 
 - Users have traits like `handles_phi`, `finance_team`, `admin`
 - Data is classified as `phi`, `pii`, `confidential`, `internal`
 - **Automatic filtering** - you literally cannot see data you don't have traits for
 - **Even the AI respects TBAC** - RAG queries only return results your traits allow
 
-## Why This Changes Everything
+## Where It Fits
 
 ### **For Healthcare**
-- **HIPAA compliance by design** - PHI is invisible to users without proper traits
+- HIPAA-oriented controls - PHI is invisible to users without proper traits
 - **Audit trails** with 7-year retention automatically generated
-- **Zero-trust architecture** prevents data breaches at the architectural level
+- Zero‑trust patterns to minimize data exposure
 
 ### **For Financial Services**
-- **PCI DSS compliance** built-in with automatic data classification
+- PCI DSS‑aligned controls and data classification
 - **Regulatory reporting** generated from comprehensive audit logs  
 - **Risk assessment** through policy engine evaluation
 
@@ -132,27 +132,27 @@ graph TB
     GW -.-> P5
 ```
 
-## Revolutionary Features
+## Features
 
-### **AI That Respects Security**
+### AI with access controls
 - **TBAC-Protected RAG** - AI can only see data your traits allow
 - **Automatic plugin generation** - Describe what you need, get working code
 - **Multi-provider support** - OpenAI, Claude, DeepSeek, Local (Ollama)
-- **Zero PHI leakage** - Sensitive data is invisible to AI without proper traits
+- PHI remains inaccessible to AI without required traits
 
-### **Admin Console First**
+### Admin Console
 - **No CLI-only features** - Everything operable via web interface
 - **Trait-aware UI** - Shows only what you're authorized to access
 - **Visual plugin builder** - Generate plugins through conversation
 - **Real-time diagnostics** - Monitor three-lane traffic and policy decisions
 
-### **Enterprise-Grade Security**
+### Security
 - **Encryption at rest** (AES-256) and in transit (TLS 1.3+)
 - **Comprehensive audit logs** with trace IDs across all lanes
 - **Policy engine** with fail-safe defaults (deny when uncertain)
 - **Rate limiting** and DDoS protection on all endpoints
 
-### **Compliance Ready**
+### Compliance
 - **HIPAA controls** implementation with automatic tracking
 - **SOC 2 Type II** audit trail requirements built-in
 - **GDPR compliance** with right-to-be-forgotten support
@@ -236,10 +236,10 @@ We welcome contributions! See our [Contributing Guide](CONTRIBUTING.md).
 
 ## License
 
-[MIT License](LICENSE) - Build the future of secure enterprise software.
+[MIT License](LICENSE) - Build secure enterprise software.
 
 ---
 
-**Ready to build applications that are secure by design?**
+Ready to get started?
 
 [Get Started](https://docs.vivified.dev/) • [View Documentation](https://docs.vivified.dev/latest/) • [Enterprise Support](mailto:enterprise@vivified.dev)
