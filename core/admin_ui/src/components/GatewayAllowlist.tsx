@@ -172,6 +172,9 @@ export default function GatewayAllowlist({ client }: Props) {
           <TextField label="Paths (CSV)" value={paths} onChange={(e) => setPaths(e.target.value)} placeholder="/*,/v1/*" size="small" fullWidth />
           <Button variant="outlined" startIcon={<AddIcon />} onClick={handleAdd} sx={{ borderRadius: 2 }}>Add</Button>
         </Stack>
+        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
+          Tip: Use hostnames only (no IPs). Methods are case‑insensitive. Paths accept exact values or simple prefixes like <code>/api/v1/*</code>. Requests to localhost or IPs are blocked by design.
+        </Typography>
       </Paper>
 
       <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, mt: 2 }}>

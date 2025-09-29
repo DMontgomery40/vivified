@@ -88,6 +88,9 @@ export default function ManifestEditor({ client }: { client: AdminAPIClient }) {
       {note && <Alert severity="success" sx={{ mb: 2 }} onClose={() => setNote('')}>{note}</Alert>}
       <Stack spacing={2}>
         <TextField label="Manifest JSON" value={jsonText} onChange={(e)=>setJsonText(e.target.value)} fullWidth multiline minRows={10} sx={{ '& .MuiOutlinedInput-root': { fontFamily: 'monospace' } }} />
+        <Typography variant="caption" color="text.secondary">
+          Paste your manifest here and click Validate. Fix required fields and enum values as reported. Use “Apply Suggested Allowlist” and “Generate Operator Allowlist” to seed policies before Registering.
+        </Typography>
         <Stack direction="row" spacing={1}>
           <Button variant="contained" onClick={validate}>Validate</Button>
           <Button variant="outlined" onClick={applyAllowlist}>Apply Suggested Allowlist</Button>

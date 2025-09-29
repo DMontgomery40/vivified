@@ -25,6 +25,8 @@ from .policy.engine import policy_engine
 from .monitoring.metrics import metrics_router
 from .notifications.service import NotificationsService
 from .api.notifications import notifications_router, configure_notifications_api
+from .automation.service import AutomationService
+from .api.automation import automation_router, configure_automation_api
 
 
 class AddTraceIdFilter(logging.Filter):
@@ -75,6 +77,7 @@ app.include_router(admin_router)
 app.include_router(auth_router)
 app.include_router(metrics_router)
 app.include_router(notifications_router)
+app.include_router(automation_router)
 
 
 class ManifestModel(BaseModel):
@@ -107,7 +110,7 @@ async def startup_event():
     # Start core services
     try:
         # Resolve audit service and initialize dependent services lazily
-        global audit_service, messaging_service, canonical_service, gateway_service, notifications_service
+        global audit_service, messaging_service, canonical_service, gateway_service, notifications_service, automation_service
         audit_service = await get_audit_service()
 
         if messaging_service is None:
@@ -123,6 +126,10 @@ async def startup_event():
             notifications_service = NotificationsService(
                 audit_service, messaging_service, policy_engine
             )
+        if 'automation_service' not in globals() or automation_service is None:  # type: ignore[name-defined]
+            automation_service = AutomationService(
+                audit_service, messaging_service, policy_engine
+            )
 
         # Load any built-in canonical JSON Schemas (idempotent)
         try:
@@ -136,7 +143,9 @@ async def startup_event():
         await canonical_service.start()
         await gateway_service.start()
         await notifications_service.start()
+        await automation_service.start()  # type: ignore[arg-type]
         configure_notifications_api(svc=notifications_service)
+        configure_automation_api(svc=automation_service)  # type: ignore[arg-type]
         logger.info("Core services started successfully")
     except Exception as e:
         logger.error(f"Failed to start core services: {e}")

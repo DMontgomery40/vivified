@@ -41,6 +41,7 @@ import ExtensionIcon from '@mui/icons-material/Extension';
 import ScienceIcon from '@mui/icons-material/Science';
 import LogoutIcon from '@mui/icons-material/Logout';
 import HelpIcon from '@mui/icons-material/Help';
+import Automations from './components/Automations';
 import { Tooltip } from '@mui/material';
 import VpnLockIcon from '@mui/icons-material/VpnLock';
 import AdminAPIClient from './api/client';
@@ -63,6 +64,7 @@ import TunnelSettings from './components/TunnelSettings';
 import GatewayTester from './components/GatewayTester';
 import GatewayAllowlist from './components/GatewayAllowlist';
 import ManifestEditor from './components/ManifestEditor';
+import HelpOverlayToggle from './components/common/HelpOverlayToggle';
 import MessagingConsole from './components/MessagingConsole';
 import NotificationsPanel from './components/Notifications';
 import CanonicalTools from './components/CanonicalTools';
@@ -348,6 +350,7 @@ function AppContent() {
     { label: 'Canonical Transforms', icon: <AssessmentIcon />, trait: 'ui.canonical' },
     { label: 'Policy', icon: <AssessmentIcon />, trait: 'ui.policy' },
     { label: 'Operator Policy', icon: <AssessmentIcon />, trait: 'ui.policy' },
+    { label: 'Automations', icon: <AssessmentIcon />, trait: 'ui.automations' },
     { label: 'MFA & Passkeys', icon: <VpnKeyIcon />, trait: 'role.admin' },
     { label: 'Register', icon: <ExtensionIcon />, trait: 'ui.register' },
     { label: 'Storage', icon: <DescriptionIcon />, trait: 'ui.storage' },
@@ -867,6 +870,8 @@ function AppContent() {
               {settingsTab === 4 && <UserManagement client={client!} />}
               {settingsTab === 5 && <MCP client={client!} />}
             </Box>
+            {/* Floating help overlay toggle for contextual guidance */}
+            <HelpOverlayToggle />
           </Paper>
         </TabPanel>
         {/* Tools group */}
@@ -937,10 +942,11 @@ function AppContent() {
               {toolsTab === 13 && <CanonicalTransforms client={client!} />}
               {toolsTab === 14 && <PolicyInspector client={client!} />}
               {toolsTab === 15 && <OperatorPolicy client={client!} />}
-              {toolsTab === 16 && <MFA client={client!} readOnly={!isAdmin} />}
-              {toolsTab === 17 && <PluginRegister client={client!} />}
-              {toolsTab === 18 && <StorageBrowser client={client!} />}
-              {toolsTab === 19 && <NotificationsPanel client={client!} readOnly={!isAdmin} />}
+              {toolsTab === 16 && <Automations client={client!} readOnly={!isAdmin} />}
+              {toolsTab === 17 && <MFA client={client!} readOnly={!isAdmin} />}
+              {toolsTab === 18 && <PluginRegister client={client!} />}
+              {toolsTab === 19 && <StorageBrowser client={client!} />}
+              {toolsTab === 20 && <NotificationsPanel client={client!} readOnly={!isAdmin} />}
               {toolsTab === 20 && <ManifestEditor client={client!} />}
             </Box>
           </Paper>

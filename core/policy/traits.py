@@ -204,6 +204,14 @@ class TraitRegistry:
                 requires=["admin"],
             ),
             Trait(
+                name="ui.automations",
+                description="Access to automations (rules & flows)",
+                category=TraitCategory.UI_FEATURE,
+                ui_label="Automations",
+                ui_icon="bolt",
+                requires=["user_manager"],
+            ),
+            Trait(
                 name="ui.notifications",
                 description="Access to notifications surfaces",
                 category=TraitCategory.UI_FEATURE,
