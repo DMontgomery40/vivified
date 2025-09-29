@@ -118,10 +118,8 @@ nav:
   - Installation: installation.md
   - Configuration: configuration.md
 - Core Platform:
-- Architecture:
-  - Diagrams: architecture/diagrams.md
-  - Three-Lane Model: core/three-lanes.md
   - Overview: core/overview.md
+  - Three-Lane Model: core/three-lanes.md
   - Architecture: core/architecture.md
   - Gateway: core/gateway.md
   - Identity & Auth: core/identity.md
@@ -129,9 +127,15 @@ nav:
   - Storage: core/storage.md
   - Messaging: core/messaging.md
   - Audit: core/audit.md
-  - AI & Agents: ai/overview.md
-  - Three-Lane Model: core/three-lanes.md
-  - Operator Allowlist: policy/operator-allowlist.md
+  - Notifications: core/notifications.md
+  - Admin UI: core/admin_ui.md
+  - Config: core/config.md
+  - API: core/api.md
+  - Plugin Manager: core/plugin_manager.md
+  - Monitoring: core/monitoring.md
+  - Security: core/security.md
+- Architecture:
+  - Diagrams: architecture/diagrams.md
 - Admin Console:
   - Overview: admin-console.md
   - Dashboard: admin-console/dashboard.md
