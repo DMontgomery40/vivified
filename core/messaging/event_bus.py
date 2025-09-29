@@ -7,9 +7,6 @@ import logging
 from typing import Dict, List, Optional, Callable, Protocol, Any
 import os
 import json
-import asyncio
-import logging
-from contextlib import asynccontextmanager
 
 from .models import Event, Message, MessageDeliveryStatus
 from ..audit.service import AuditService, AuditLevel
@@ -56,7 +53,7 @@ class NatsBroker:
 
     def __init__(self, servers: str) -> None:
         self._servers = servers
-        self._nc = None
+        self._nc: Any | None = None
         self._subs: List[Any] = []
 
     async def start(self) -> None:
@@ -98,9 +95,9 @@ class RedisBroker:
 
     def __init__(self, url: str) -> None:
         self._url = url
-        self._redis = None
-        self._pub = None
-        self._ps = None
+        self._redis: Any | None = None
+        self._pub: Any | None = None
+        self._ps: Any | None = None
         self._tasks: List[asyncio.Task] = []
 
     async def start(self) -> None:
@@ -133,7 +130,9 @@ class RedisBroker:
             assert self._ps is not None
             while True:
                 try:
-                    msg = await self._ps.get_message(ignore_subscribe_messages=True, timeout=1.0)
+                    msg = await self._ps.get_message(
+                        ignore_subscribe_messages=True, timeout=1.0
+                    )
                     if msg and msg.get("type") == "message":
                         data = msg.get("data")
                         if isinstance(data, (bytes, bytearray)):
@@ -162,7 +161,12 @@ def _select_broker_from_env() -> BrokerClient:
 class EventBus:
     """Event bus for canonical inter-plugin communication."""
 
-    def __init__(self, audit_service: AuditService, policy_engine: PolicyEngine, broker: Optional[BrokerClient] = None):
+    def __init__(
+        self,
+        audit_service: AuditService,
+        policy_engine: PolicyEngine,
+        broker: Optional[BrokerClient] = None,
+    ):
         self.audit_service = audit_service
         self.policy_engine = policy_engine
         self.subscribers: Dict[str, List[Callable]] = {}
@@ -213,10 +217,12 @@ class EventBus:
 
             # Publish to broker subject for fan-out and also enqueue locally
             subject = f"events.{event.event_type}"
-            payload = json.dumps({
-                "event": event.dict(),
-                "source_plugin": source_plugin,
-            }).encode("utf-8")
+            payload = json.dumps(
+                {
+                    "event": event.model_dump(mode="json"),
+                    "source_plugin": source_plugin,
+                }
+            ).encode("utf-8")
             await self._broker.publish(subject, payload)
             await self.message_queue.put(("event", event, source_plugin))
 
@@ -266,10 +272,12 @@ class EventBus:
 
             # Publish to broker subject for direct messaging and enqueue locally
             subject = f"messages.{message.target_plugin}"
-            payload = json.dumps({
-                "message": message.dict(),
-                "source_plugin": source_plugin,
-            }).encode("utf-8")
+            payload = json.dumps(
+                {
+                    "message": message.model_dump(mode="json"),
+                    "source_plugin": source_plugin,
+                }
+            ).encode("utf-8")
             await self._broker.publish(subject, payload)
             await self.message_queue.put(("message", message, source_plugin))
 
@@ -309,6 +317,7 @@ class EventBus:
         self, plugin_id: str, event_types: List[str], callback: Callable
     ):
         """Subscribe a plugin to specific event types."""
+
         async def _handler_factory(user_callback: Callable):
             async def _wrapped(data: bytes):
                 try:

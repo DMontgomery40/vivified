@@ -79,10 +79,15 @@ class PluginRegistry:
 
     def _generate_plugin_token(self, plugin_id: str) -> str:
         """Generate JWT token for plugin authentication."""
+        now = datetime.utcnow()
+        # 30-day token by default; plugins refresh via re-register or future refresh endpoint
+        exp = datetime.utcnow().timestamp() + 30 * 24 * 60 * 60
         payload = {
             "plugin_id": plugin_id,
             "type": "plugin",
-            "issued_at": datetime.utcnow().isoformat(),
+            "issued_at": now.isoformat(),
+            "exp": int(exp),
+            "jti": uuid.uuid4().hex,
         }
         return jwt.encode(payload, self.jwt_secret, algorithm="HS256")
 

@@ -170,7 +170,9 @@ def require_auth(
 
 
 class _RateLimiterBackend:
-    async def allow(self, key: str, limit: int, window_seconds: int) -> bool:  # pragma: no cover - interface
+    async def allow(
+        self, key: str, limit: int, window_seconds: int
+    ) -> bool:  # pragma: no cover - interface
         raise NotImplementedError
 
 
@@ -237,7 +239,9 @@ def _get_rate_backend() -> _RateLimiterBackend:
         return _RATE_BACKEND
     backend = os.getenv("RATE_LIMIT_BACKEND", "memory").lower()
     if backend == "redis" and os.getenv("REDIS_URL"):
-        _RATE_BACKEND = _RedisRateLimiter(os.getenv("REDIS_URL", "redis://localhost:6379/0"))
+        _RATE_BACKEND = _RedisRateLimiter(
+            os.getenv("REDIS_URL", "redis://localhost:6379/0")
+        )
     else:
         _RATE_BACKEND = _MemoryRateLimiter()
     return _RATE_BACKEND

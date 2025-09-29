@@ -227,6 +227,31 @@ class GatewayService:
         """Get gateway statistics."""
         return self.stats
 
+    async def preload_allowlists(self, plugin_ids: Optional[List[str]] = None) -> int:
+        """Preload allowlists for plugins from ConfigService. Returns count loaded.
+
+        If plugin_ids is None, attempts to load for all known plugins referenced
+        in existing allowlists (idempotent) and returns number of domains loaded.
+        """
+        if self._config_service is None:
+            return 0
+        total_before = len(self.domain_allowlists)
+        try:
+            if plugin_ids is None:
+                # Try to infer plugins from current state (no-op if empty)
+                plugin_ids = list(
+                    {e.plugin_id for e in self.domain_allowlists.values()}
+                )
+        except Exception:
+            plugin_ids = []
+
+        for pid in plugin_ids or []:
+            try:
+                await self._ensure_allowlist_loaded(pid)
+            except Exception:  # noqa: BLE001
+                logger.exception("allowlist preload failed for %s", pid)
+        return len(self.domain_allowlists) - total_before
+
     async def _ensure_allowlist_loaded(self, plugin_id: str) -> None:
         """(Re)load allowlist for a plugin from ConfigService.
 
@@ -305,6 +330,20 @@ class GatewayService:
             context={},
         )
         result = await self.policy_engine.evaluate_request(request)
+        try:
+            await self.audit_service.log_event(
+                event_type="policy_decision",
+                category="policy",
+                action="manage_allowlist",
+                result=result.decision.value,
+                description=result.reason,
+                resource_type="gateway",
+                resource_id="allowlist",
+                plugin_id=plugin_id,
+                details={"sanitize_fields": result.sanitize_fields},
+            )
+        except Exception:  # noqa: BLE001
+            logger.debug("policy audit emit failed", exc_info=True)
         return result.decision == PolicyDecision.ALLOW
 
     async def _can_proxy_request(self, plugin_id: str) -> bool:
@@ -318,6 +357,20 @@ class GatewayService:
             context={},
         )
         result = await self.policy_engine.evaluate_request(request)
+        try:
+            await self.audit_service.log_event(
+                event_type="policy_decision",
+                category="policy",
+                action="proxy_request",
+                result=result.decision.value,
+                description=result.reason,
+                resource_type="gateway",
+                resource_id="proxy",
+                plugin_id=plugin_id,
+                details={"sanitize_fields": result.sanitize_fields},
+            )
+        except Exception:  # noqa: BLE001
+            logger.debug("policy audit emit failed", exc_info=True)
         return result.decision == PolicyDecision.ALLOW
 
     def _update_stats(self, response: ProxyResponse):

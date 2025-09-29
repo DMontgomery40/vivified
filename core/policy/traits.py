@@ -308,6 +308,14 @@ class TraitRegistry:
                 requires=["admin"],
             ),
             Trait(
+                name="ui.plugin_dev_guide",
+                description="Access to Plugin Development Guide",
+                category=TraitCategory.UI_FEATURE,
+                ui_label="Plugin Dev Guide",
+                ui_icon="menu_book",
+                requires=["developer"],
+            ),
+            Trait(
                 name="ui.register",
                 description="Access to plugin registration",
                 category=TraitCategory.UI_FEATURE,
@@ -575,6 +583,7 @@ class TraitRegistry:
             "ui.messaging": "ui.messaging",
             "ui.canonical": "ui.canonical",
             "ui.policy": "ui.policy",
+            "ui.plugin_dev_guide": "ui.plugin_dev_guide",
             "ui.register": "ui.register",
             "ui.storage": "ui.storage",
             "ui.send_demo": "ui.send_demo",
