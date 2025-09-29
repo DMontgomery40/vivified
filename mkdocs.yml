@@ -118,6 +118,9 @@ nav:
   - Installation: installation.md
   - Configuration: configuration.md
 - Core Platform:
+- Architecture:
+  - Diagrams: architecture/diagrams.md
+  - Three-Lane Model: core/three-lanes.md
   - Overview: core/overview.md
   - Architecture: core/architecture.md
   - Gateway: core/gateway.md

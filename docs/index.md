@@ -140,6 +140,24 @@ graph TB
 | **Policy Engine** | Declarative policies for access control | Fine-grained permissions |
 | **Storage Abstraction** | Pluggable storage backends | Use existing infrastructure |
 
+## Quick links
+
+- Architecture → [Three-Lane Model](architecture/three-lanes.md)
+- Architecture → [Diagrams](architecture/diagrams.md)
+- AI & Agents → [Overview](ai/overview.md)
+
+## Defaults
+
+- Database: Postgres (`postgresql+asyncpg://…`) for non‑test runs; tests default to in‑memory SQLite unless `TEST_DB_URL` overrides
+- RAG (AI): Redis (`redis://localhost:6379/0`) by default with graceful fallback to in‑memory
+
+## Quick start
+
+```bash
+docker-compose up -d
+curl http://localhost:8080/health
+```
+
 ## Development
 
 !!! note "Language Support"

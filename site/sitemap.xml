@@ -1,279 +1,279 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
     <url>
-         <loc>https://docs.vivified.dev/latest/</loc>
+         <loc>https://docs.vivified.dev/</loc>
          <lastmod>2025-09-29</lastmod>
     </url>
     <url>
-         <loc>https://docs.vivified.dev/latest/admin-console/</loc>
+         <loc>https://docs.vivified.dev/admin-console/</loc>
          <lastmod>2025-09-29</lastmod>
     </url>
     <url>
-         <loc>https://docs.vivified.dev/latest/api-reference/</loc>
+         <loc>https://docs.vivified.dev/api-reference/</loc>
          <lastmod>2025-09-29</lastmod>
     </url>
     <url>
-         <loc>https://docs.vivified.dev/latest/backup/</loc>
+         <loc>https://docs.vivified.dev/backup/</loc>
          <lastmod>2025-09-29</lastmod>
     </url>
     <url>
-         <loc>https://docs.vivified.dev/latest/configuration/</loc>
+         <loc>https://docs.vivified.dev/configuration/</loc>
          <lastmod>2025-09-29</lastmod>
     </url>
     <url>
-         <loc>https://docs.vivified.dev/latest/contributing/</loc>
+         <loc>https://docs.vivified.dev/contributing/</loc>
          <lastmod>2025-09-29</lastmod>
     </url>
     <url>
-         <loc>https://docs.vivified.dev/latest/deployment/</loc>
+         <loc>https://docs.vivified.dev/deployment/</loc>
          <lastmod>2025-09-29</lastmod>
     </url>
     <url>
-         <loc>https://docs.vivified.dev/latest/getting-started-material/</loc>
+         <loc>https://docs.vivified.dev/getting-started-material/</loc>
          <lastmod>2025-09-29</lastmod>
     </url>
     <url>
-         <loc>https://docs.vivified.dev/latest/getting-started/</loc>
+         <loc>https://docs.vivified.dev/getting-started/</loc>
          <lastmod>2025-09-29</lastmod>
     </url>
     <url>
-         <loc>https://docs.vivified.dev/latest/installation/</loc>
+         <loc>https://docs.vivified.dev/installation/</loc>
          <lastmod>2025-09-29</lastmod>
     </url>
     <url>
-         <loc>https://docs.vivified.dev/latest/monitoring/</loc>
+         <loc>https://docs.vivified.dev/monitoring/</loc>
          <lastmod>2025-09-29</lastmod>
     </url>
     <url>
-         <loc>https://docs.vivified.dev/latest/security/</loc>
+         <loc>https://docs.vivified.dev/security/</loc>
          <lastmod>2025-09-29</lastmod>
     </url>
     <url>
-         <loc>https://docs.vivified.dev/latest/troubleshooting/</loc>
+         <loc>https://docs.vivified.dev/troubleshooting/</loc>
          <lastmod>2025-09-29</lastmod>
     </url>
     <url>
-         <loc>https://docs.vivified.dev/latest/_autopilot/plan/</loc>
+         <loc>https://docs.vivified.dev/_autopilot/plan/</loc>
          <lastmod>2025-09-29</lastmod>
     </url>
     <url>
-         <loc>https://docs.vivified.dev/latest/admin-console/configuration/</loc>
+         <loc>https://docs.vivified.dev/admin-console/configuration/</loc>
          <lastmod>2025-09-29</lastmod>
     </url>
     <url>
-         <loc>https://docs.vivified.dev/latest/admin-console/dashboard/</loc>
+         <loc>https://docs.vivified.dev/admin-console/dashboard/</loc>
          <lastmod>2025-09-29</lastmod>
     </url>
     <url>
-         <loc>https://docs.vivified.dev/latest/admin-console/monitoring/</loc>
+         <loc>https://docs.vivified.dev/admin-console/monitoring/</loc>
          <lastmod>2025-09-29</lastmod>
     </url>
     <url>
-         <loc>https://docs.vivified.dev/latest/admin-console/users/</loc>
+         <loc>https://docs.vivified.dev/admin-console/users/</loc>
          <lastmod>2025-09-29</lastmod>
     </url>
     <url>
-         <loc>https://docs.vivified.dev/latest/ai/overview/</loc>
+         <loc>https://docs.vivified.dev/ai/overview/</loc>
          <lastmod>2025-09-29</lastmod>
     </url>
     <url>
-         <loc>https://docs.vivified.dev/latest/api/graphql/</loc>
+         <loc>https://docs.vivified.dev/api/graphql/</loc>
          <lastmod>2025-09-29</lastmod>
     </url>
     <url>
-         <loc>https://docs.vivified.dev/latest/api/websocket/</loc>
+         <loc>https://docs.vivified.dev/api/websocket/</loc>
          <lastmod>2025-09-29</lastmod>
     </url>
     <url>
-         <loc>https://docs.vivified.dev/latest/core/</loc>
+         <loc>https://docs.vivified.dev/core/</loc>
          <lastmod>2025-09-29</lastmod>
     </url>
     <url>
-         <loc>https://docs.vivified.dev/latest/core/admin_ui/</loc>
+         <loc>https://docs.vivified.dev/core/admin_ui/</loc>
          <lastmod>2025-09-29</lastmod>
     </url>
     <url>
-         <loc>https://docs.vivified.dev/latest/core/api/</loc>
+         <loc>https://docs.vivified.dev/core/api/</loc>
          <lastmod>2025-09-29</lastmod>
     </url>
     <url>
-         <loc>https://docs.vivified.dev/latest/core/architecture/</loc>
+         <loc>https://docs.vivified.dev/core/architecture/</loc>
          <lastmod>2025-09-29</lastmod>
     </url>
     <url>
-         <loc>https://docs.vivified.dev/latest/core/audit/</loc>
+         <loc>https://docs.vivified.dev/core/audit/</loc>
          <lastmod>2025-09-29</lastmod>
     </url>
     <url>
-         <loc>https://docs.vivified.dev/latest/core/canonical/</loc>
+         <loc>https://docs.vivified.dev/core/canonical/</loc>
          <lastmod>2025-09-29</lastmod>
     </url>
     <url>
-         <loc>https://docs.vivified.dev/latest/core/config/</loc>
+         <loc>https://docs.vivified.dev/core/config/</loc>
          <lastmod>2025-09-29</lastmod>
     </url>
     <url>
-         <loc>https://docs.vivified.dev/latest/core/gateway/</loc>
+         <loc>https://docs.vivified.dev/core/gateway/</loc>
          <lastmod>2025-09-29</lastmod>
     </url>
     <url>
-         <loc>https://docs.vivified.dev/latest/core/identity/</loc>
+         <loc>https://docs.vivified.dev/core/identity/</loc>
          <lastmod>2025-09-29</lastmod>
     </url>
     <url>
-         <loc>https://docs.vivified.dev/latest/core/messaging/</loc>
+         <loc>https://docs.vivified.dev/core/messaging/</loc>
          <lastmod>2025-09-29</lastmod>
     </url>
     <url>
-         <loc>https://docs.vivified.dev/latest/core/monitoring/</loc>
+         <loc>https://docs.vivified.dev/core/monitoring/</loc>
          <lastmod>2025-09-29</lastmod>
     </url>
     <url>
-         <loc>https://docs.vivified.dev/latest/core/notifications/</loc>
+         <loc>https://docs.vivified.dev/core/notifications/</loc>
          <lastmod>2025-09-29</lastmod>
     </url>
     <url>
-         <loc>https://docs.vivified.dev/latest/core/overview/</loc>
+         <loc>https://docs.vivified.dev/core/overview/</loc>
          <lastmod>2025-09-29</lastmod>
     </url>
     <url>
-         <loc>https://docs.vivified.dev/latest/core/plugin_manager/</loc>
+         <loc>https://docs.vivified.dev/core/plugin_manager/</loc>
          <lastmod>2025-09-29</lastmod>
     </url>
     <url>
-         <loc>https://docs.vivified.dev/latest/core/policy/</loc>
+         <loc>https://docs.vivified.dev/core/policy/</loc>
          <lastmod>2025-09-29</lastmod>
     </url>
     <url>
-         <loc>https://docs.vivified.dev/latest/core/security/</loc>
+         <loc>https://docs.vivified.dev/core/security/</loc>
          <lastmod>2025-09-29</lastmod>
     </url>
     <url>
-         <loc>https://docs.vivified.dev/latest/core/storage/</loc>
+         <loc>https://docs.vivified.dev/core/storage/</loc>
          <lastmod>2025-09-29</lastmod>
     </url>
     <url>
-         <loc>https://docs.vivified.dev/latest/core/three-lanes/</loc>
+         <loc>https://docs.vivified.dev/core/three-lanes/</loc>
          <lastmod>2025-09-29</lastmod>
     </url>
     <url>
-         <loc>https://docs.vivified.dev/latest/docs/admin-console/</loc>
+         <loc>https://docs.vivified.dev/docs/admin-console/</loc>
          <lastmod>2025-09-29</lastmod>
     </url>
     <url>
-         <loc>https://docs.vivified.dev/latest/docs/api-reference/</loc>
+         <loc>https://docs.vivified.dev/docs/api-reference/</loc>
          <lastmod>2025-09-29</lastmod>
     </url>
     <url>
-         <loc>https://docs.vivified.dev/latest/docs/configuration/</loc>
+         <loc>https://docs.vivified.dev/docs/configuration/</loc>
          <lastmod>2025-09-29</lastmod>
     </url>
     <url>
-         <loc>https://docs.vivified.dev/latest/docs/getting-started/</loc>
+         <loc>https://docs.vivified.dev/docs/getting-started/</loc>
          <lastmod>2025-09-29</lastmod>
     </url>
     <url>
-         <loc>https://docs.vivified.dev/latest/docs/security/</loc>
+         <loc>https://docs.vivified.dev/docs/security/</loc>
          <lastmod>2025-09-29</lastmod>
     </url>
     <url>
-         <loc>https://docs.vivified.dev/latest/docs/troubleshooting/</loc>
+         <loc>https://docs.vivified.dev/docs/troubleshooting/</loc>
          <lastmod>2025-09-29</lastmod>
     </url>
     <url>
-         <loc>https://docs.vivified.dev/latest/docs/core/</loc>
+         <loc>https://docs.vivified.dev/docs/core/</loc>
          <lastmod>2025-09-29</lastmod>
     </url>
     <url>
-         <loc>https://docs.vivified.dev/latest/docs/core/canonical/</loc>
+         <loc>https://docs.vivified.dev/docs/core/canonical/</loc>
          <lastmod>2025-09-29</lastmod>
     </url>
     <url>
-         <loc>https://docs.vivified.dev/latest/docs/core/gateway/</loc>
+         <loc>https://docs.vivified.dev/docs/core/gateway/</loc>
          <lastmod>2025-09-29</lastmod>
     </url>
     <url>
-         <loc>https://docs.vivified.dev/latest/docs/core/messaging/</loc>
+         <loc>https://docs.vivified.dev/docs/core/messaging/</loc>
          <lastmod>2025-09-29</lastmod>
     </url>
     <url>
-         <loc>https://docs.vivified.dev/latest/docs/core/overview/</loc>
+         <loc>https://docs.vivified.dev/docs/core/overview/</loc>
          <lastmod>2025-09-29</lastmod>
     </url>
     <url>
-         <loc>https://docs.vivified.dev/latest/docs/core/storage/</loc>
+         <loc>https://docs.vivified.dev/docs/core/storage/</loc>
          <lastmod>2025-09-29</lastmod>
     </url>
     <url>
-         <loc>https://docs.vivified.dev/latest/docs/plugins/development/</loc>
+         <loc>https://docs.vivified.dev/docs/plugins/development/</loc>
          <lastmod>2025-09-29</lastmod>
     </url>
     <url>
-         <loc>https://docs.vivified.dev/latest/pilots/llm-pilot/</loc>
+         <loc>https://docs.vivified.dev/pilots/llm-pilot/</loc>
          <lastmod>2025-09-29</lastmod>
     </url>
     <url>
-         <loc>https://docs.vivified.dev/latest/plugins/development/</loc>
+         <loc>https://docs.vivified.dev/plugins/development/</loc>
          <lastmod>2025-09-29</lastmod>
     </url>
     <url>
-         <loc>https://docs.vivified.dev/latest/plugins/examples/</loc>
+         <loc>https://docs.vivified.dev/plugins/examples/</loc>
          <lastmod>2025-09-29</lastmod>
     </url>
     <url>
-         <loc>https://docs.vivified.dev/latest/plugins/llm-oss/</loc>
+         <loc>https://docs.vivified.dev/plugins/llm-oss/</loc>
          <lastmod>2025-09-29</lastmod>
     </url>
     <url>
-         <loc>https://docs.vivified.dev/latest/plugins/overview/</loc>
+         <loc>https://docs.vivified.dev/plugins/overview/</loc>
          <lastmod>2025-09-29</lastmod>
     </url>
     <url>
-         <loc>https://docs.vivified.dev/latest/plugins/plugin-system/</loc>
+         <loc>https://docs.vivified.dev/plugins/plugin-system/</loc>
          <lastmod>2025-09-29</lastmod>
     </url>
     <url>
-         <loc>https://docs.vivified.dev/latest/plugins/rag-db-plugin/</loc>
+         <loc>https://docs.vivified.dev/plugins/rag-db-plugin/</loc>
          <lastmod>2025-09-29</lastmod>
     </url>
     <url>
-         <loc>https://docs.vivified.dev/latest/plugins/sdk/</loc>
+         <loc>https://docs.vivified.dev/plugins/sdk/</loc>
          <lastmod>2025-09-29</lastmod>
     </url>
     <url>
-         <loc>https://docs.vivified.dev/latest/policy/operator-allowlist/</loc>
+         <loc>https://docs.vivified.dev/policy/operator-allowlist/</loc>
          <lastmod>2025-09-29</lastmod>
     </url>
     <url>
-         <loc>https://docs.vivified.dev/latest/reference/cli/</loc>
+         <loc>https://docs.vivified.dev/reference/cli/</loc>
          <lastmod>2025-09-29</lastmod>
     </url>
     <url>
-         <loc>https://docs.vivified.dev/latest/reference/env-vars/</loc>
+         <loc>https://docs.vivified.dev/reference/env-vars/</loc>
          <lastmod>2025-09-29</lastmod>
     </url>
     <url>
-         <loc>https://docs.vivified.dev/latest/reference/errors/</loc>
+         <loc>https://docs.vivified.dev/reference/errors/</loc>
          <lastmod>2025-09-29</lastmod>
     </url>
     <url>
-         <loc>https://docs.vivified.dev/latest/reference/glossary/</loc>
+         <loc>https://docs.vivified.dev/reference/glossary/</loc>
          <lastmod>2025-09-29</lastmod>
     </url>
     <url>
-         <loc>https://docs.vivified.dev/latest/security/authentication/</loc>
+         <loc>https://docs.vivified.dev/security/authentication/</loc>
          <lastmod>2025-09-29</lastmod>
     </url>
     <url>
-         <loc>https://docs.vivified.dev/latest/security/authorization/</loc>
+         <loc>https://docs.vivified.dev/security/authorization/</loc>
          <lastmod>2025-09-29</lastmod>
     </url>
     <url>
-         <loc>https://docs.vivified.dev/latest/security/encryption/</loc>
+         <loc>https://docs.vivified.dev/security/encryption/</loc>
          <lastmod>2025-09-29</lastmod>
     </url>
     <url>
-         <loc>https://docs.vivified.dev/latest/security/hipaa/</loc>
+         <loc>https://docs.vivified.dev/security/hipaa/</loc>
          <lastmod>2025-09-29</lastmod>
     </url>
 </urlset>
