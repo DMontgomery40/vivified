@@ -12,3 +12,8 @@ Use the sidebar to navigate topics.
 
 This tests the mkdocs → gh-pages deployment pipeline.
 
+
+## Rebuild Trigger Sun Sep 28 19:57:55 MDT 2025
+
+This change triggers a rebuild to include missing pages.
+
