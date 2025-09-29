@@ -16,6 +16,7 @@ import re
 import time
 import logging
 import json
+import fnmatch
 
 logger = logging.getLogger(__name__)
 
@@ -100,31 +101,44 @@ class RAGService:
     async def train(self, sources: List[str]) -> int:
         """Train by indexing local text files from given directory roots.
 
-        Only reads .md, .txt, .py, .ts, .tsx files as internal docs/code.
+        Index all files not excluded by ignore patterns.
         """
-        patterns = (".md", ".txt", ".py", ".ts", ".tsx")
         count = 0
         rd = await self._ensure_redis()
+        root_base = os.path.abspath(os.getenv("RAG_ROOT", os.getcwd()))
+        ignore_patterns = self._load_ignore_patterns(root_base)
 
         for root in sources:
             root = os.path.abspath(root)
             if not os.path.exists(root):
                 continue
-            for dirpath, _dirnames, filenames in os.walk(root):
+            for dirpath, dirnames, filenames in os.walk(root):
+                # Prune ignored directories early
+                pruned: List[str] = []
+                for d in list(dirnames):
+                    dp = os.path.relpath(os.path.join(dirpath, d), root_base)
+                    if self._is_ignored(dp, ignore_patterns, is_dir=True):
+                        pruned.append(d)
+                for d in pruned:
+                    dirnames.remove(d)
                 for fn in filenames:
-                    if not fn.lower().endswith(patterns):
-                        continue
                     path = os.path.join(dirpath, fn)
+                    relp = os.path.relpath(path, root_base)
+                    if self._is_ignored(relp, ignore_patterns, is_dir=False):
+                        continue
                     try:
                         size = os.path.getsize(path)
-                        if size > 512_000:  # Skip very large files (>512KB)
+                        max_bytes = int(os.getenv("RAG_MAX_BYTES", "2097152"))  # 2MB
+                        if size > max_bytes:
                             continue
-                        with open(path, "r", encoding="utf-8", errors="ignore") as f:
-                            content = f.read()
+                        # Load as text; ignore undecodable bytes
+                        with open(path, "rb") as f:
+                            raw = f.read()
+                        content = raw.decode("utf-8", errors="ignore")
                         if not content:
                             continue
                         did = str(hash(path))
-                        title = os.path.relpath(path, root)
+                        title = os.path.relpath(path, root_base)
                         toks = set(_tokenize(content))
                         required_traits: List[str] = []
                         classification: List[str] = ["internal"]
@@ -171,6 +185,42 @@ class RAGService:
 
         self._last_trained = time.time()
         return count
+
+    def _load_ignore_patterns(self, root_base: str) -> List[str]:
+        patterns: List[str] = []
+        for candidate in [".ragignore", ".gitignore"]:
+            p = os.path.join(root_base, candidate)
+            try:
+                if os.path.exists(p):
+                    with open(p, "r", encoding="utf-8", errors="ignore") as f:
+                        for line in f:
+                            s = line.strip()
+                            if not s or s.startswith("#"):
+                                continue
+                            patterns.append(s)
+            except Exception:
+                continue
+        return patterns
+
+    def _is_ignored(self, rel_path: str, patterns: List[str], *, is_dir: bool) -> bool:
+        # Normalize to posix-like
+        p = rel_path.replace(os.sep, "/").lstrip("./")
+        base = os.path.basename(p)
+        for pat in patterns:
+            anchored = pat.startswith("/")
+            is_dir_pat = pat.endswith("/")
+            core = pat.strip("/")
+            target = p if not anchored else "/" + p
+            test_pat = core if not anchored else "/" + core
+            # Directory pattern: match prefix
+            if is_dir and is_dir_pat:
+                if target.startswith(test_pat):
+                    return True
+                continue
+            # File pattern: fnmatch path and basename
+            if fnmatch.fnmatch(target, test_pat) or fnmatch.fnmatch(base, core):
+                return True
+        return False
 
     async def query(
         self,
@@ -282,7 +332,7 @@ class AgentService:
         hits = await self.rag.query(prompt, top_k=3, user_traits=user_traits)
         context = "\n".join([f"- {h.get('title')}" for h in hits])
 
-        # Try OpenAI if API key present; default model from env/config
+        # Try OpenAI via core proxy first (if configured), else direct
         try:
             import httpx  # type: ignore
             model = (
@@ -312,6 +362,44 @@ class AgentService:
                     ],
                     "temperature": 0.3,
                 }
+                # Prefer gateway proxy to enforce allowlists
+                try:
+                    core_base = os.getenv("PUBLIC_API_URL", "http://localhost:8000").rstrip("/")
+                    proxy_url = f"{core_base}/gateway/proxy"
+                    target_url = f"{(base_url or 'https://api.openai.com').rstrip('/')}/v1/chat/completions"
+                    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+                    body = json.dumps(payload).encode()
+                    async with httpx.AsyncClient(timeout=30) as client:
+                        resp = await client.post(
+                            proxy_url,
+                            json={
+                                "plugin_id": "ai-core",
+                                "method": "POST",
+                                "url": target_url,
+                                "headers": headers,
+                                "body": list(body),
+                                "timeout": 30,
+                            },
+                        )
+                    if resp.status_code < 300:
+                        data = resp.json()
+                        # Proxy wraps response in { success, status_code, body/text }
+                        prox = data or {}
+                        if prox.get("success"):
+                            # Body may be base64 or plain; try json parse of text
+                            text = prox.get("text") or prox.get("body") or ""
+                            try:
+                                parsed = json.loads(text) if isinstance(text, str) else {}
+                            except Exception:
+                                parsed = {}
+                            choice = ((parsed or {}).get("choices") or [{}])[0]
+                            msg = (choice.get("message") or {}).get("content") or ""
+                            if msg:
+                                return {"result": msg}
+                except Exception:
+                    # Fall back to direct call
+                    pass
+                # Direct call fallback
                 safe_base = (base_url or "https://api.openai.com").rstrip("/")
                 url = f"{safe_base}/v1/chat/completions"
                 headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}

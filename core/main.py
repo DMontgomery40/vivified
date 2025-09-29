@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field
 import logging
 from datetime import datetime
 import os
+import asyncio
 from typing import Dict, Any, Optional, List
 from starlette.responses import FileResponse
 
@@ -74,6 +75,7 @@ gateway_service = None  # Will be initialized on startup
 notifications_service = None  # Will be initialized on startup
 storage_service = None  # Will be initialized when needed
 ai_rag_service = None  # Will be initialized on startup
+_rag_update_task = None  # Background updater task
 
 # Wire admin API dependencies
 configure_admin_api(config_service=get_config_service(), registry=registry)
@@ -163,21 +165,37 @@ async def startup_event():
         configure_ai_api(rag_service=ai_rag_service)  # type: ignore[arg-type]
         # Optional: auto-train RAG on startup when enabled (dev/local only)
         try:
+            _load_dotenv_if_present()
             if os.getenv("AI_AUTO_TRAIN", "false").lower() in {"1", "true", "yes"}:
-                # Train on local docs, internal plans, and codebase
-                await ai_rag_service.train(
-                    [
-                        "docs",
-                        "internal-plans",
-                        "core",
-                        "plugins",
-                        "sdk",
-                        "tools",
-                        "tests",
-                    ]
-                )  # type: ignore[union-attr]
+                # Train on repo root; respects .ragignore/.gitignore
+                await ai_rag_service.train(["."])  # type: ignore[union-attr]
+            # Seed gateway allowlist for AI proxy if not present
+            try:
+                cfg = get_config_service()
+                await cfg.set(
+                    "gateway.allowlist.ai-core",
+                    {
+                        "api.openai.com": {
+                            "allowed_methods": ["POST"],
+                            "allowed_paths": ["/v1/chat/completions"],
+                        }
+                    },
+                    is_sensitive=False,
+                    updated_by="system",
+                    reason="ai_default_allowlist",
+                )
+                if gateway_service is not None:
+                    await gateway_service.preload_allowlists(["ai-core"])  # type: ignore[arg-type]
+            except Exception:
+                logger.debug("AI allowlist preload failed", exc_info=True)
         except Exception:
             logger.debug("AI auto-train failed", exc_info=True)
+
+        # Start periodic RAG updater (default every 20 minutes)
+        try:
+            _start_rag_updater()
+        except Exception:
+            logger.debug("RAG updater failed to start", exc_info=True)
         logger.info("Core services started successfully")
     except Exception as e:
         logger.error(f"Failed to start core services: {e}")
@@ -220,6 +238,12 @@ async def shutdown_event():
             await gateway_service.stop()
         if notifications_service is not None:
             await notifications_service.stop()
+        # Stop RAG updater
+        if _rag_update_task is not None:
+            try:
+                _rag_update_task.cancel()
+            except Exception:
+                pass
         logger.info("Core services stopped successfully")
     except Exception as e:
         logger.error(f"Error stopping core services: {e}")
@@ -739,6 +763,56 @@ def _admin_ui_placeholder():
         "</head><body><h1>Vivified Admin UI</h1><p>Placeholder UI loaded.</p></body></html>"
     )
     return HTMLResponse(content=html, media_type="text/html")
+
+
+def _load_dotenv_if_present() -> None:
+    """Lightweight .env loader for local/dev without extra deps."""
+    env_path = os.path.join(os.getcwd(), ".env")
+    if not os.path.exists(env_path):
+        return
+    try:
+        with open(env_path, "r", encoding="utf-8", errors="ignore") as f:
+            for line in f:
+                s = line.strip()
+                if not s or s.startswith("#"):
+                    continue
+                if "=" not in s:
+                    continue
+                k, v = s.split("=", 1)
+                k = k.strip()
+                v = v.strip().strip('"').strip("'")
+                if k and k not in os.environ:
+                    os.environ[k] = v
+    except Exception:
+        logger.debug(".env load failed", exc_info=True)
+
+
+def _start_rag_updater() -> None:
+    """Start background task that re-trains RAG every N minutes."""
+    global _rag_update_task
+    if _rag_update_task is not None:
+        return
+
+    interval_min = int(os.getenv("RAG_UPDATE_INTERVAL_MINUTES", "20") or 20)
+
+    async def _runner():
+        # Run immediately, then on interval
+        try:
+            if ai_rag_service is not None:
+                await ai_rag_service.train(["."])  # type: ignore[union-attr]
+        except Exception:
+            logger.debug("initial RAG update failed", exc_info=True)
+        while True:
+            try:
+                await asyncio.sleep(max(60, interval_min * 60))
+                if ai_rag_service is not None:
+                    await ai_rag_service.train(["."])  # type: ignore[union-attr]
+            except asyncio.CancelledError:
+                break
+            except Exception:
+                logger.debug("periodic RAG update failed", exc_info=True)
+
+    _rag_update_task = asyncio.create_task(_runner())
 
 
 # Canonical Schemas stubs to satisfy Admin UI until registry is implemented
