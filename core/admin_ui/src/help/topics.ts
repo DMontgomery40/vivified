@@ -30,6 +30,17 @@ export const helpTopics: Record<string, HelpTopic> = {
     ],
     docSlug: 'plugins',
   },
+  'plugin-dev': {
+    id: 'plugin-dev',
+    title: 'Plugin Development',
+    eli5: 'Build and test plugins safely with traits, policies, and the canonical model.',
+    dev: [
+      'Use the Plugin Dev Guide to scaffold and validate plugins.',
+      'Tag PHI/PII data and enforce traits in policies.',
+      'Smoke test locally and verify CI passes before rollout.',
+    ],
+    docSlug: 'runbooks/phase-7-plugin-development',
+  },
   marketplace: {
     id: 'marketplace',
     title: 'Plugin Marketplace',

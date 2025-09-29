@@ -176,6 +176,24 @@ async def shutdown_event():
 async def register_plugin(manifest: ManifestModel):
     try:
         result = await registry.register_plugin(manifest.model_dump())
+        # Sync allowlists from manifest.allowed_domains into GatewayService
+        try:
+            if gateway_service is not None:
+                allowed = manifest.allowed_domains or []
+                for domain in allowed:
+                    try:
+                        await gateway_service.add_domain_allowlist(
+                            plugin_id=manifest.id,
+                            domain=str(domain),
+                            allowed_methods=["GET", "POST"],
+                            allowed_paths=[],
+                        )
+                    except Exception:
+                        logger.debug(
+                            "allowlist sync failed for %s", domain, exc_info=True
+                        )
+        except Exception:
+            logger.debug("allowlist sync error", exc_info=True)
         return result
     except HTTPException as e:
         raise e
@@ -259,7 +277,11 @@ async def get_canonical_stats():
 
 # Gateway service endpoints
 @app.post("/gateway/proxy")
-@rate_limit(limit=120, window_seconds=60, key_fn=lambda *a, **k: f"proxy:{k.get('plugin_id','unknown')}")
+@rate_limit(
+    limit=120,
+    window_seconds=60,
+    key_fn=lambda *a, **k: f"proxy:{k.get('plugin_id','unknown')}",
+)
 async def proxy_request(
     plugin_id: str,
     method: str,
@@ -297,6 +319,39 @@ async def get_gateway_stats():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/gateway/allowlist/effective")
+async def get_allowlist_effective(
+    plugin_id: str | None = None,
+    _: Dict = Depends(require_auth(["admin", "plugin_manager", "config_manager"])),
+):
+    """Admin: Inspect effective allowlist entries."""
+    try:
+        if gateway_service is None:
+            raise HTTPException(status_code=503, detail="Gateway service unavailable")
+        entries = await gateway_service.get_allowlist(plugin_id=plugin_id)
+        # Pydantic models are JSON serializable
+        return {"entries": [e.dict() for e in entries]}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/gateway/allowlist/reload")
+async def reload_allowlists(
+    plugin_id: str | None = None,
+    _: Dict = Depends(require_auth(["admin", "plugin_manager", "config_manager"])),
+):
+    """Admin: Preload/refresh gateway allowlists from config service."""
+    try:
+        if gateway_service is None:
+            raise HTTPException(status_code=503, detail="Gateway service unavailable")
+        count = await gateway_service.preload_allowlists(
+            [plugin_id] if plugin_id else None
+        )
+        return {"ok": True, "loaded": count}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # Operator lane endpoint (RPC via core gateway)
 class OperatorRequestModel(BaseModel):
     caller_plugin: str
@@ -305,7 +360,11 @@ class OperatorRequestModel(BaseModel):
 
 
 @app.post("/gateway/{target_plugin}/{operation}")
-@rate_limit(limit=240, window_seconds=60, key_fn=lambda *a, **k: f"rpc:{k.get('req').caller_plugin if k.get('req') else 'unknown'}")
+@rate_limit(
+    limit=240,
+    window_seconds=60,
+    key_fn=lambda *a, **k: f"rpc:{getattr(k.get('req', None), 'caller_plugin', 'unknown')}",
+)
 async def operator_invoke(
     target_plugin: str, operation: str, req: OperatorRequestModel
 ):

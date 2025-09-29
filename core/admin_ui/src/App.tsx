@@ -76,6 +76,7 @@ import PluginMarketplace from './components/PluginMarketplace';
 import MFA from './components/MFA';
 import { ThemeProvider } from './theme/ThemeContext';
 import { ThemeToggle } from './components/ThemeToggle';
+import PluginDevGuide from './components/PluginDevGuide';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -333,6 +334,7 @@ function AppContent() {
     { label: 'Logs', icon: <DescriptionIcon />, trait: 'ui.monitoring' },
     { label: 'Plugins', icon: <ExtensionIcon />, trait: 'ui.plugins' },
     { label: 'Marketplace', icon: <ExtensionIcon />, trait: 'ui.plugins' },
+    { label: 'Plugin Dev Guide', icon: <CodeIcon />, trait: 'ui.plugin_dev_guide' },
     { label: 'Scripts & Tests', icon: <ScienceIcon />, trait: 'role.admin' },
     { label: 'Tunnels', icon: <VpnLockIcon />, trait: 'ui.monitoring' },
     { label: 'Audit', icon: <DescriptionIcon />, trait: 'ui.audit' },
@@ -899,7 +901,8 @@ function AppContent() {
               {toolsTab === 2 && <Logs client={client!} />}
               {toolsTab === 3 && <Plugins client={client!} readOnly={!hasTrait('role.admin')} />}
               {toolsTab === 4 && <PluginMarketplace client={client!} docsBase={uiConfig?.docs_base || adminConfig?.branding?.docs_base} />}
-              {toolsTab === 5 && (
+              {toolsTab === 5 && <PluginDevGuide />}
+              {toolsTab === 6 && (
                 <Box>
                   <ScriptsTests client={client!} docsBase={uiConfig?.docs_base || adminConfig?.branding?.docs_base} canSend={canSend} readOnly={!isAdmin} />
                   <Box sx={{ mt: 4 }}>
@@ -910,7 +913,7 @@ function AppContent() {
                   </Box>
                 </Box>
               )}
-              {toolsTab === 6 && (
+              {toolsTab === 7 && (
                 <TunnelSettings
                   client={client!}
                   docsBase={uiConfig?.docs_base || adminConfig?.branding?.docs_base}
@@ -920,16 +923,16 @@ function AppContent() {
                   readOnly={!isAdmin}
                 />
               )}
-              {toolsTab === 7 && <Audit client={client!} />}
-              {toolsTab === 8 && <GatewayTester client={client!} />}
-              {toolsTab === 9 && <GatewayAllowlist client={client!} />}
-              {toolsTab === 10 && <MessagingConsole client={client!} />}
-              {toolsTab === 11 && <CanonicalTools client={client!} />}
-              {toolsTab === 12 && <PolicyInspector client={client!} />}
-              {toolsTab === 13 && <MFA client={client!} readOnly={!isAdmin} />}
-              {toolsTab === 14 && <PluginRegister client={client!} />}
-              {toolsTab === 15 && <StorageBrowser client={client!} />}
-              {toolsTab === 16 && <NotificationsPanel client={client!} readOnly={!isAdmin} />}
+              {toolsTab === 8 && <Audit client={client!} />}
+              {toolsTab === 9 && <GatewayTester client={client!} />}
+              {toolsTab === 10 && <GatewayAllowlist client={client!} />}
+              {toolsTab === 11 && <MessagingConsole client={client!} />}
+              {toolsTab === 12 && <CanonicalTools client={client!} />}
+              {toolsTab === 13 && <PolicyInspector client={client!} />}
+              {toolsTab === 14 && <MFA client={client!} readOnly={!isAdmin} />}
+              {toolsTab === 15 && <PluginRegister client={client!} />}
+              {toolsTab === 16 && <StorageBrowser client={client!} />}
+              {toolsTab === 17 && <NotificationsPanel client={client!} readOnly={!isAdmin} />}
             </Box>
           </Paper>
         </TabPanel>
