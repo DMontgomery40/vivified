@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { Box, Typography, Paper, Stack, Alert, Button, Chip, Divider, TextField } from '@mui/material';
 import HelpTip from './common/HelpTip';
+import AdminAPIClient from '../api/client';
 
-export default function PluginDevGuide() {
+export default function PluginDevGuide({ client }: { client: AdminAPIClient }) {
   const [manifest, setManifest] = useState<string>(`{
   "id": "patient-record-manager",
   "name": "Patient Record Manager",
@@ -10,6 +11,8 @@ export default function PluginDevGuide() {
   "traits": ["communication_plugin", "handles_phi", "audit_required", "encryption_required"],
   "endpoints": { "get_record": "/api/patients/{patient_id}", "create_record": "/api/patients/{patient_id}/records" }
 }`);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   return (
     <Box>
@@ -78,10 +81,33 @@ class PatientRecordManager(VivifiedPlugin):
 
         <Divider />
         <Box>
-          <Button variant="contained" sx={{ borderRadius: 2 }} onClick={() => window.alert('Coming soon: scaffold plugin via Admin API')}>Scaffold Plugin (Preview)</Button>
+          <Button
+            variant="contained"
+            disabled={busy}
+            sx={{ borderRadius: 2 }}
+            onClick={async () => {
+              try {
+                setBusy(true); setError(null);
+                const mj = JSON.parse(manifest);
+                const blob = await client.scaffoldPlugin({ id: mj.id || 'my-plugin', name: mj.name, version: mj.version, language: 'python', traits: mj.traits });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url; a.download = `${mj.id || 'plugin'}_scaffold.zip`; a.click();
+                URL.revokeObjectURL(url);
+              } catch (e: any) {
+                setError(e?.message || 'Failed to scaffold plugin');
+              } finally {
+                setBusy(false);
+              }
+            }}
+          >
+            {busy ? 'Generating…' : 'Scaffold Plugin'}
+          </Button>
+          {error && (
+            <Alert severity="error" sx={{ mt: 2, borderRadius: 2 }} onClose={() => setError(null)}>{error}</Alert>
+          )}
         </Box>
       </Stack>
     </Box>
   );
 }
-

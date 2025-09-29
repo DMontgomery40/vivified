@@ -213,6 +213,21 @@ export class AdminAPIClient {
     return res.json();
   }
 
+  async scaffoldPlugin(payload: { id: string; name?: string; version?: string; language?: string; traits?: string[]; capabilities?: string[] }): Promise<Blob> {
+    const url = `${this.baseURL}/admin/plugins/scaffold`;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${this.apiKey}`,
+        'X-API-Key': this.apiKey,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error(`Scaffold failed: ${res.status}`);
+    return await res.blob();
+  }
+
   async importEnv(prefixes?: string[]): Promise<{ ok: boolean; discovered: number; prefixes: string[] }>{
     const body = prefixes && prefixes.length ? { prefixes } : {};
     const res = await this.fetch('/admin/config/import-env', {

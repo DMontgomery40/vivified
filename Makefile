@@ -34,7 +34,7 @@ test:
 .PHONY: ci-bootstrap ci-local
 ci-bootstrap:
 	python3 -m pip install -q -r core/requirements.txt \
-	  -c constraints.txt black flake8 mypy sqlalchemy pytest pytest-cov pytest-asyncio
+	  -c constraints.txt black flake8 mypy sqlalchemy pytest pytest-cov pytest-asyncio build
 
 # Run the same checks as CI locally (fails on errors)
 ci-local:
@@ -42,11 +42,18 @@ ci-local:
 	flake8 core/
 	mypy --config-file mypy.ini core/
 	PYTHONPATH=$$(pwd):$$(pwd)/sdk/python/src pytest -q
+	$(MAKE) sdk-ci-local
 
 # Build Admin Console and UI locally similar to CI
 .PHONY: ui-ci-local
 ui-ci-local:
 	bash tools/scripts/ui_build.sh
+
+.PHONY: sdk-ci-local
+sdk-ci-local:
+	@echo "[sdk-ci] building python SDK package and running tests"
+	python3 -m build sdk/python
+	PYTHONPATH=$$(pwd)/sdk/python/src pytest -q sdk/python/tests
 
 proto:
 	protoc -I=core/proto --python_out=core/proto core/proto/*.proto
