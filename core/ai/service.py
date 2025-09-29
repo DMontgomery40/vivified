@@ -10,11 +10,12 @@ Design goals:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Iterable
 import os
 import re
 import time
 import logging
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +45,7 @@ class RAGService:
         self._redis_url = redis_url or os.getenv("REDIS_URL")
         self._rd = None
         self._docs: Dict[str, Tuple[str, str]] = {}
+        self._meta: Dict[str, Dict[str, List[str]]] = {}
         self._tokens: Dict[str, set] = {}
         self._last_trained: Optional[float] = None
 
@@ -91,6 +93,7 @@ class RAGService:
             except Exception:  # noqa: BLE001
                 logger.debug("redis clear failed", exc_info=True)
         self._docs.clear()
+        self._meta.clear()
         self._tokens.clear()
         self._last_trained = None
 
@@ -123,6 +126,8 @@ class RAGService:
                         did = str(hash(path))
                         title = os.path.relpath(path, root)
                         toks = set(_tokenize(content))
+                        required_traits: List[str] = []
+                        classification: List[str] = ["internal"]
                         if rd:
                             try:
                                 pipe = rd.pipeline()
@@ -130,6 +135,15 @@ class RAGService:
                                 pipe.set(f"ai:rag:doc:{did}:title", title)
                                 pipe.set(f"ai:rag:doc:{did}:path", path)
                                 pipe.set(f"ai:rag:doc:{did}:content", content)
+                                pipe.set(
+                                    f"ai:rag:doc:{did}:meta",
+                                    json.dumps(
+                                        {
+                                            "required_traits": required_traits,
+                                            "classification": classification,
+                                        }
+                                    ),
+                                )
                                 for t in toks:
                                     pipe.sadd(f"ai:rag:token:{t}", did)
                                 await pipe.execute()
@@ -137,10 +151,18 @@ class RAGService:
                                 logger.debug("redis index failed", exc_info=True)
                                 # Also maintain in-memory
                                 self._docs[did] = (title, content)
+                                self._meta[did] = {
+                                    "required_traits": required_traits,
+                                    "classification": classification,
+                                }
                                 for t in toks:
                                     self._tokens.setdefault(t, set()).add(did)
                         else:
                             self._docs[did] = (title, content)
+                            self._meta[did] = {
+                                "required_traits": required_traits,
+                                "classification": classification,
+                            }
                             for t in toks:
                                 self._tokens.setdefault(t, set()).add(did)
                         count += 1
@@ -150,10 +172,16 @@ class RAGService:
         self._last_trained = time.time()
         return count
 
-    async def query(self, question: str, top_k: int = 3) -> List[Dict[str, str]]:
+    async def query(
+        self,
+        question: str,
+        top_k: int = 3,
+        user_traits: Optional[Iterable[str]] = None,
+    ) -> List[Dict[str, str]]:
         toks = set(_tokenize(question))
         rd = await self._ensure_redis()
         scores: Dict[str, float] = {}
+        trait_set = set(user_traits or [])
         if rd:
             try:
                 cand_ids: set = set()
@@ -178,9 +206,24 @@ class RAGService:
                         overlap = len(toks.intersection(doc_toks))
                         if overlap > 0:
                             scores[did] = float(overlap)
-                ranked = sorted(scores.items(), key=lambda x: x[1], reverse=True)[
-                    :top_k
-                ]
+                # Filter by TBAC required_traits if metadata present
+                allowed: List[Tuple[str, float]] = []
+                for did, sc in scores.items():
+                    req: List[str] = []
+                    try:
+                        meta_raw = await rd.get(f"ai:rag:doc:{did}:meta")
+                        if meta_raw:
+                            meta_obj = json.loads(
+                                meta_raw.decode()
+                                if isinstance(meta_raw, (bytes, bytearray))
+                                else str(meta_raw)
+                            )
+                            req = list(meta_obj.get("required_traits") or [])
+                    except Exception:
+                        req = []
+                    if set(req).issubset(trait_set):
+                        allowed.append((did, sc))
+                ranked = sorted(allowed, key=lambda x: x[1], reverse=True)[:top_k]
                 out: List[Dict[str, str]] = []
                 for did, _sc in ranked:
                     title = await rd.get(f"ai:rag:doc:{did}:title")
@@ -210,7 +253,12 @@ class RAGService:
             overlap = len(toks.intersection(doc_toks))
             if overlap > 0:
                 scores[did] = float(overlap)
-        ranked = sorted(scores.items(), key=lambda x: x[1], reverse=True)[:top_k]
+        allowed2: List[Tuple[str, float]] = []
+        for did, sc in scores.items():
+            req = list(self._meta.get(did, {}).get("required_traits") or [])
+            if set(req).issubset(trait_set):
+                allowed2.append((did, sc))
+        ranked = sorted(allowed2, key=lambda x: x[1], reverse=True)[:top_k]
         results: List[Dict[str, str]] = []
         for did, _sc in ranked:
             title, _content = self._docs.get(did, ("", ""))
@@ -223,17 +271,35 @@ class AgentService:
     def __init__(self, rag: RAGService) -> None:
         self.rag = rag
 
-    async def run(self, prompt: str) -> Dict[str, str]:
+    async def run(
+        self,
+        prompt: str,
+        *,
+        user_traits: Optional[Iterable[str]] = None,
+        opts: Optional[Dict[str, str]] = None,
+    ) -> Dict[str, str]:
         # Attempt to use languages/graph libs if available (best effort)
-        hits = await self.rag.query(prompt, top_k=3)
+        hits = await self.rag.query(prompt, top_k=3, user_traits=user_traits)
         context = "\n".join([f"- {h.get('title')}" for h in hits])
 
         # Try OpenAI if API key present; default model from env/config
         try:
             import httpx  # type: ignore
-            model = os.getenv("AI_LLM_MODEL") or os.getenv("OPENAI_DEFAULT_MODEL") or "gpt-5-mini"
-            api_key = os.getenv("OPENAI_API_KEY") or os.getenv("AI_OPENAI_API_KEY")
-            base_url = os.getenv("OPENAI_BASE_URL", "https://api.openai.com")
+            model = (
+                (opts or {}).get("model")
+                or os.getenv("AI_LLM_MODEL")
+                or os.getenv("OPENAI_DEFAULT_MODEL")
+                or "gpt-5-mini"
+            )
+            api_key = (
+                (opts or {}).get("api_key")
+                or os.getenv("OPENAI_API_KEY")
+                or os.getenv("AI_OPENAI_API_KEY")
+            )
+            base_url = (
+                (opts or {}).get("base_url")
+                or os.getenv("OPENAI_BASE_URL", "https://api.openai.com")
+            )
             if api_key:
                 payload = {
                     "model": model,
@@ -246,7 +312,8 @@ class AgentService:
                     ],
                     "temperature": 0.3,
                 }
-                url = f"{base_url.rstrip('/')}/v1/chat/completions"
+                safe_base = (base_url or "https://api.openai.com").rstrip("/")
+                url = f"{safe_base}/v1/chat/completions"
                 headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
                 async with httpx.AsyncClient(timeout=30) as client:
                     resp = await client.post(url, json=payload, headers=headers)
