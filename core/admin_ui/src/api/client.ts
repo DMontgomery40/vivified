@@ -350,7 +350,7 @@ export class AdminAPIClient {
   }
 
   // AI / RAG
-  async aiStatus(): Promise<{ docs_indexed: number; last_trained_ts?: number | null }>{
+  async aiStatus(): Promise<{ docs_indexed: number; last_trained_ts?: number | null; backend?: string }>{
     const res = await this.fetch('/admin/ai/status');
     return res.json();
   }
@@ -367,6 +367,16 @@ export class AdminAPIClient {
 
   async aiAgentRun(prompt: string): Promise<{ result: string }>{
     const res = await this.fetch('/admin/ai/agent/run', { method: 'POST', body: JSON.stringify({ prompt }) });
+    return res.json();
+  }
+
+  async aiConnectorsGet(): Promise<{ openai: any; anthropic: any; agent: { tool_calling: boolean } }>{
+    const res = await this.fetch('/admin/ai/connectors');
+    return res.json();
+  }
+
+  async aiConnectorsPut(payload: { openai?: any; anthropic?: any; agent?: { tool_calling?: boolean } }): Promise<{ ok: boolean }>{
+    const res = await this.fetch('/admin/ai/connectors', { method: 'PUT', body: JSON.stringify(payload || {}) });
     return res.json();
   }
 

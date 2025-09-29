@@ -1,72 +1,120 @@
-# Vivified AI Studio — Internal RAG + Agent
+# AI & Agents (RAG + LLM)
 
-This document describes the internal AI features wired into the Admin Console.
-It is intended for internal development. Customer docs will be carved later.
+This page documents Vivified’s internal AI features: repository‑wide RAG (indexing your code and docs), a trait‑aware query path, and an agent that can call an LLM through the Core gateway with strict allowlists.
 
-## What’s included
+Important: This is an internal/developer feature set. Customer‑facing docs will be derived from this page later.
 
-- RAG Service (Redis-backed, memory fallback) that indexes local `docs/` and `internal-plans/`.
-- Admin API endpoints under `/admin/ai/*` to train, query, and run a stub agent.
-- Admin UI panel “AI Studio” under Tools.
-- Optional auto-train on startup with `AI_AUTO_TRAIN=true`.
+## Features
 
-No external LLM calls are required for basic operation. All data stays local.
+- Repository‑wide RAG
+  - Indexes the entire repo (`.`) by default and respects `.ragignore` first, then `.gitignore`.
+  - Ignore patterns support anchored paths (`/path`), directory suffix (`dir/`), and globbing (`*.log`).
+  - Reads any text‑decodable file up to `RAG_MAX_BYTES` (default 2 MB); binary blobs are skipped.
+- Trait‑aware querying (TBAC)
+  - Only returns documents where `required_traits ⊆ user.traits`.
+  - Defaults to `required_traits=[]` for code/docs; add traits to sensitive datasets to gate access.
+- LLM agent through Core gateway (egress allowlist)
+  - Proxies to OpenAI via `/gateway/proxy` with plugin_id `ai-core` (allowlist seeded for chat completions).
+  - Falls back to a direct call if proxy is unavailable.
+  - Default model: `gpt-5-mini` (override with `AI_LLM_MODEL` or `OPENAI_DEFAULT_MODEL`).
+- Auto‑training on startup (optional) and periodic updates
+  - `AI_AUTO_TRAIN=true` indexes `.` on startup.
+  - `RAG_UPDATE_INTERVAL_MINUTES` controls retraining cadence (default 20 minutes).
+
+## Quick Start
+
+1) Start Core with `.env` (OpenAI key optional):
+
+```
+uvicorn core.main:app --reload
+```
+
+2) (Optional) Auto‑train on startup and enable 20‑minute updates:
+
+```
+export AI_AUTO_TRAIN=true
+export RAG_UPDATE_INTERVAL_MINUTES=20
+uvicorn core.main:app --reload
+```
+
+3) Open Admin Console → Tools → “AI Studio”
+   - Click “Train from Docs” to index the repo now (respects ignore files).
+   - Search the index and run Agent to get a human‑readable answer with code/docs context.
 
 ## Admin API
 
-- `GET /admin/ai/status` — returns `{ docs_indexed, last_trained_ts }` (admin trait)
-- `POST /admin/ai/train` — body `{ sources?: string[] }`, returns `{ ok, indexed, total }` (admin trait)
-- `POST /admin/ai/query` — body `{ q: string }`, returns top hits (admin/viewer)
-- `POST /admin/ai/agent/run` — body `{ prompt: string }`, returns `{ result }` (admin)
+- `GET /admin/ai/status` → `{ docs_indexed, last_trained_ts }` (admin)
+- `POST /admin/ai/train` → `{ ok, indexed, total }` (admin)
+  - Body: `{ sources?: string[] }` (defaults to `"."`)
+- `POST /admin/ai/query` → `{ items }` (viewer/admin)
+  - Body: `{ q: string }` (filters by user traits)
+- `POST /admin/ai/agent/run` → `{ result }` (admin)
+  - Body: `{ prompt: string }`
 
-All calls are audited through FastAPI logging; no PHI is logged.
+Notes:
+- The server reads `.env` at startup; set `OPENAI_API_KEY` to use a live LLM.
+- Default model string is `gpt-5-mini`; override via `AI_LLM_MODEL`.
 
-## Admin UI
+## Ignore Model
 
-- Tools → AI Studio: train RAG and run queries from the console.
-- Uses your current API key. DEV_MODE supports `bootstrap_admin_only` for quick testing.
+- `.ragignore` (optional) has priority over `.gitignore`.
+- Patterns:
+  - Anchored path: `/build/` matches from repo root.
+  - Directory: `cache/` prunes entire subtree.
+  - Glob: `*.log`, `*.tmp`, `node_modules/`, etc.
 
-## Redis
+Example `.ragignore`:
 
-If `REDIS_URL` is set, the RAG service uses Redis structures:
+```
+/site/
+/node_modules/
+*.png
+*.jpg
+*.pdf
+```
 
-- `ai:rag:docs` — set of doc IDs
-- `ai:rag:doc:{id}:title`, `:path`, `:content`
-- `ai:rag:token:{token}` — set of doc IDs for inverted index
+## TBAC (HIPAA‑safe)
 
-If Redis is unavailable, an in-memory index is used.
+- Each document has `required_traits` (default `[]`) and `classification` (default `internal`).
+- Query filters results to those with `required_traits ⊆ user.traits`.
+- Pattern: Place analytics‑safe data behind a trait such as `analytics_viewer` and exclude PII traits entirely. The agent can answer aggregate questions without ever seeing names/addresses.
 
-## Auto-train
+## LLM via Gateway
 
-Set `AI_AUTO_TRAIN=true` in the environment to index the entire repository (`.`) at startup. Indexing respects `.ragignore` (first) and `.gitignore` (second).
+- The agent calls OpenAI via Core’s `/gateway/proxy` using plugin_id `ai-core`.
+- On startup we seed an allowlist for `api.openai.com` POST `/v1/chat/completions`.
+- Configure:
+  - `OPENAI_API_KEY` in `.env` (loaded automatically at startup)
+  - `AI_LLM_MODEL` or `OPENAI_DEFAULT_MODEL`
+  - `OPENAI_BASE_URL` if using a custom gateway/backbone
 
-## TBAC (Trait-Based Access Control)
+## MCP (Preview)
 
-The RAG index and queries honor user traits. Each indexed document carries metadata with `required_traits` (defaults to empty) and `classification` (defaults to `internal`). At query time, only documents whose `required_traits` are a subset of the user’s traits are considered.
+- Health: `GET /mcp/sse/health`, `GET /mcp/http/health`.
+- Tool: `POST /mcp/http/tools/rag/query` → `{ items }` (viewer/admin), body `{ q: string }`.
+- Settings (Admin → Settings → MCP) toggle SSE/HTTP and optional OAuth.
 
-This allows HIPAA-safe usage patterns where the assistant can answer aggregate questions without ever seeing PII fields. For example, you could index randomized patient IDs and diagnosis/outcome fields behind a trait like `analytics_viewer`, while excluding any PII traits entirely. The assistant’s visibility is governed by the same trait system as users.
-
-The current codebase indexing defaults to `required_traits=[]`. Data sources that include sensitive fields should be indexed with appropriate `required_traits` (future enhancement wires this via ingestion policies/config).
-
-## MCP HTTP Tool (preview)
-
-- `POST /mcp/http/tools/rag/query` — body `{ q: string }` returns `{ items }`, gated by user traits (admin or viewer).
-- Health endpoints: `/mcp/sse/health`, `/mcp/http/health`.
-
-## CLI helper
-
-`tools/scripts/rag_train.py` calls the API to trigger training.
-
-Example:
+## CLI Helper
 
 ```
 AI_API_URL=http://localhost:8000 API_KEY=bootstrap_admin_only \
-  python tools/scripts/rag_train.py --sources docs internal-plans
+  python tools/scripts/rag_train.py --sources .
 ```
 
-## Next steps (internal roadmap)
+## Troubleshooting
 
-- Wire optional LangGraph pipeline and tool calling (feature flag controlled).
-- Add connector config for OpenAI/Anthropic via ConfigService and proxy allowlist.
-- Expand Admin UI to visualize vector store stats and per-source toggles.
-- MCP integration: expose RAG query as an MCP tool over SSE/HTTP transports.
+- “Docs haven’t updated”
+  - The site publishes from `gh-pages` via mike. Re‑deploy: `mike deploy latest -u -p && mike set-default latest -p`.
+  - Hard refresh the browser to bypass CDN caching.
+- “LLM calls failing”
+  - Confirm `OPENAI_API_KEY` is present and not expired.
+  - Check `/gateway/allowlist/effective?plugin_id=ai-core` shows OpenAI allowlist.
+  - Review `/gateway/stats` and audit logs.
+- “Index skipped files unexpectedly”
+  - Inspect `.ragignore` and `.gitignore` matches (anchored vs glob). Remove overly broad patterns.
+
+## Roadmap
+
+- Config v4 secrets for provider keys + traited ingestion rules per path.
+- LangGraph agent pipeline with RAG retriever + HTTP/Storage tools.
+- Expose RAG query as a full MCP tool bundle (SSE/HTTP) with schemas.

@@ -652,12 +652,36 @@ async def mcp_http_health():
 async def mcp_sse():
     async def eventgen():
         yield "event: ping\n\n"
-        yield "data: {\"ok\": true}\n\n"
+        yield 'data: {"ok": true}\n\n'
+
     return StreamingResponse(eventgen(), media_type="text/event-stream")
 
 
+@app.get("/mcp/http/tools")
+async def mcp_http_tools():
+    return JSONResponse(
+        {
+            "tools": [
+                {
+                    "id": "rag.query",
+                    "name": "rag_query",
+                    "description": "Query internal RAG index for relevant docs.",
+                    "input_schema": {
+                        "type": "object",
+                        "properties": {"q": {"type": "string"}},
+                        "required": ["q"],
+                    },
+                    "endpoint": "/mcp/http/tools/rag/query",
+                }
+            ]
+        }
+    )
+
+
 @app.post("/mcp/http/tools/rag/query")
-async def mcp_rag_query(payload: Dict[str, Any], user: Dict = Depends(get_current_user)):
+async def mcp_rag_query(
+    payload: Dict[str, Any], user: Dict = Depends(get_current_user)
+):
     # Enforce viewer/admin traits
     _ = await require_auth(["admin", "viewer"])(lambda u: u)(user)  # type: ignore[misc]
     global ai_rag_service

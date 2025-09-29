@@ -328,46 +328,126 @@ class AgentService:
         user_traits: Optional[Iterable[str]] = None,
         opts: Optional[Dict[str, str]] = None,
     ) -> Dict[str, str]:
-        # Attempt to use languages/graph libs if available (best effort)
+        # Attempt tool-calling pipeline if enabled, else simple RAG-informed completion.
         hits = await self.rag.query(prompt, top_k=3, user_traits=user_traits)
         context = "\n".join([f"- {h.get('title')}" for h in hits])
 
         # Try OpenAI via core proxy first (if configured), else direct
         try:
             import httpx  # type: ignore
+
+            # Resolve connectors from ConfigService if available
+            try:
+                from ..config.service import get_config_service  # type: ignore
+
+                cfgsvc = get_config_service()
+                openai_cfg = await cfgsvc.get("ai.connectors.openai") or {}
+            except Exception:
+                cfgsvc = None
+                openai_cfg = {}
             model = (
                 (opts or {}).get("model")
+                or str((openai_cfg or {}).get("default_model") or "")
                 or os.getenv("AI_LLM_MODEL")
                 or os.getenv("OPENAI_DEFAULT_MODEL")
-                or "gpt-5-mini"
+                or "gpt-4o-mini"
             )
             api_key = (
                 (opts or {}).get("api_key")
+                or str((openai_cfg or {}).get("api_key") or "")
                 or os.getenv("OPENAI_API_KEY")
                 or os.getenv("AI_OPENAI_API_KEY")
             )
             base_url = (
                 (opts or {}).get("base_url")
+                or str((openai_cfg or {}).get("base_url") or "")
                 or os.getenv("OPENAI_BASE_URL", "https://api.openai.com")
             )
+            # Feature flag: enable tool-calling loop
+            use_tools = False
+            try:
+                use_tools = (opts or {}).get("tool_calling") == "true" or os.getenv(
+                    "AI_AGENT_TOOL_CALLING", "false"
+                ).lower() in {"1", "true", "yes"}
+                if cfgsvc is not None:
+                    v = await cfgsvc.get("ai.agent.tool_calling")
+                    if isinstance(v, bool):
+                        use_tools = v
+            except Exception:
+                pass
+
             if api_key:
-                payload = {
-                    "model": model,
-                    "messages": [
-                        {"role": "system", "content": "You are a concise assistant."},
+                if use_tools:
+                    tools = [
+                        {
+                            "type": "function",
+                            "function": {
+                                "name": "rag_search",
+                                "description": "Search internal docs and return top matches.",
+                                "parameters": {
+                                    "type": "object",
+                                    "properties": {"q": {"type": "string"}},
+                                    "required": ["q"],
+                                },
+                            },
+                        },
+                        {
+                            "type": "function",
+                            "function": {
+                                "name": "http_fetch",
+                                "description": "Fetch a URL via secure proxy (allowlisted domains only).",
+                                "parameters": {
+                                    "type": "object",
+                                    "properties": {"url": {"type": "string"}},
+                                    "required": ["url"],
+                                },
+                            },
+                        },
+                    ]
+                    messages = [
+                        {
+                            "role": "system",
+                            "content": "You are a concise assistant. Use tools when helpful.",
+                        },
                         {
                             "role": "user",
                             "content": f"Context sources (internal):\n{context}\n\nQuestion: {prompt}",
                         },
-                    ],
-                    "temperature": 0.3,
-                }
+                    ]
+                    # First call with tools available
+                    payload = {
+                        "model": model,
+                        "messages": messages,
+                        "tools": tools,
+                        "tool_choice": "auto",
+                        "temperature": 0.2,
+                    }
+                else:
+                    payload = {
+                        "model": model,
+                        "messages": [
+                            {
+                                "role": "system",
+                                "content": "You are a concise assistant.",
+                            },
+                            {
+                                "role": "user",
+                                "content": f"Context sources (internal):\n{context}\n\nQuestion: {prompt}",
+                            },
+                        ],
+                        "temperature": 0.3,
+                    }
                 # Prefer gateway proxy to enforce allowlists
                 try:
-                    core_base = os.getenv("PUBLIC_API_URL", "http://localhost:8000").rstrip("/")
+                    core_base = os.getenv(
+                        "PUBLIC_API_URL", "http://localhost:8000"
+                    ).rstrip("/")
                     proxy_url = f"{core_base}/gateway/proxy"
                     target_url = f"{(base_url or 'https://api.openai.com').rstrip('/')}/v1/chat/completions"
-                    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+                    headers = {
+                        "Authorization": f"Bearer {api_key}",
+                        "Content-Type": "application/json",
+                    }
                     body = json.dumps(payload).encode()
                     async with httpx.AsyncClient(timeout=30) as client:
                         resp = await client.post(
@@ -389,11 +469,117 @@ class AgentService:
                             # Body may be base64 or plain; try json parse of text
                             text = prox.get("text") or prox.get("body") or ""
                             try:
-                                parsed = json.loads(text) if isinstance(text, str) else {}
+                                parsed = (
+                                    json.loads(text) if isinstance(text, str) else {}
+                                )
                             except Exception:
                                 parsed = {}
                             choice = ((parsed or {}).get("choices") or [{}])[0]
-                            msg = (choice.get("message") or {}).get("content") or ""
+                            message = choice.get("message") or {}
+                            if use_tools and message.get("tool_calls"):
+                                tool_calls = message.get("tool_calls") or []
+                                # Execute tool calls sequentially (simple loop)
+                                for tc in tool_calls:
+                                    fn = tc.get("function") or {}
+                                    name = fn.get("name")
+                                    args_s = fn.get("arguments") or "{}"
+                                    try:
+                                        args = json.loads(args_s)
+                                    except Exception:
+                                        args = {}
+                                    if name == "rag_search":
+                                        q = str(args.get("q") or prompt)
+                                        tool_hits = await self.rag.query(
+                                            q, top_k=5, user_traits=user_traits
+                                        )
+                                        messages.append(message)
+                                        messages.append(
+                                            {
+                                                "role": "tool",
+                                                "tool_call_id": tc.get("id") or "rag1",
+                                                "name": name,
+                                                "content": json.dumps(
+                                                    {"hits": tool_hits}
+                                                ),
+                                            }
+                                        )
+                                    elif name == "http_fetch":
+                                        url = str(args.get("url") or "")
+                                        if url:
+                                            try:
+                                                async with httpx.AsyncClient(
+                                                    timeout=20
+                                                ) as client2:
+                                                    r2 = await client2.post(
+                                                        proxy_url,
+                                                        json={
+                                                            "plugin_id": "ai-core",
+                                                            "method": "GET",
+                                                            "url": url,
+                                                            "headers": {},
+                                                            "timeout": 20,
+                                                        },
+                                                    )
+                                                fetched = ""
+                                                if r2.status_code < 300:
+                                                    dj = r2.json()
+                                                    fetched = (
+                                                        dj.get("text")
+                                                        or dj.get("body")
+                                                        or ""
+                                                    )
+                                                messages.append(message)
+                                                messages.append(
+                                                    {
+                                                        "role": "tool",
+                                                        "tool_call_id": tc.get("id")
+                                                        or "http1",
+                                                        "name": name,
+                                                        "content": fetched[:4000],
+                                                    }
+                                                )
+                                            except Exception:
+                                                # ignore fetch errors
+                                                pass
+                                # Finalize
+                                final_payload = {
+                                    "model": model,
+                                    "messages": messages,
+                                    "temperature": 0.2,
+                                }
+                                async with httpx.AsyncClient(timeout=30) as client3:
+                                    r3 = await client3.post(
+                                        proxy_url,
+                                        json={
+                                            "plugin_id": "ai-core",
+                                            "method": "POST",
+                                            "url": target_url,
+                                            "headers": headers,
+                                            "body": list(
+                                                json.dumps(final_payload).encode()
+                                            ),
+                                            "timeout": 30,
+                                        },
+                                    )
+                                if r3.status_code < 300:
+                                    dj3 = r3.json() or {}
+                                    text3 = dj3.get("text") or dj3.get("body") or ""
+                                    try:
+                                        parsed3 = (
+                                            json.loads(text3)
+                                            if isinstance(text3, str)
+                                            else {}
+                                        )
+                                    except Exception:
+                                        parsed3 = {}
+                                    ch3 = ((parsed3 or {}).get("choices") or [{}])[0]
+                                    msg3 = (ch3.get("message") or {}).get(
+                                        "content"
+                                    ) or ""
+                                    if msg3:
+                                        return {"result": msg3}
+                            # Non-tool flow
+                            msg = (message or {}).get("content") or ""
                             if msg:
                                 return {"result": msg}
                 except Exception:
@@ -402,13 +588,17 @@ class AgentService:
                 # Direct call fallback
                 safe_base = (base_url or "https://api.openai.com").rstrip("/")
                 url = f"{safe_base}/v1/chat/completions"
-                headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+                headers = {
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                }
                 async with httpx.AsyncClient(timeout=30) as client:
                     resp = await client.post(url, json=payload, headers=headers)
                 if resp.status_code < 300:
                     data = resp.json()
                     choice = ((data or {}).get("choices") or [{}])[0]
-                    msg = (choice.get("message") or {}).get("content") or ""
+                    message = choice.get("message") or {}
+                    msg = (message or {}).get("content") or ""
                     if msg:
                         return {"result": msg}
                 # Fallback to stub if non-2xx or empty

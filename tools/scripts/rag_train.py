@@ -17,7 +17,10 @@ import urllib.request
 def main():
     api = os.getenv("AI_API_URL", "http://localhost:8000").rstrip("/")
     key = os.getenv("API_KEY", "bootstrap_admin_only")
-    sources = sys.argv[1:] or ["docs", "internal-plans"]
+    argv = sys.argv[1:]
+    sources = argv or ["docs", "internal-plans"]
+    if argv and (argv[0] in {"--all", "all"}):
+        sources = ["."]
 
     req = urllib.request.Request(
         f"{api}/admin/ai/train",
@@ -36,4 +39,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

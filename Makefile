@@ -70,6 +70,7 @@ docs-serve:
 # Build static API docs (Swagger UI + Redoc) using app.openapi()
 .PHONY: api-docs
 api-docs:
+	python3 -m pip install -q -r core/requirements.txt -c constraints.txt || python3 -m pip install -q -r core/requirements.txt
 	@python3 tools/scripts/build_api_docs.py
 
 clean:

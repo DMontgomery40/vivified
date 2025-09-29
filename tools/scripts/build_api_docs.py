@@ -41,14 +41,16 @@ def main() -> int:
     # Ensure repo root is on sys.path so `import core.*` works
     if str(root) not in sys.path:
         sys.path.insert(0, str(root))
-    out_dir = root / "site" / "api"
+    # Versioned API docs under /api/v1
+    api_root = root / "site" / "api"
+    out_dir = api_root / "v1"
     out_dir.mkdir(parents=True, exist_ok=True)
 
     # 1) openapi.json
     openapi = generate_openapi()
     write_file(out_dir / "openapi.json", json.dumps(openapi, indent=2))
 
-    # 2) index.html (links)
+    # /api/v1/index.html (links)
     write_file(
         out_dir / "index.html",
         """<!doctype html>
@@ -116,6 +118,14 @@ def main() -> int:
     <redoc spec-url="../openapi.json"></redoc>
   </body>
 </html>
+""",
+    )
+
+    # /api/index.html redirect to /api/v1/
+    write_file(
+        api_root / "index.html",
+        """<!doctype html><meta http-equiv="refresh" content="0; url=/api/v1/">
+<link rel="canonical" href="/api/v1/" />
 """,
     )
 
