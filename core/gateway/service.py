@@ -172,7 +172,7 @@ class GatewayService:
     ) -> ProxyResponse:
         """Proxy a request to an external API."""
         try:
-            # Lazy-hydrate allowlist from ConfigService if available
+            # Ensure allowlist for this plugin is present (lazy refresh)
             await self._ensure_allowlist_loaded(plugin_id)
 
             # Check if plugin can make proxy requests

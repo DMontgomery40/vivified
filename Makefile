@@ -70,8 +70,20 @@ docs-serve:
 # Build static API docs (Swagger UI + Redoc) using app.openapi()
 .PHONY: api-docs
 api-docs:
-	python3 -m pip install -q -r core/requirements.txt -c constraints.txt || python3 -m pip install -q -r core/requirements.txt
-	@python3 tools/scripts/build_api_docs.py
+	@PY=$$(command -v python3.11 || echo python3); $$PY -m pip install -q -r core/requirements.txt -c constraints.txt || $$PY -m pip install -q -r core/requirements.txt
+	@PY=$$(command -v python3.11 || echo python3); $$PY tools/scripts/build_api_docs.py
+
+.PHONY: netlify-link
+netlify-link:
+	@echo "[netlify] Linking repository to Netlify site (expects NETLIFY_TOKEN/NETLIFY_AUTH_TOKEN, optional NETLIFY_SITE_ID)"
+	@set -a; [ -f .env ] && . .env || true; set +a; \
+	  NETLIFY_AUTH_TOKEN=$${NETLIFY_AUTH_TOKEN:-$$NETLIFY_TOKEN} npx -y netlify-cli@17 link $${NETLIFY_SITE_ID:+--id=$$NETLIFY_SITE_ID}
+
+.PHONY: api-docs-deploy
+api-docs-deploy:
+	@echo "[netlify] Deploying static API docs via Netlify build (using netlify.toml)"
+	@set -a; [ -f .env ] && . .env || true; set +a; \
+	  NETLIFY_AUTH_TOKEN=$${NETLIFY_AUTH_TOKEN:-$$NETLIFY_TOKEN} npx -y netlify-cli@17 deploy --build --prod $${NETLIFY_SITE_ID:+--site=$$NETLIFY_SITE_ID}
 
 clean:
 	find . -type d -name __pycache__ -exec rm -rf {} +

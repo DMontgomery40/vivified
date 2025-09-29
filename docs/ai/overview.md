@@ -73,6 +73,25 @@ Example `.ragignore`:
 *.pdf
 ```
 
+### Ingestion Rules (required_traits/classification)
+
+You can attach trait requirements and classification labels to files based on path globs. The indexer will read two optional ConfigService keys:
+
+```
+ai.rag.required_traits = {
+  "internal-plans/**": ["internal_docs"],
+  "data/analytics/**": ["analytics_viewer"],
+  "**/*.sql": ["dba_viewer"]
+}
+
+ai.rag.classification = {
+  "data/analytics/**": ["sensitive"],
+  "docs/**": ["internal"]
+}
+```
+
+Only documents whose `required_traits` are a subset of the current user's traits are considered at query time. Use this to keep PII-gated datasets out of the assistant’s view while permitting HIPAA‑safe analytics.
+
 ## TBAC (HIPAA‑safe)
 
 - Each document has `required_traits` (default `[]`) and `classification` (default `internal`).
@@ -81,12 +100,12 @@ Example `.ragignore`:
 
 ## LLM via Gateway
 
-- The agent calls OpenAI via Core’s `/gateway/proxy` using plugin_id `ai-core`.
+- The agent calls OpenAI via Core’s `/gateway/proxy` using plugin_id `ai-core`. Fallback is direct.
 - On startup we seed an allowlist for `api.openai.com` POST `/v1/chat/completions`.
-- Configure:
-  - `OPENAI_API_KEY` in `.env` (loaded automatically at startup)
-  - `AI_LLM_MODEL` or `OPENAI_DEFAULT_MODEL`
-  - `OPENAI_BASE_URL` if using a custom gateway/backbone
+- Configure (prefer ConfigService over env):
+  - Admin → Tools → AI Studio → LLM Configuration to set provider (`openai` or `anthropic`), model, base URL, and API key securely.
+  - Or via API: `GET/PUT /admin/ai/config`.
+  - Legacy endpoints: `GET/PUT /admin/ai/connectors`.
 
 ## MCP (Preview)
 

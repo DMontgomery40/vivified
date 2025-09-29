@@ -107,6 +107,29 @@ class RAGService:
         rd = await self._ensure_redis()
         root_base = os.path.abspath(os.getenv("RAG_ROOT", os.getcwd()))
         ignore_patterns = self._load_ignore_patterns(root_base)
+        # Load ingestion rules (required traits/classification) from ConfigService
+        trait_rules: Dict[str, List[str]] = {}
+        class_rules: Dict[str, List[str]] = {}
+        try:
+            from core.config.service import get_config_service  # type: ignore
+
+            cfg = get_config_service()
+            maybe_traits = await cfg.get("ai.rag.required_traits")
+            if isinstance(maybe_traits, dict):
+                trait_rules = {
+                    str(k): [str(t) for t in (v or [])]
+                    for k, v in maybe_traits.items()
+                    if isinstance(v, (list, tuple))
+                }
+            maybe_class = await cfg.get("ai.rag.classification")
+            if isinstance(maybe_class, dict):
+                class_rules = {
+                    str(k): [str(c) for c in (v or [])]
+                    for k, v in maybe_class.items()
+                    if isinstance(v, (list, tuple))
+                }
+        except Exception:
+            pass
 
         for root in sources:
             root = os.path.abspath(root)
@@ -140,8 +163,10 @@ class RAGService:
                         did = str(hash(path))
                         title = os.path.relpath(path, root_base)
                         toks = set(_tokenize(content))
-                        required_traits: List[str] = []
-                        classification: List[str] = ["internal"]
+                        required_traits: List[str] = self._traits_for_path(relp, trait_rules)
+                        classification: List[str] = self._traits_for_path(relp, class_rules) or [
+                            "internal"
+                        ]
                         if rd:
                             try:
                                 pipe = rd.pipeline()
@@ -221,6 +246,20 @@ class RAGService:
             if fnmatch.fnmatch(target, test_pat) or fnmatch.fnmatch(base, core):
                 return True
         return False
+
+    def _traits_for_path(
+        self, rel_path: str, rules: Dict[str, List[str]]
+    ) -> List[str]:
+        """Return merged list of values for matching glob patterns."""
+        p = rel_path.replace(os.sep, "/").lstrip("./")
+        vals: List[str] = []
+        for pat, v in rules.items():
+            core = pat.strip("/")
+            if fnmatch.fnmatch(p, core) or fnmatch.fnmatch(os.path.basename(p), core):
+                for item in v:
+                    if item not in vals:
+                        vals.append(item)
+        return vals
 
     async def query(
         self,
@@ -331,6 +370,7 @@ class AgentService:
         # Attempt tool-calling pipeline if enabled, else simple RAG-informed completion.
         hits = await self.rag.query(prompt, top_k=3, user_traits=user_traits)
         context = "\n".join([f"- {h.get('title')}" for h in hits])
+        tools_log: List[Dict[str, Any]] = []
 
         # Try OpenAI via core proxy first (if configured), else direct
         try:
@@ -339,8 +379,8 @@ class AgentService:
             # Resolve connectors from ConfigService if available
             try:
                 from ..config.service import get_config_service  # type: ignore
-
                 cfgsvc = get_config_service()
+                # Prefer explicit fields too
                 openai_cfg = await cfgsvc.get("ai.connectors.openai") or {}
             except Exception:
                 cfgsvc = None
@@ -350,7 +390,7 @@ class AgentService:
                 or str((openai_cfg or {}).get("default_model") or "")
                 or os.getenv("AI_LLM_MODEL")
                 or os.getenv("OPENAI_DEFAULT_MODEL")
-                or "gpt-4o-mini"
+                or "gpt-5-mini"
             )
             api_key = (
                 (opts or {}).get("api_key")
@@ -366,9 +406,11 @@ class AgentService:
             # Feature flag: enable tool-calling loop
             use_tools = False
             try:
-                use_tools = (opts or {}).get("tool_calling") == "true" or os.getenv(
-                    "AI_AGENT_TOOL_CALLING", "false"
-                ).lower() in {"1", "true", "yes"}
+                flag = os.getenv("AI_AGENT_TOOL_CALLING", "false").lower()
+                env_flag = flag in {"1", "true", "yes"}
+                use_tools = (
+                    (opts or {}).get("tool_calling") == "true" or env_flag
+                )
                 if cfgsvc is not None:
                     v = await cfgsvc.get("ai.agent.tool_calling")
                     if isinstance(v, bool):
@@ -419,7 +461,7 @@ class AgentService:
                         "model": model,
                         "messages": messages,
                         "tools": tools,
-                        "tool_choice": "auto",
+                        "tool_choice": "required",
                         "temperature": 0.2,
                     }
                 else:
@@ -457,7 +499,7 @@ class AgentService:
                                 "method": "POST",
                                 "url": target_url,
                                 "headers": headers,
-                                "body": list(body),
+                                "json": payload,
                                 "timeout": 30,
                             },
                         )
@@ -487,16 +529,17 @@ class AgentService:
                                         args = json.loads(args_s)
                                     except Exception:
                                         args = {}
-                                    if name == "rag_search":
-                                        q = str(args.get("q") or prompt)
-                                        tool_hits = await self.rag.query(
-                                            q, top_k=5, user_traits=user_traits
-                                        )
-                                        messages.append(message)
-                                        messages.append(
-                                            {
-                                                "role": "tool",
-                                                "tool_call_id": tc.get("id") or "rag1",
+                            if name == "rag_search":
+                                q = str(args.get("q") or prompt)
+                                tool_hits = await self.rag.query(
+                                    q, top_k=5, user_traits=user_traits
+                                )
+                                tools_log.append({"name": "rag_search", "args": {"q": q}, "content": tool_hits})
+                                messages.append(message)
+                                messages.append(
+                                    {
+                                        "role": "tool",
+                                        "tool_call_id": tc.get("id") or "rag1",
                                                 "name": name,
                                                 "content": json.dumps(
                                                     {"hits": tool_hits}
@@ -507,37 +550,38 @@ class AgentService:
                                         url = str(args.get("url") or "")
                                         if url:
                                             try:
-                                                async with httpx.AsyncClient(
-                                                    timeout=20
-                                                ) as client2:
-                                                    r2 = await client2.post(
-                                                        proxy_url,
-                                                        json={
-                                                            "plugin_id": "ai-core",
-                                                            "method": "GET",
-                                                            "url": url,
-                                                            "headers": {},
-                                                            "timeout": 20,
-                                                        },
-                                                    )
-                                                fetched = ""
-                                                if r2.status_code < 300:
-                                                    dj = r2.json()
-                                                    fetched = (
-                                                        dj.get("text")
-                                                        or dj.get("body")
-                                                        or ""
-                                                    )
-                                                messages.append(message)
-                                                messages.append(
-                                                    {
-                                                        "role": "tool",
-                                                        "tool_call_id": tc.get("id")
-                                                        or "http1",
-                                                        "name": name,
-                                                        "content": fetched[:4000],
-                                                    }
-                                                )
+                                        async with httpx.AsyncClient(
+                                            timeout=20
+                                        ) as client2:
+                                            r2 = await client2.post(
+                                                proxy_url,
+                                                json={
+                                                    "plugin_id": "ai-core",
+                                                    "method": "GET",
+                                                    "url": url,
+                                                    "headers": {},
+                                                    "timeout": 20,
+                                                },
+                                            )
+                                        fetched = ""
+                                        if r2.status_code < 300:
+                                            dj = r2.json()
+                                            fetched = (
+                                                dj.get("text")
+                                                or dj.get("body")
+                                                or ""
+                                            )
+                                        tools_log.append({"name": "http_fetch", "args": {"url": url}, "content": (fetched[:200] if isinstance(fetched, str) else "")})
+                                        messages.append(message)
+                                        messages.append(
+                                            {
+                                                "role": "tool",
+                                                "tool_call_id": tc.get("id")
+                                                or "http1",
+                                                "name": name,
+                                                "content": fetched[:4000],
+                                            }
+                                        )
                                             except Exception:
                                                 # ignore fetch errors
                                                 pass
@@ -555,9 +599,7 @@ class AgentService:
                                             "method": "POST",
                                             "url": target_url,
                                             "headers": headers,
-                                            "body": list(
-                                                json.dumps(final_payload).encode()
-                                            ),
+                                            "json": final_payload,
                                             "timeout": 30,
                                         },
                                     )
@@ -577,11 +619,17 @@ class AgentService:
                                         "content"
                                     ) or ""
                                     if msg3:
-                                        return {"result": msg3}
+                                        out = {"result": msg3}
+                                        if tools_log:
+                                            out["tools_used"] = tools_log
+                                        return out
                             # Non-tool flow
                             msg = (message or {}).get("content") or ""
                             if msg:
-                                return {"result": msg}
+                                out = {"result": msg}
+                                if tools_log:
+                                    out["tools_used"] = tools_log
+                                return out
                 except Exception:
                     # Fall back to direct call
                     pass
@@ -598,14 +646,100 @@ class AgentService:
                     data = resp.json()
                     choice = ((data or {}).get("choices") or [{}])[0]
                     message = choice.get("message") or {}
+                    # Handle tool-calls on direct path
+                    if use_tools and message.get("tool_calls"):
+                        tool_calls = message.get("tool_calls") or []
+                        for tc in tool_calls:
+                            fn = (tc.get("function") or {})
+                            name = fn.get("name")
+                            args_s = fn.get("arguments") or "{}"
+                            try:
+                                args = json.loads(args_s)
+                            except Exception:
+                                args = {}
+                            if name == "rag_search":
+                                q = str(args.get("q") or prompt)
+                                tool_hits = await self.rag.query(q, top_k=5, user_traits=user_traits)
+                                messages.append(message)
+                                messages.append(
+                                    {
+                                        "role": "tool",
+                                        "tool_call_id": tc.get("id") or "rag1",
+                                        "name": name,
+                                        "content": json.dumps({"hits": tool_hits}),
+                                    }
+                                )
+                            elif name == "http_fetch":
+                                fetch_url = str(args.get("url") or "")
+                                if fetch_url:
+                                    try:
+                                        async with httpx.AsyncClient(timeout=20) as client2:
+                                            proxy_base = os.getenv(
+                                                'PUBLIC_API_URL', 'http://localhost:8000'
+                                            ).rstrip('/')
+                                            r2 = await client2.post(
+                                                f"{proxy_base}/gateway/proxy",
+                                                json={
+                                                    "plugin_id": "ai-core",
+                                                    "method": "GET",
+                                                    "url": fetch_url,
+                                                    "headers": {},
+                                                    "timeout": 20,
+                                                },
+                                            )
+                                        fetched = ""
+                                        if r2.status_code < 300:
+                                            dj = r2.json()
+                                            fetched = dj.get("text") or dj.get("body") or ""
+                                        messages.append(message)
+                                        messages.append(
+                                            {
+                                                "role": "tool",
+                                                "tool_call_id": tc.get("id") or "http1",
+                                                "name": name,
+                                                "content": fetched[:4000],
+                                            }
+                                        )
+                                    except Exception:
+                                        pass
+                        # Finalize direct call
+                        final_payload = {
+                            "model": model,
+                            "messages": messages,
+                            "temperature": 0.2,
+                        }
+                        async with httpx.AsyncClient(timeout=30) as client3:
+                            r3 = await client3.post(url, json=final_payload, headers=headers)
+                        if r3.status_code < 300:
+                            data3 = r3.json() or {}
+                            ch3 = ((data3 or {}).get("choices") or [{}])[0]
+                            msg3 = (ch3.get("message") or {}).get("content") or ""
+                            if msg3:
+                                return {"result": msg3}
+                    # Non-tool flow
                     msg = (message or {}).get("content") or ""
                     if msg:
-                        return {"result": msg}
+                        out = {"result": msg}
+                        if tools_log:
+                            out["tools_used"] = tools_log
+                        return out
                 # Fallback to stub if non-2xx or empty
         except Exception:
             # Ignore; fall back to stub
             pass
 
-        return {
-            "result": f"Stubbed agent response. Context sources:\n{context}".strip()
-        }
+        # Deterministic tool-calling fallback using internal RAG when enabled
+        if locals().get("use_tools", False):
+            tool_hits = await self.rag.query(prompt, top_k=5, user_traits=user_traits)
+            items = "\n".join(
+                [f"- {i+1}. {h.get('title')}" for i, h in enumerate(tool_hits)]
+            )
+            result = (
+                "Tool-calling (simulated) via rag_search:\n" + items
+                if items
+                else "Tool-calling (simulated): no results"
+            )
+            out = {"result": result, "tools_used": [{"name": "rag_search", "args": {"q": prompt}, "content": tool_hits}]}
+            return out
+
+        return {"result": f"Stubbed agent response. Context sources:\n{context}".strip()}

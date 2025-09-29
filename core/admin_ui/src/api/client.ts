@@ -365,8 +365,30 @@ export class AdminAPIClient {
     return res.json();
   }
 
-  async aiAgentRun(prompt: string): Promise<{ result: string }>{
+  async aiAgentRun(prompt: string): Promise<{ result: string; tools_used?: Array<{ name?: string; args?: any; content?: string }> }>{
     const res = await this.fetch('/admin/ai/agent/run', { method: 'POST', body: JSON.stringify({ prompt }) });
+    return res.json();
+  }
+
+  // AI Config (server-side; secrets stored securely)
+  async getAiConfig(): Promise<{ llm: { provider?: string; model?: string; base_url?: string; api_key_present: boolean } }>{
+    const res = await this.fetch('/admin/ai/config');
+    return res.json();
+  }
+
+  async setAiConfig(payload: { provider?: string; model?: string; base_url?: string; openai_api_key?: string }): Promise<{ ok: boolean; changed: string[] }>{
+    const res = await this.fetch('/admin/ai/config', { method: 'PUT', body: JSON.stringify(payload) });
+    return res.json();
+  }
+
+  // AI RAG rules (ingestion traits/classification)
+  async getAiRagRules(): Promise<{ required_traits: Record<string, string[]>; classification: Record<string, string[]> }>{
+    const res = await this.fetch('/admin/ai/rag-rules');
+    return res.json();
+  }
+
+  async setAiRagRules(payload: { required_traits?: Record<string, string[]>; classification?: Record<string, string[]> }): Promise<{ ok: boolean }>{
+    const res = await this.fetch('/admin/ai/rag-rules', { method: 'PUT', body: JSON.stringify(payload || {}) });
     return res.json();
   }
 

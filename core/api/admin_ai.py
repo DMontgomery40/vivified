@@ -6,8 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from core.api.dependencies import require_auth, get_current_user
 from core.ai.service import RAGService, AgentService
-from core.config.service import get_config_service
-from core.config.service import get_config_service
+from core.config.service import get_config_service as _get_cfg
 
 
 ai_router = APIRouter(prefix="/admin/ai", tags=["ai"])
@@ -101,68 +100,130 @@ async def ai_agent_run(
 @ai_router.get("/config")
 async def ai_get_config(_: Dict = Depends(require_auth(["admin"]))):
     """Return AI config (safe). Hides secret values."""
-    cfg = get_config_service()
+    cfg = _get_cfg()
     model = await cfg.get("ai.llm.model")
     provider = await cfg.get("ai.llm.provider")
     base_url = await cfg.get("ai.llm.base_url")
     api_key_present = bool(await cfg.get("secrets.ai.openai.api_key"))
-    return {
+    safe = {
         "llm": {
             "provider": provider or "openai",
-            "model": model or (os.getenv("AI_LLM_MODEL") or os.getenv("OPENAI_DEFAULT_MODEL") or "gpt-5-mini"),
+            "model": model
+            or (os.getenv("AI_LLM_MODEL") or os.getenv("OPENAI_DEFAULT_MODEL") or "gpt-5-mini"),
             "base_url": base_url or os.getenv("OPENAI_BASE_URL"),
-            "api_key_present": api_key_present or bool(os.getenv("OPENAI_API_KEY")),
+            "api_key_present": bool(api_key_present or os.getenv("OPENAI_API_KEY")),
         }
     }
+    return safe
 
 
 @ai_router.put("/config")
-async def ai_set_config(payload: Dict[str, Any], user: Dict = Depends(get_current_user), _: Dict = Depends(require_auth(["admin"]))):
+async def ai_set_config(
+    payload: Dict[str, Any],
+    user: Dict = Depends(get_current_user),
+    _: Dict = Depends(require_auth(["admin"])),
+):
     """Set AI config. Stores API key as sensitive."""
-    cfg = get_config_service()
+    cfg = _get_cfg()
     changed = []
     if "model" in payload:
-        await cfg.set("ai.llm.model", str(payload["model"]), is_sensitive=False, updated_by=str(user.get("id")), reason="ai_config")
+        await cfg.set(
+            "ai.llm.model",
+            str(payload["model"]),
+            is_sensitive=False,
+            updated_by=str(user.get("id")),
+            reason="ai_config",
+        )
         changed.append("ai.llm.model")
     if "provider" in payload:
-        await cfg.set("ai.llm.provider", str(payload["provider"]), is_sensitive=False, updated_by=str(user.get("id")), reason="ai_config")
+        await cfg.set(
+            "ai.llm.provider",
+            str(payload["provider"]),
+            is_sensitive=False,
+            updated_by=str(user.get("id")),
+            reason="ai_config",
+        )
         changed.append("ai.llm.provider")
     if "base_url" in payload:
-        await cfg.set("ai.llm.base_url", str(payload["base_url"]), is_sensitive=False, updated_by=str(user.get("id")), reason="ai_config")
+        await cfg.set(
+            "ai.llm.base_url",
+            str(payload["base_url"]),
+            is_sensitive=False,
+            updated_by=str(user.get("id")),
+            reason="ai_config",
+        )
         changed.append("ai.llm.base_url")
     if "openai_api_key" in payload and payload["openai_api_key"]:
-        await cfg.set("secrets.ai.openai.api_key", str(payload["openai_api_key"]), is_sensitive=True, updated_by=str(user.get("id")), reason="ai_config_secret")
+        await cfg.set(
+            "secrets.ai.openai.api_key",
+            str(payload["openai_api_key"]),
+            is_sensitive=True,
+            updated_by=str(user.get("id")),
+            reason="ai_config_secret",
+        )
         changed.append("secrets.ai.openai.api_key")
     return {"ok": True, "changed": changed}
 
 
-# --- Connectors & Tool-Calling Configuration ---
+@ai_router.get("/rag-rules")
+async def ai_rag_rules(_: Dict = Depends(require_auth(["admin"]))):
+    cfg = _get_cfg()
+    traits = await cfg.get("ai.rag.required_traits")
+    cls = await cfg.get("ai.rag.classification")
+    return {
+        "required_traits": traits or {},
+        "classification": cls or {},
+    }
+
+
+@ai_router.put("/rag-rules")
+async def ai_set_rag_rules(
+    payload: Dict[str, Any],
+    user: Dict = Depends(get_current_user),
+    _: Dict = Depends(require_auth(["admin", "config_manager"])),
+):
+    cfg = _get_cfg()
+    rt = payload.get("required_traits")
+    cl = payload.get("classification")
+    if isinstance(rt, dict):
+        await cfg.set(
+            "ai.rag.required_traits",
+            rt,
+            is_sensitive=False,
+            updated_by=str(user.get("id")),
+            reason="ai_rag_rules",
+        )
+    if isinstance(cl, dict):
+        await cfg.set(
+            "ai.rag.classification",
+            cl,
+            is_sensitive=False,
+            updated_by=str(user.get("id")),
+            reason="ai_rag_rules",
+        )
+    return {"ok": True}
 
 
 @ai_router.get("/connectors")
 async def ai_connectors_get(_: Dict = Depends(require_auth(["admin"]))):
-    cfg = get_config_service()
+    cfg = _get_cfg()
     openai_cfg = await cfg.get("ai.connectors.openai") or {}
     anthropic_cfg = await cfg.get("ai.connectors.anthropic") or {}
-    tool_calling = await cfg.get("ai.agent.tool_calling")
-
-    # Redact API keys
-    def redacted(d: Any) -> Any:
-        if not isinstance(d, dict):
-            return {}
-        out = dict(d)
-        if out.get("api_key"):
-            out["api_key"] = "***"
-        return out
-
+    agent_cfg = await cfg.get("ai.agent") or {}
+    api_key_present = bool(await cfg.get("secrets.ai.openai.api_key"))
+    ant_key_present = bool(await cfg.get("secrets.ai.anthropic.api_key"))
     return {
-        "openai": redacted(openai_cfg),
-        "anthropic": redacted(anthropic_cfg),
-        "agent": {
-            "tool_calling": (
-                bool(tool_calling) if isinstance(tool_calling, bool) else False
-            )
+        "openai": {
+            "base_url": openai_cfg.get("base_url") or await cfg.get("ai.llm.base_url"),
+            "default_model": openai_cfg.get("default_model") or await cfg.get("ai.llm.model"),
+            "api_key_present": api_key_present,
         },
+        "anthropic": {
+            "base_url": anthropic_cfg.get("base_url"),
+            "default_model": anthropic_cfg.get("default_model"),
+            "api_key_present": ant_key_present,
+        },
+        "agent": {"tool_calling": bool(agent_cfg.get("tool_calling"))},
     }
 
 
@@ -170,122 +231,79 @@ async def ai_connectors_get(_: Dict = Depends(require_auth(["admin"]))):
 async def ai_connectors_put(
     payload: Dict[str, Any],
     user: Dict = Depends(get_current_user),
-    _: Dict = Depends(require_auth(["admin"])),
+    _: Dict = Depends(require_auth(["admin", "config_manager"])),
 ):
-    cfg = get_config_service()
-    actor = str(user.get("id") or user.get("email") or "admin")
-
-    # Persist connectors configs
-    openai_in = (
-        (payload.get("openai") or {}) if isinstance(payload.get("openai"), dict) else {}
-    )
-    anthropic_in = (
-        (payload.get("anthropic") or {})
-        if isinstance(payload.get("anthropic"), dict)
-        else {}
-    )
-    agent_in = (
-        (payload.get("agent") or {}) if isinstance(payload.get("agent"), dict) else {}
-    )
-
-    # Store API keys as sensitive; other fields non-sensitive
-    async def upsert_connector(name: str, data: Dict[str, Any]):
-        if not data:
-            return
-        # separate sensitive
-        data = dict(data)
-        api_key = data.pop("api_key", None)
-        if api_key:
-            # merge with existing to avoid dropping other fields
-            existing = await cfg.get(f"ai.connectors.{name}") or {}
-            existing = dict(existing) if isinstance(existing, dict) else {}
-            existing.update(data)
-            existing["api_key"] = api_key
+    cfg = _get_cfg()
+    changed: list[str] = []
+    op = payload.get("openai") or {}
+    ap = payload.get("anthropic") or {}
+    ag = payload.get("agent") or {}
+    if isinstance(op, dict):
+        if op.get("base_url") is not None:
             await cfg.set(
-                f"ai.connectors.{name}",
-                existing,
-                is_sensitive=True,
-                updated_by=actor,
-                reason="update_ai_connector",
-            )
-        else:
-            await cfg.set(
-                f"ai.connectors.{name}",
-                data,
+                "ai.connectors.openai",
+                {**(await cfg.get("ai.connectors.openai") or {}), "base_url": str(op.get("base_url"))},
                 is_sensitive=False,
-                updated_by=actor,
-                reason="update_ai_connector",
+                updated_by=str(user.get("id")),
+                reason="ai_connectors",
             )
-
-    await upsert_connector("openai", openai_in)
-    await upsert_connector("anthropic", anthropic_in)
-
-    # Tool-calling flag
-    if "tool_calling" in agent_in:
+            changed.append("ai.connectors.openai.base_url")
+        if op.get("default_model") is not None:
+            await cfg.set(
+                "ai.connectors.openai",
+                {**(await cfg.get("ai.connectors.openai") or {}), "default_model": str(op.get("default_model"))},
+                is_sensitive=False,
+                updated_by=str(user.get("id")),
+                reason="ai_connectors",
+            )
+            changed.append("ai.connectors.openai.default_model")
+        if op.get("api_key"):
+            await cfg.set(
+                "secrets.ai.openai.api_key",
+                str(op.get("api_key")),
+                is_sensitive=True,
+                updated_by=str(user.get("id")),
+                reason="ai_connectors_secret",
+            )
+            changed.append("secrets.ai.openai.api_key")
+    if isinstance(ap, dict):
+        if ap.get("base_url") is not None:
+            await cfg.set(
+                "ai.connectors.anthropic",
+                {**(await cfg.get("ai.connectors.anthropic") or {}), "base_url": str(ap.get("base_url"))},
+                is_sensitive=False,
+                updated_by=str(user.get("id")),
+                reason="ai_connectors",
+            )
+            changed.append("ai.connectors.anthropic.base_url")
+        if ap.get("default_model") is not None:
+            await cfg.set(
+                "ai.connectors.anthropic",
+                {**(await cfg.get("ai.connectors.anthropic") or {}), "default_model": str(ap.get("default_model"))},
+                is_sensitive=False,
+                updated_by=str(user.get("id")),
+                reason="ai_connectors",
+            )
+            changed.append("ai.connectors.anthropic.default_model")
+        if ap.get("api_key"):
+            await cfg.set(
+                "secrets.ai.anthropic.api_key",
+                str(ap.get("api_key")),
+                is_sensitive=True,
+                updated_by=str(user.get("id")),
+                reason="ai_connectors_secret",
+            )
+            changed.append("secrets.ai.anthropic.api_key")
+    if isinstance(ag, dict) and "tool_calling" in ag:
         await cfg.set(
             "ai.agent.tool_calling",
-            bool(agent_in.get("tool_calling")),
+            bool(ag.get("tool_calling")),
             is_sensitive=False,
-            updated_by=actor,
-            reason="update_ai_agent_tool_calling",
+            updated_by=str(user.get("id")),
+            reason="ai_agent",
         )
-
-    # Update gateway allowlist for ai-core based on configured providers
-    allow: Dict[str, Any] = {}
-
-    def host_from_base_url(u: Optional[str]) -> Optional[str]:
-        try:
-            from urllib.parse import urlparse
-
-            if not u:
-                return None
-            return urlparse(u).netloc
-        except Exception:
-            return None
-
-    o_base = (
-        openai_in.get("base_url")
-        or (await cfg.get("ai.connectors.openai") or {}).get("base_url")
-        or "https://api.openai.com"
-    )
-    a_base = (
-        anthropic_in.get("base_url")
-        or (await cfg.get("ai.connectors.anthropic") or {}).get("base_url")
-        or None
-    )
-    o_host = host_from_base_url(str(o_base))
-    a_host = host_from_base_url(str(a_base) if a_base else None)
-    if o_host:
-        allow[o_host] = {"allowed_methods": ["POST"], "allowed_paths": ["/v1/"]}
-    if a_host:
-        allow[a_host] = {"allowed_methods": ["POST"], "allowed_paths": ["/v1/"]}
-    if allow:
-        await cfg.set(
-            "gateway.allowlist.ai-core",
-            allow,
-            is_sensitive=False,
-            updated_by=actor,
-            reason="ai_connectors_allowlist_update",
-        )
-        # Ask gateway to reload (best-effort, may be no-op during tests)
-        try:
-            from core.main import gateway_service as _gw  # type: ignore
-
-            if _gw is not None:
-                await _gw.preload_allowlists(["ai-core"])  # type: ignore[attr-defined]
-        except Exception:
-            pass
-
-    return {"ok": True}
+        changed.append("ai.agent.tool_calling")
+    return {"ok": True, "changed": changed}
 
 
-@ai_router.post("/connectors/refresh-allowlist")
-async def ai_connectors_refresh(_: Dict = Depends(require_auth(["admin"]))):
-    try:
-        from core.main import gateway_service as _gw  # type: ignore
-
-        if _gw is not None:
-            await _gw.preload_allowlists(["ai-core"])  # type: ignore[attr-defined]
-    except Exception:
-        pass
-    return {"ok": True}
+# --- Connectors & Tool-Calling Configuration ---

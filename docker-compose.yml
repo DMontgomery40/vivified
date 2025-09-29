@@ -43,11 +43,13 @@ services:
       # Keep dev Vite origin allowed if using the dev server.
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:5173}
       DEV_MODE: "true"
+      AI_AGENT_TOOL_CALLING: "true"
       DB_INIT: "true"
       ADMIN_USERNAME: admin
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin-pass-change-me}
       LOG_LEVEL: INFO
-      USE_TLS: "true"
+      USE_TLS: "false"
+      PUBLIC_API_URL: http://vivified-core:8000
     ports:
       - "8000:8000"
       - "8443:8443"

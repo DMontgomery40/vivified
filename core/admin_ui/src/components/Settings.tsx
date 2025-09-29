@@ -65,7 +65,7 @@ function Settings({ client, readOnly = false }: SettingsProps) {
 
   // Effective integration selections with hybrid fallback
   const effectiveOutbound = (form.outbound_backend || settings?.hybrid?.outbound_backend || settings?.backend?.type) as string | undefined;
-  const effectiveInbound = (form.inbound_backend || settings?.hybrid?.inbound_backend || settings?.backend?.type) as string | undefined;
+  // const effectiveInbound = (form.inbound_backend || settings?.hybrid?.inbound_backend || settings?.backend?.type) as string | undefined;
 
   const fetchSettings = async () => {
     try {
@@ -333,56 +333,12 @@ function Settings({ client, readOnly = false }: SettingsProps) {
         <Box>
         <Stack spacing={3}>
           {/* Integrations & Connections */}
+          {/* Integrations & Connections — removed legacy fax provider selectors */}
           <ResponsiveFormSection
             title="Integrations & Connections"
-            subtitle="Choose outbound/inbound integrations and configure connections"
+            subtitle="Core connections and security. Fax provider selection moved to Setup Wizard."
             icon={<CloudIcon />}
           >
-            <ResponsiveSettingItem
-              icon={getStatusIcon(!settings.backend.disabled)}
-              label="Outbound Integration"
-              value={(effectiveOutbound || 'phaxio')}
-              currentValue={(['sip','freeswitch'].includes((effectiveOutbound || '').toLowerCase()) ? 'Self-hosted' : 'Cloud-based')}
-              helperText="Outbound handles send/egress operations. Changing integrations may require restart and integration-specific config."
-              onChange={(value) => handleForm('outbound_backend', value)}
-              type="select"
-              options={[
-                { value: 'phaxio', label: 'Phaxio (Cloud)' },
-                { value: 'sinch', label: 'Sinch (Cloud)' },
-                { value: 'signalwire', label: 'SignalWire (Cloud)' },
-                { value: 'documo', label: 'Documo (Cloud)' },
-                { value: 'sip', label: 'SIP/Asterisk (Self-hosted)' },
-                { value: 'freeswitch', label: 'FreeSWITCH (Self-hosted)' }
-              ]}
-              showCurrentValue={true}
-              disabled={readOnly}
-            />
-
-            <ResponsiveSettingItem
-              icon={<CloudIcon />}
-              label="Inbound Integration"
-              value={(effectiveInbound || 'phaxio')}
-              currentValue={(['sip','freeswitch'].includes((effectiveInbound || '').toLowerCase()) ? 'Self-hosted' : 'Cloud-based')}
-              helperText="Inbound handles receiving/webhooks. Choose 'SIP/Asterisk' for internal posting or a cloud integration for webhooks."
-              onChange={(value) => handleForm('inbound_backend', value)}
-              type="select"
-              options={[
-                { value: 'phaxio', label: 'Phaxio (Webhook)' },
-                { value: 'sinch', label: 'Sinch (Webhook)' },
-                { value: 'sip', label: 'SIP/Asterisk (Internal)' }
-              ]}
-              showCurrentValue={true}
-              disabled={readOnly}
-            />
-            {(!form.inbound_backend && settings.hybrid && !settings.hybrid.inbound_explicit) && (
-              <Chip
-                label="Mode: Single integration. Inbound follows outbound. You can optionally choose a separate inbound integration."
-                color="info"
-                size="small"
-                variant="outlined"
-                sx={{ mt: 1, borderRadius: 1 }}
-              />
-            )}
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
               <Chip
                 label={settings.backend.disabled ? 'Disabled' : 'Active'}

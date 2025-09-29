@@ -697,6 +697,8 @@ function AppContent() {
               <Tab icon={tabIcons[3]} iconPosition="start" label="Inbox" />
               <Tab icon={tabIcons[4]} iconPosition="start" label="Settings" />
               <Tab icon={tabIcons[5]} iconPosition="start" label="Tools" />
+              {/* Promoted: Notifications top-level */}
+              <Tab icon={<InboxIcon />} iconPosition="start" label="Notifications" />
             </Tabs>
           </Box>
         )}
@@ -955,6 +957,19 @@ function AppContent() {
               {toolsTab === 22 && <ManifestEditor client={client!} />}
             </Box>
           </Paper>
+        </TabPanel>
+        {/* Notifications top-level */}
+        <TabPanel value={tabValue} index={6}>
+          {hasTrait('ui.notifications') || isAdmin ? (
+            <NotificationsPanel client={client!} readOnly={!isAdmin} />
+          ) : (
+            <Paper sx={{ p: 3 }}>
+              <Typography variant="h6" gutterBottom>Notifications access is disabled</Typography>
+              <Typography variant="body2" color="text.secondary">
+                This surface is gated by trait <code>ui.notifications</code>. Ask an administrator to grant access.
+              </Typography>
+            </Paper>
+          )}
         </TabPanel>
       </Container>
 

@@ -1,5 +1,5 @@
 from __future__ import annotations
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Depends, Body
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 import logging
@@ -31,6 +31,7 @@ from .api.automation import automation_router, configure_automation_api
 from .ai.service import RAGService
 from .api.admin_ai import ai_router as admin_ai_router, configure_ai_api
 from starlette.responses import JSONResponse, StreamingResponse
+import json
 
 
 class AddTraceIdFilter(logging.Filter):
@@ -176,8 +177,8 @@ async def startup_event():
                     "gateway.allowlist.ai-core",
                     {
                         "api.openai.com": {
-                            "allowed_methods": ["POST"],
-                            "allowed_paths": ["/v1/chat/completions"],
+                            "allowed_methods": ["POST", "GET"],
+                            "allowed_paths": ["/v1/"],
                         }
                     },
                     is_sensitive=False,
@@ -396,26 +397,71 @@ async def get_canonical_stats():
     key_fn=lambda *a, **k: f"proxy:{k.get('plugin_id','unknown')}",
 )
 async def proxy_request(
-    plugin_id: str,
-    method: str,
-    url: str,
+    plugin_id: Optional[str] = None,
+    method: Optional[str] = None,
+    url: Optional[str] = None,
     headers: Optional[Dict[str, str]] = None,
     body: Optional[bytes] = None,
-    timeout: int = 30,
+    timeout: Optional[int] = None,
+    payload: Optional[Dict[str, Any]] = Body(default=None),
 ):
-    """Proxy a request to an external API."""
+    """Proxy a request to an external API.
+
+    Accepts parameters either via query string or JSON body. Body keys (if provided):
+      { plugin_id, method, url, headers, body, timeout }
+    """
     try:
         if gateway_service is None:
             raise HTTPException(status_code=503, detail="Gateway service unavailable")
+
+        # Merge from JSON body when not provided as query params
+        src = payload or {}
+        plugin_id = plugin_id or src.get("plugin_id")
+        method = method or src.get("method")
+        url = url or src.get("url")
+        headers = headers or src.get("headers")
+        timeout = timeout or src.get("timeout") or 30
+        body_in = body if body is not None else src.get("body")
+        # Support explicit JSON payload
+        if body_in is None and isinstance(src.get("json"), (dict, list)):
+            try:
+                body_in = json.dumps(src.get("json")).encode()
+                headers = headers or src.get("headers") or {}
+                if isinstance(headers, dict) and not headers.get("Content-Type"):
+                    headers["Content-Type"] = "application/json"
+            except Exception:
+                body_in = None
+
+        # Normalize body to bytes if it is a list[int] or string
+        if body_in is None:
+            body_bytes: Optional[bytes] = None
+        elif isinstance(body_in, (bytes, bytearray)):
+            body_bytes = bytes(body_in)
+        elif isinstance(body_in, list) and all(isinstance(b, int) for b in body_in):
+            body_bytes = bytes(body_in)
+        elif isinstance(body_in, str):
+            body_bytes = body_in.encode()
+        else:
+            # Attempt JSON dump then encode
+            try:
+                body_bytes = json.dumps(body_in).encode()
+            except Exception:
+                body_bytes = None
+
+        if not (plugin_id and method and url):
+            raise HTTPException(status_code=422, detail="plugin_id, method, url are required")
+
         response = await gateway_service.proxy_request(
             plugin_id=plugin_id,
             method=method,
             url=url,
             headers=headers,
-            body=body,
-            timeout=timeout,
+            body=body_bytes,
+            timeout=int(timeout),
         )
         return response.dict()
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
