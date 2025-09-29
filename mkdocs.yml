@@ -139,6 +139,8 @@ nav:
   - Development Guide: plugins/development.md
   - SDK Reference: plugins/sdk.md
   - Examples: plugins/examples.md
+  - LLM OSS (Local): plugins/llm-oss.md
+  - RAG DB Plugin: plugins/rag-db-plugin.md
 - API Reference:
   - REST API: api-reference.md
   - WebSocket API: api/websocket.md

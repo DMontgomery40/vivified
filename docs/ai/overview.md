@@ -15,6 +15,7 @@ Important: This is an internal/developer feature set. Customer‑facing docs wil
 - Chunking
   - `RAG_CHUNK_CHARS` default 4000; `RAG_OVERLAP_CHARS` default 400.
   - Each chunk carries `required_traits` and `classification` metadata used at query time (TBAC).
+  - UI controls: Admin → Tools → AI Studio → Ingestion Rules → RAG Settings lets you set Chunk Size and Overlap without env changes.
 - Trait‑aware querying (TBAC)
   - Only returns documents where `required_traits ⊆ user.traits`.
   - Defaults to `required_traits=[]` for code/docs; add traits to sensitive datasets to gate access.
@@ -64,6 +65,7 @@ Notes:
 - Default chat model is `gpt-5-mini`; override via `AI_LLM_MODEL`.
 - Default embeddings model is `text-embedding-3-small`; override via Admin → AI Studio or `EMBEDDING_MODEL`/`OPENAI_EMBEDDING_MODEL`.
 - RAG defaults: `REDIS_URL=redis://localhost:6379/0` (if reachable); otherwise memory.
+ - Optional RAG backend: set Backend=Plugin and choose your plugin id to delegate indexing/search over the operator lane. Your plugin implements `rag_index` and `rag_query` (see Plugins → RAG DB Plugin).
  - Optional: Use Redis Stack for native vector indices; run `redis-stack` service from docker-compose and set `REDIS_URL=redis://localhost:6380/0`.
 
 ## Ignore Model
