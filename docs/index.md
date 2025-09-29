@@ -36,7 +36,7 @@ Vivified is a modular platform for building secure, scalable applications. Deplo
 
     Production deployment guides
 
-    [:octicons-arrow-right-24: Deploy](deployment/index.md)
+    [:octicons-arrow-right-24: Deploy](deployment.md)
 
 </div>
 
@@ -142,7 +142,7 @@ graph TB
 
 ## Quick links
 
-- Architecture → [Three-Lane Model](architecture/three-lanes.md)
+- Architecture → [Three-Lane Model](core/three-lanes.md)
 - Architecture → [Diagrams](architecture/diagrams.md)
 - AI & Agents → [Overview](ai/overview.md)
 
@@ -359,7 +359,7 @@ docker-compose logs -f
 - [Plugin Development](plugins/development.md) - SDK reference and examples
 - [Admin Console](admin-console.md) - Web-based management interface
 - [API Reference](api-reference.md) - REST, WebSocket, and RPC APIs
-- [Deployment Guide](deployment/index.md) - Production deployment
+- [Deployment Guide](deployment.md) - Production deployment
 - [Troubleshooting](troubleshooting.md) - Common issues and solutions
 
 ## Community
