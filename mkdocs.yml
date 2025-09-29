@@ -82,3 +82,5 @@ extra:
   version:
     provider: mike
     default: latest
+\n# Added by AI: AI section
+- AI & Agents: ai/overview.md
