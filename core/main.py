@@ -110,7 +110,12 @@ async def startup_event():
     # Start core services
     try:
         # Resolve audit service and initialize dependent services lazily
-        global audit_service, messaging_service, canonical_service, gateway_service, notifications_service, automation_service
+        global audit_service
+        global messaging_service
+        global canonical_service
+        global gateway_service
+        global notifications_service
+        global automation_service
         audit_service = await get_audit_service()
 
         if messaging_service is None:
