@@ -77,11 +77,10 @@ nav:
       - Plugin System: plugins/plugin-system.md
   - Reference:
       - APIs: reference/apis.md
+  - AI & Agents: ai/overview.md
   - Contributing: contributing.md
 
 extra:
   version:
     provider: mike
     default: latest
-\n# Added by AI: AI section
-- AI & Agents: ai/overview.md
