@@ -14,16 +14,62 @@ theme:
 plugins:
   - search
   - mike
-
 nav:
-  - Home: index.md
-  - Getting Started: getting-started.md
-  - Core:
-      - Overview: core/overview.md
-  - Plugins:
-      - Overview: plugins/overview.md
-  - Contributing: contributing.md
-
+- Home: index.md
+- Getting Started:
+  - Quick Start: getting-started.md
+  - Installation: installation.md
+  - Configuration: configuration.md
+- Core Platform:
+  - Overview: core/overview.md
+  - Architecture: core/architecture.md
+  - Gateway: core/gateway.md
+  - Identity & Auth: core/identity.md
+  - Policy Engine: core/policy.md
+  - Storage: core/storage.md
+  - Messaging: core/messaging.md
+  - Audit: core/audit.md
+  - AI & Agents: ai/overview.md
+  - Three-Lane Model: core/three-lanes.md
+  - Operator Allowlist: policy/operator-allowlist.md
+- Architecture:
+  - Diagrams: architecture/diagrams.md
+- Admin Console:
+  - Overview: admin-console.md
+  - Dashboard: admin-console/dashboard.md
+  - User Management: admin-console/users.md
+  - Configuration: admin-console/configuration.md
+  - Monitoring: admin-console/monitoring.md
+- Plugins:
+  - Overview: plugins/overview.md
+  - Plugin System: plugins/plugin-system.md
+  - Development Guide: plugins/development.md
+  - SDK Reference: plugins/sdk.md
+  - Examples: plugins/examples.md
+  - LLM OSS (Local): plugins/llm-oss.md
+  - RAG DB Plugin: plugins/rag-db-plugin.md
+- API Reference:
+  - REST API: api-reference.md
+  - WebSocket API: api/websocket.md
+  - GraphQL: api/graphql.md
+- Security & Compliance:
+  - Overview: security.md
+  - HIPAA Compliance: security/hipaa.md
+  - Authentication: security/authentication.md
+  - Authorization: security/authorization.md
+  - Encryption: security/encryption.md
+- Operations:
+  - Deployment: deployment.md
+  - Monitoring: monitoring.md
+  - Backup & Recovery: backup.md
+  - Troubleshooting: troubleshooting.md
+  - Pilot Guide (LLM + RAG): pilots/llm-pilot.md
+- Reference:
+  - Environment Variables: reference/env-vars.md
+  - CLI Commands: reference/cli.md
+  - Error Codes: reference/errors.md
+  - Glossary: reference/glossary.md
+- Contributing: contributing.md
 extra:
   version:
     provider: mike
