@@ -240,13 +240,15 @@ class ProxyHandler:
 
     async def _make_http_request(self, request: ProxyRequest) -> httpx.Response:
         """Make the actual HTTP request."""
-        if not self._http_client:
-            raise RuntimeError("HTTP client not initialized")
+        if self._http_client is None:
+            # Lazy init to be robust if start() wasn't called yet
+            await self.start()
 
         # Prepare headers
         headers = dict(request.headers)
 
         # Make request
+        assert self._http_client is not None
         response = await self._http_client.request(
             method=request.method,
             url=str(request.url),
