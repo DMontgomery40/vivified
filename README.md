@@ -1,4 +1,4 @@
-![Vivified Platform](assets/vivified-logo.png)
+![Vivified Platform](vivified.jpg)
 
 # Vivified Platform
 
