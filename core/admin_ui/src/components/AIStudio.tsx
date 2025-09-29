@@ -21,14 +21,29 @@ export default function AIStudio({ client, readOnly = false }: Props) {
   const [cfgMsg, setCfgMsg] = useState<string>('');
   const [rulesRequired, setRulesRequired] = useState<string>('{}');
   const [rulesClass, setRulesClass] = useState<string>('{}');
+  // RAG settings (UI controls)
+  const [chunkChars, setChunkChars] = useState<number>(4000);
+  const [overlapChars, setOverlapChars] = useState<number>(400);
+  const [ragBackend, setRagBackend] = useState<'redis'|'plugin'>('redis');
+  const [ragPluginId, setRagPluginId] = useState<string>('');
   const [rulesMsg, setRulesMsg] = useState<string>('');
   const [connOpenai, setConnOpenai] = useState<{ base_url?: string; default_model?: string; api_key?: string }>({});
   const [connAnth, setConnAnth] = useState<{ base_url?: string; default_model?: string; api_key?: string }>({});
+  const [connDeep, setConnDeep] = useState<{ base_url?: string; default_model?: string; api_key?: string }>({});
   const [toolCalling, setToolCalling] = useState<boolean>(false);
   const [connMsg, setConnMsg] = useState<string>('');
   const [connAllowlist, setConnAllowlist] = useState<string[]>([]);
   const [userTraits, setUserTraits] = useState<string[]>([]);
   const defaultsAppliedRef = useRef<boolean>(false);
+  const providerOptions = ['openai', 'claude', 'local'];
+  const [modelOptions, setModelOptions] = useState<string[]>([]);
+  const [embedOptions, setEmbedOptions] = useState<string[]>([]);
+  const [openaiModels, setOpenaiModels] = useState<string[]>([]);
+  const [openaiPrices, setOpenaiPrices] = useState<Record<string, any>>({});
+  const [anthModels, setAnthModels] = useState<string[]>([]);
+  const [anthPrices, setAnthPrices] = useState<Record<string, any>>({});
+  const [deepModels, setDeepModels] = useState<string[]>([]);
+  const [deepPrices, setDeepPrices] = useState<Record<string, any>>({});
 
   const refresh = async () => {
     try {
@@ -44,11 +59,16 @@ export default function AIStudio({ client, readOnly = false }: Props) {
       const rr = await client.getAiRagRules();
       setRulesRequired(JSON.stringify(rr.required_traits || {}, null, 2));
       setRulesClass(JSON.stringify(rr.classification || {}, null, 2));
+      if (typeof (rr as any)?.chunk_chars === 'number') setChunkChars(Number((rr as any).chunk_chars));
+      if (typeof (rr as any)?.overlap_chars === 'number') setOverlapChars(Number((rr as any).overlap_chars));
+      if (typeof (rr as any)?.backend === 'string') setRagBackend(((rr as any).backend as string).toLowerCase() === 'plugin' ? 'plugin' : 'redis');
+      if (typeof (rr as any)?.plugin_id === 'string') setRagPluginId((rr as any).plugin_id as string);
     } catch {}
     try {
       const cx = await client.aiConnectorsGet();
       setConnOpenai(cx.openai || {});
       setConnAnth(cx.anthropic || {});
+      setConnDeep(cx.deepseek || {});
       setToolCalling(Boolean(cx.agent?.tool_calling));
     } catch {}
     try {
@@ -79,6 +99,36 @@ export default function AIStudio({ client, readOnly = false }: Props) {
       } catch { /* ignore */ }
     })();
   }, [client]);
+
+  // Refresh model lists when provider changes
+  useEffect(() => {
+    (async () => {
+      try {
+        const prov = (cfgEditing.provider || cfg?.provider || 'openai') as string;
+        const mo = await client.aiModels(prov, 'chat');
+        setModelOptions(mo?.models || []);
+      } catch { setModelOptions([]); }
+      try {
+        const eo = await client.aiModels('openai', 'embeddings');
+        setEmbedOptions(eo?.models || []);
+      } catch { setEmbedOptions([]); }
+      try {
+        const om = await client.aiModels('openai', 'chat');
+        setOpenaiModels(om?.models || []);
+        setOpenaiPrices(om?.prices || {});
+      } catch { setOpenaiModels([]); setOpenaiPrices({}); }
+      try {
+        const am = await client.aiModels('claude', 'chat');
+        setAnthModels(am?.models || []);
+        setAnthPrices(am?.prices || {});
+      } catch { setAnthModels([]); setAnthPrices({}); }
+      try {
+        const dm = await client.aiModels('deepseek', 'chat');
+        setDeepModels(dm?.models || []);
+        setDeepPrices(dm?.prices || {});
+      } catch { setDeepModels([]); setDeepPrices({}); }
+    })();
+  }, [cfgEditing.provider, cfg?.provider, client]);
 
   const train = async () => {
     try {
@@ -150,7 +200,14 @@ export default function AIStudio({ client, readOnly = false }: Props) {
       setRulesMsg('');
       const required = JSON.parse(rulesRequired || '{}');
       const classification = JSON.parse(rulesClass || '{}');
-      const res = await client.setAiRagRules({ required_traits: required, classification });
+      const res = await client.setAiRagRules({
+        required_traits: required,
+        classification,
+        chunk_chars: chunkChars,
+        overlap_chars: overlapChars,
+        backend: ragBackend,
+        plugin_id: ragPluginId,
+      });
       setRulesMsg(res.ok ? 'Saved' : 'Failed');
     } catch (e: any) {
       setRulesMsg(e?.message || 'Invalid JSON or failed to save');
@@ -163,7 +220,7 @@ export default function AIStudio({ client, readOnly = false }: Props) {
     try {
       setBusy(true);
       setConnMsg('');
-      const res = await client.aiConnectorsPut({ openai: connOpenai, anthropic: connAnth, agent: { tool_calling: toolCalling } });
+      const res = await client.aiConnectorsPut({ openai: connOpenai, anthropic: connAnth, deepseek: connDeep, agent: { tool_calling: toolCalling } });
       setConnMsg(res.ok ? 'Saved' : 'Failed');
       // Refresh effective allowlist for ai-core for user feedback
       try {
@@ -364,11 +421,23 @@ export default function AIStudio({ client, readOnly = false }: Props) {
             onChange={e => setConnOpenai(v => ({ ...v, base_url: e.target.value }))}
             disabled={busy || readOnly}
           />
-          <TextField label="Default Model" size="small" sx={{ flex: 1 }} placeholder="gpt-5-mini"
-            value={connOpenai.default_model || ''}
-            onChange={e => setConnOpenai(v => ({ ...v, default_model: e.target.value }))}
-            disabled={busy || readOnly}
-          />
+          {openaiModels.length ? (
+            <TextField label="Default Model" size="small" sx={{ flex: 1 }} select
+              value={connOpenai.default_model || ''}
+              onChange={e => setConnOpenai(v => ({ ...v, default_model: e.target.value }))}
+              disabled={busy || readOnly}
+            >
+              {openaiModels.map(m => (
+                <MenuItem key={m} value={m}>{m}{openaiPrices?.[m] ? ` — $${openaiPrices[m]?.input || '?'} in / $${openaiPrices[m]?.output || '?'} out per 1K` : ''}</MenuItem>
+              ))}
+            </TextField>
+          ) : (
+            <TextField label="Default Model" size="small" sx={{ flex: 1 }} placeholder="gpt-5-mini"
+              value={connOpenai.default_model || ''}
+              onChange={e => setConnOpenai(v => ({ ...v, default_model: e.target.value }))}
+              disabled={busy || readOnly}
+            />
+          )}
           <TextField label="API Key" type="password" size="small" sx={{ flex: 1 }} placeholder="sk-..."
             value={connOpenai.api_key || ''}
             onChange={e => setConnOpenai(v => ({ ...v, api_key: e.target.value }))}
@@ -382,14 +451,56 @@ export default function AIStudio({ client, readOnly = false }: Props) {
             onChange={e => setConnAnth(v => ({ ...v, base_url: e.target.value }))}
             disabled={busy || readOnly}
           />
-          <TextField label="Default Model" size="small" sx={{ flex: 1 }} placeholder="claude-3-opus-20240229"
-            value={connAnth.default_model || ''}
-            onChange={e => setConnAnth(v => ({ ...v, default_model: e.target.value }))}
-            disabled={busy || readOnly}
-          />
+          {anthModels.length ? (
+            <TextField label="Default Model" size="small" sx={{ flex: 1 }} select
+              value={connAnth.default_model || ''}
+              onChange={e => setConnAnth(v => ({ ...v, default_model: e.target.value }))}
+              disabled={busy || readOnly}
+            >
+              {anthModels.map(m => (
+                <MenuItem key={m} value={m}>{m}{anthPrices?.[m] ? ` — $${anthPrices[m]?.input || '?'} in / $${anthPrices[m]?.output || '?'} out per 1K` : ''}</MenuItem>
+              ))}
+            </TextField>
+          ) : (
+            <TextField label="Default Model" size="small" sx={{ flex: 1 }} placeholder="claude-3-opus-20240229"
+              value={connAnth.default_model || ''}
+              onChange={e => setConnAnth(v => ({ ...v, default_model: e.target.value }))}
+              disabled={busy || readOnly}
+            />
+          )}
           <TextField label="API Key" type="password" size="small" sx={{ flex: 1 }} placeholder="sk-ant-..."
             value={connAnth.api_key || ''}
             onChange={e => setConnAnth(v => ({ ...v, api_key: e.target.value }))}
+            disabled={busy || readOnly}
+          />
+        </Stack>
+        <Typography variant="subtitle2" sx={{ mt: 2 }}>DeepSeek</Typography>
+        <Stack spacing={1} direction={{ xs: 'column', sm: 'row' }} sx={{ mb: 1 }}>
+          <TextField label="Base URL" size="small" sx={{ flex: 1 }} placeholder="https://api.deepseek.com"
+            value={connDeep.base_url || ''}
+            onChange={e => setConnDeep(v => ({ ...v, base_url: e.target.value }))}
+            disabled={busy || readOnly}
+          />
+          {deepModels.length ? (
+            <TextField label="Default Model" size="small" sx={{ flex: 1 }} select
+              value={connDeep.default_model || ''}
+              onChange={e => setConnDeep(v => ({ ...v, default_model: e.target.value }))}
+              disabled={busy || readOnly}
+            >
+              {deepModels.map(m => (
+                <MenuItem key={m} value={m}>{m}{deepPrices?.[m] ? ` — $${deepPrices[m]?.input || '?'} in / $${deepPrices[m]?.output || '?'} out per 1K` : ''}</MenuItem>
+              ))}
+            </TextField>
+          ) : (
+            <TextField label="Default Model" size="small" sx={{ flex: 1 }} placeholder="deepseek-chat"
+              value={connDeep.default_model || ''}
+              onChange={e => setConnDeep(v => ({ ...v, default_model: e.target.value }))}
+              disabled={busy || readOnly}
+            />
+          )}
+          <TextField label="API Key" type="password" size="small" sx={{ flex: 1 }} placeholder="sk-deep-..."
+            value={connDeep.api_key || ''}
+            onChange={e => setConnDeep(v => ({ ...v, api_key: e.target.value }))}
             disabled={busy || readOnly}
           />
         </Stack>
@@ -454,6 +565,12 @@ export default function AIStudio({ client, readOnly = false }: Props) {
           <Button variant="outlined" onClick={async () => { setBusy(true); setNote(''); try { const res = await client.aiTrain(['/workspace']); setNote(`Indexed ${res.indexed} documents (total ${res.total}).`); await refresh(); } catch (e: any) { setNote(e?.message || 'Training failed'); } finally { setBusy(false); } }} disabled={busy || readOnly} sx={{ borderRadius: 2 }}>
             Train Full Repo (/workspace)
           </Button>
+          {!readOnly && (
+            <>
+              <Button size="small" variant="outlined" onClick={async()=>{ try{ setBusy(true); await client.setAiConfig({ rag_redis_url: 'redis://localhost:6379/0' }); setConnMsg('RAG Redis set to 6379'); } catch(e:any){ setConnMsg(e?.message||'Failed'); } finally{ setBusy(false);} }} sx={{ borderRadius: 2 }}>Use Redis (6379)</Button>
+              <Button size="small" variant="outlined" onClick={async()=>{ try{ setBusy(true); await client.setAiConfig({ rag_redis_url: 'redis://localhost:6380/0' }); setConnMsg('RAG Redis set to Redis Stack (6380)'); } catch(e:any){ setConnMsg(e?.message||'Failed'); } finally{ setBusy(false);} }} sx={{ borderRadius: 2 }}>Use Redis Stack (6380)</Button>
+            </>
+          )}
           {note && <Chip color="info" variant="outlined" label={note} />}
         </Stack>
         <Box sx={{ mt: 2 }}>

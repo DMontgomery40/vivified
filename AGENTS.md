@@ -2,6 +2,70 @@
 
 # **ALL PYTHON CODE MUST BE BACK CONFORMANT - your code will not pass CI unless it is**
 
+## Documentation Workflow — CRITICAL FOR AGENTS
+
+**NEVER change branches when updating documentation. Use full paths with branch names.**
+
+### How Documentation Works
+
+1. **Source**: Markdown files are in the `mkdocs` branch
+2. **Build**: HTML is generated from mkdocs branch using `mike deploy`  
+3. **Deploy**: HTML is served from `gh-pages` branch (what users see)
+4. **Worktree**: Use `/private/tmp/vivified-mkdocs-check/` (mkdocs branch checkout)
+
+### Documentation Update Process
+
+```bash
+# 1. Work in the mkdocs branch worktree (DO NOT change branches)
+cd /private/tmp/vivified-mkdocs-check
+
+# 2. Make changes to markdown files in docs/
+# Edit files like docs/getting-started.md, docs/plugins/overview.md, etc.
+
+# 3. Update mkdocs.yml if needed (add CSS, JS, nav changes)
+
+# 4. Commit changes to mkdocs branch
+git add -A
+git commit -m "Fix documentation issues"
+git push origin mkdocs
+
+# 5. Build and deploy to gh-pages
+mike deploy latest -u -p
+```
+
+### Common Documentation Issues & Fixes
+
+**Grid Cards Not Rendering:**
+- Add proper CSS classes in `docs/stylesheets/extra.css`
+- Use correct Material for MkDocs syntax: `<div class='grid cards' markdown>`
+
+**Mermaid Diagrams Not Rendering:**
+- Add mermaid init script to `docs/javascripts/mermaid-init.js`
+- Configure in `mkdocs.yml`: `extra_javascript: - javascripts/mermaid-init.js`
+
+**Table of Contents Issues:**
+- Remove manual TOC sections from markdown
+- Use built-in `toc.integrate` feature (configured in mkdocs.yml)
+
+**Build Artifacts in Wrong Branch:**
+- Add `site/` to `.gitignore` in main branches
+- Only `gh-pages` should contain HTML files
+- Remove with: `git rm -r --cached site/`
+
+### File Locations
+
+- **Markdown Source**: `/private/tmp/vivified-mkdocs-check/docs/`
+- **Configuration**: `/private/tmp/vivified-mkdocs-check/mkdocs.yml`
+- **CSS**: `/private/tmp/vivified-mkdocs-check/docs/stylesheets/extra.css`
+- **JavaScript**: `/private/tmp/vivified-mkdocs-check/docs/javascripts/`
+
+### NEVER DO THIS
+
+- ❌ Change to mkdocs branch in main repo
+- ❌ Edit docs in claude-test or other branches  
+- ❌ Commit HTML files to source branches
+- ❌ Skip the worktree - always use `/private/tmp/vivified-mkdocs-check/`
+
 ## Local CI Parity — Commit Gate (Read This First)
 
 Status: DONE

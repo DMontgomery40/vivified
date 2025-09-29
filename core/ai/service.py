@@ -613,6 +613,14 @@ class RAGService:
                                 else str(meta_raw)
                             )
                             req = list(meta_obj.get("required_traits") or [])
+                            cls = [
+                                str(c).lower()
+                                for c in (meta_obj.get("classification") or [])
+                            ]
+                            # Add classification-based gates
+                            for need in await self._classification_gate_traits(cls):
+                                if need not in req:
+                                    req.append(need)
                     except Exception:
                         req = []
                     if set(req).issubset(trait_set):
@@ -656,7 +664,13 @@ class RAGService:
                     scores[did] = float(overlap)
         allowed2: List[Tuple[str, float]] = []
         for did, sc in scores.items():
-            req = list(self._meta.get(did, {}).get("required_traits") or [])
+            meta = self._meta.get(did, {})
+            req = list(meta.get("required_traits") or [])
+            cls = [str(c).lower() for c in (meta.get("classification") or [])]
+            # Classification-based gates (e.g., PHI requires hipaa_cleared)
+            for need in await self._classification_gate_traits(cls):
+                if need not in req:
+                    req.append(need)
             if set(req).issubset(trait_set):
                 allowed2.append((did, sc))
         ranked = sorted(allowed2, key=lambda x: x[1], reverse=True)[:top_k]
@@ -683,6 +697,39 @@ class RAGService:
             nb += y * y
         denom = (na**0.5) * (nb**0.5)
         return (dot / denom) if denom > 0 else 0.0
+
+    async def _classification_gate_traits(self, classes: List[str]) -> List[str]:
+        """Map classification labels to required traits.
+
+        Defaults:
+          - phi -> ["hipaa_cleared"]
+          - pii -> ["pii_cleared"]
+        Override via ConfigService key 'ai.rag.classification_gate' as a mapping
+        like {"phi": ["hipaa_cleared"], "pii": ["pii_cleared"]}.
+        """
+        need: List[str] = []
+        try:
+            from core.config.service import get_config_service  # type: ignore
+
+            cfg = get_config_service()
+            gate = await cfg.get("ai.rag.classification_gate") or {}
+            if isinstance(gate, dict):
+                for c in classes:
+                    vals = gate.get(str(c).lower())
+                    if isinstance(vals, list):
+                        for t in vals:
+                            s = str(t)
+                            if s and s not in need:
+                                need.append(s)
+        except Exception:
+            pass
+        # Apply safe defaults if not configured
+        low = set(classes)
+        if "phi" in low and "hipaa_cleared" not in need:
+            need.append("hipaa_cleared")
+        if "pii" in low and "pii_cleared" not in need:
+            need.append("pii_cleared")
+        return need
 
 
 # Optional LangGraph-backed agent (stub if unavailable)

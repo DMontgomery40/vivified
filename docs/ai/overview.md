@@ -109,6 +109,10 @@ Only documents whose `required_traits` are a subset of the current user's traits
 
 - Each document has `required_traits` (default `[]`) and `classification` (default `internal`).
 - Query filters results to those with `required_traits ⊆ user.traits`.
+- Classification gates map to traits automatically. Defaults:
+  - `phi` requires user trait `hipaa_cleared`
+  - `pii` requires user trait `pii_cleared`
+  Override with `ai.rag.classification_gate`, e.g.: `{ "phi": ["hipaa_cleared"], "pii": ["pii_cleared"] }`.
 - Pattern: Place analytics‑safe data behind a trait such as `analytics_viewer` and exclude PII traits entirely. The agent can answer aggregate questions without ever seeing names/addresses.
 
 ## LLM via Gateway
