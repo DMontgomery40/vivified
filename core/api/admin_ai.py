@@ -203,9 +203,17 @@ async def ai_rag_rules(_: Dict = Depends(require_auth(["admin"]))):
     cfg = _get_cfg()
     traits = await cfg.get("ai.rag.required_traits")
     cls = await cfg.get("ai.rag.classification")
+    chunk_chars = await cfg.get("ai.rag.chunk_chars")
+    overlap_chars = await cfg.get("ai.rag.overlap_chars")
+    backend = await cfg.get("ai.rag.backend") or os.getenv("RAG_BACKEND") or "redis"
+    plugin_id = await cfg.get("ai.rag.plugin_id") or os.getenv("RAG_PLUGIN_ID") or ""
     return {
         "required_traits": traits or {},
         "classification": cls or {},
+        "chunk_chars": int(chunk_chars or os.getenv("RAG_CHUNK_CHARS", "4000")),
+        "overlap_chars": int(overlap_chars or os.getenv("RAG_OVERLAP_CHARS", "400")),
+        "backend": str(backend),
+        "plugin_id": str(plugin_id),
     }
 
 
@@ -218,6 +226,10 @@ async def ai_set_rag_rules(
     cfg = _get_cfg()
     rt = payload.get("required_traits")
     cl = payload.get("classification")
+    chunk_chars = payload.get("chunk_chars")
+    overlap_chars = payload.get("overlap_chars")
+    backend = payload.get("backend")
+    plugin_id = payload.get("plugin_id")
     if isinstance(rt, dict):
         await cfg.set(
             "ai.rag.required_traits",
@@ -230,6 +242,38 @@ async def ai_set_rag_rules(
         await cfg.set(
             "ai.rag.classification",
             cl,
+            is_sensitive=False,
+            updated_by=str(user.get("id")),
+            reason="ai_rag_rules",
+        )
+    if isinstance(chunk_chars, int) and chunk_chars > 0:
+        await cfg.set(
+            "ai.rag.chunk_chars",
+            chunk_chars,
+            is_sensitive=False,
+            updated_by=str(user.get("id")),
+            reason="ai_rag_rules",
+        )
+    if isinstance(overlap_chars, int) and overlap_chars >= 0:
+        await cfg.set(
+            "ai.rag.overlap_chars",
+            overlap_chars,
+            is_sensitive=False,
+            updated_by=str(user.get("id")),
+            reason="ai_rag_rules",
+        )
+    if isinstance(backend, str) and backend.lower() in {"redis", "plugin"}:
+        await cfg.set(
+            "ai.rag.backend",
+            backend.lower(),
+            is_sensitive=False,
+            updated_by=str(user.get("id")),
+            reason="ai_rag_rules",
+        )
+    if isinstance(plugin_id, str):
+        await cfg.set(
+            "ai.rag.plugin_id",
+            plugin_id,
             is_sensitive=False,
             updated_by=str(user.get("id")),
             reason="ai_rag_rules",
@@ -418,13 +462,6 @@ async def ai_connectors_put(
 
         o_host = host(o_base)
         a_host = host(a_base)
-        try:
-            l_base = (isinstance(lc, dict) and lc.get("base_url")) or (
-                await cfg.get("ai.connectors.local") or {}
-            ).get("base_url")
-        except Exception:
-            l_base = None
-        l_host = host(l_base)
         if o_host:
             allow[o_host] = {
                 "allowed_methods": ["POST", "GET"],
@@ -434,11 +471,6 @@ async def ai_connectors_put(
             allow[a_host] = {
                 "allowed_methods": ["POST", "GET"],
                 "allowed_paths": ["/v1/"],
-            }
-        if l_host:
-            allow[l_host] = {
-                "allowed_methods": ["POST", "GET"],
-                "allowed_paths": ["/"],
             }
         if allow:
             await cfg.set(

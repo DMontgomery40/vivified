@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Box, Paper, Typography, Stack, Button, TextField, Chip, FormGroup, FormControlLabel, Checkbox, Alert, Switch } from '@mui/material';
+import { Box, Paper, Typography, Stack, Button, TextField, Chip, FormGroup, FormControlLabel, Checkbox, Alert, Switch, MenuItem } from '@mui/material';
+import HelpTip from './HelpTip';
 import AdminAPIClient from '../api/client';
 
 type Props = { client: AdminAPIClient; readOnly?: boolean };
@@ -179,7 +180,7 @@ export default function AIStudio({ client, readOnly = false }: Props) {
         ) : (
           <Alert severity="warning" sx={{ mb: 1 }}>No API key set. The agent will fall back to a local stub.</Alert>
         )}
-        <Stack spacing={1} direction={{ xs: 'column', sm: 'row' }} sx={{ mb: 1 }}>
+        <Stack spacing={1} direction={{ xs: 'column', sm: 'row' }} sx={{ mb: 1, alignItems: 'center' }}>
           <TextField label="Provider" size="small" sx={{ flex: 1 }} select
             value={cfgEditing.provider ?? cfg?.provider ?? 'openai'}
             onChange={e => setCfgEditing(v => ({ ...v, provider: e.target.value }))}
@@ -187,6 +188,14 @@ export default function AIStudio({ client, readOnly = false }: Props) {
           >
             {providerOptions.map(p => (<MenuItem key={p} value={p}>{p}</MenuItem>))}
           </TextField>
+          <HelpTip title="Provider" content={
+            `Choose the LLM provider used by the agent and embeddings.\n\n`+
+            `openai: Calls OpenAI's /v1 APIs through the Core gateway (allowlisted).\n`+
+            `claude: Calls Anthropic 'Claude' /v1/messages with tool use. Configure x-api-key and base URL.\n`+
+            `local: Targets a local server (e.g., Ollama) for on-prem models. Use Connectors to apply allowlist.\n\n`+
+            `Security: All egress goes through the Core gateway with an explicit domain allowlist. `+
+            `Keys are stored in ConfigService (encrypted in production).`
+          } />
           {modelOptions.length > 0 ? (
             <TextField label="Model" size="small" sx={{ flex: 1 }} select
               value={cfgEditing.model ?? cfg?.model ?? ''}
@@ -202,14 +211,25 @@ export default function AIStudio({ client, readOnly = false }: Props) {
               disabled={busy || readOnly}
             />
           )}
+          <HelpTip title="Model" content={
+            `The chat/completions model identifier. When Provider is selected, `+
+            `the Model list auto-loads from the provider via /admin/ai/models.\n\n`+
+            `Tips:\n- OpenAI: e.g., gpt-4o-mini, gpt-4.1-mini\n- Claude: e.g., claude-3.5-sonnet-20240620, claude-3-haiku-20240307\n- Local (Ollama): e.g., llama3.1:8b, mistral:7b\n\n`+
+            `Compliance: Choose models with appropriate data handling and retention policies for PHI/PII.`
+          } />
           <TextField label="Base URL" size="small" sx={{ flex: 1 }}
             placeholder="https://api.openai.com"
             value={cfgEditing.base_url ?? cfg?.base_url ?? ''}
             onChange={e => setCfgEditing(v => ({ ...v, base_url: e.target.value }))}
             disabled={busy || readOnly}
           />
+          <HelpTip title="Base URL" content={
+            `HTTP base URL for the provider's API. Examples:\n`+
+            `- OpenAI: https://api.openai.com\n- Claude: https://api.anthropic.com\n- Local (Ollama): http://localhost:11434\n\n`+
+            `Security: The Core gateway allowlists domains and methods; requests outside allowlist are blocked.`
+          } />
         </Stack>
-        <Stack spacing={1} direction={{ xs: 'column', sm: 'row' }} sx={{ mb: 1 }}>
+        <Stack spacing={1} direction={{ xs: 'column', sm: 'row' }} sx={{ mb: 1, alignItems: 'center' }}>
           {embedOptions.length > 0 ? (
             <TextField label="Embeddings Model" size="small" sx={{ flex: 1 }} select
               value={cfgEditing.embeddings_model ?? embedModel}
@@ -225,6 +245,12 @@ export default function AIStudio({ client, readOnly = false }: Props) {
               disabled={busy || readOnly}
             />
           )}
+          <HelpTip title="Embeddings Model" content={
+            `Used for semantic retrieval (RAG). Default: text-embedding-3-small. `+
+            `Larger models (e.g., text-embedding-3-large) produce higher-quality vectors but cost more.\n\n`+
+            `RAG stores vectors in Redis or delegates to a plugin. Only metadata and short previews are stored; `+
+            `TBAC filters results by user traits.`
+          } />
         </Stack>
         <Stack spacing={1} direction={{ xs: 'column', sm: 'row' }} alignItems={{ xs: 'stretch', sm: 'center' }}>
           <TextField fullWidth type="password" label="OpenAI API Key" placeholder="sk-..."
@@ -237,7 +263,7 @@ export default function AIStudio({ client, readOnly = false }: Props) {
         </Stack>
       </Paper>
 
-      {/* Ingestion Rules */}
+      {/* Ingestion Rules + RAG Settings */}
       <Paper sx={{ p: 2, borderRadius: 2, mb: 2 }}>
         <Typography variant="h6" gutterBottom>Ingestion Rules (Traits & Classification)</Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
@@ -249,6 +275,22 @@ export default function AIStudio({ client, readOnly = false }: Props) {
             multiline minRows={6} fullWidth size="small" />
           <TextField label="classification (JSON)" value={rulesClass} onChange={e => setRulesClass(e.target.value)}
             multiline minRows={6} fullWidth size="small" />
+        </Stack>
+        <Typography variant="subtitle1" sx={{ mt: 2 }}>RAG Settings</Typography>
+        <Stack spacing={1} direction={{ xs: 'column', sm: 'row' }} sx={{ mt: 1 }}>
+          <TextField label="Chunk Size (chars)" type="number" size="small" sx={{ flex: 1 }} value={String(chunkChars)} onChange={(e)=>setChunkChars(parseInt(e.target.value||'0')||0)} />
+          <TextField label="Overlap (chars)" type="number" size="small" sx={{ flex: 1 }} value={String(overlapChars)} onChange={(e)=>setOverlapChars(parseInt(e.target.value||'0')||0)} />
+          <TextField label="Backend" size="small" sx={{ flex: 1 }} select value={ragBackend} onChange={(e)=>setRagBackend((e.target.value as 'redis'|'plugin'))}>
+            <MenuItem value="redis">Redis (default)</MenuItem>
+            <MenuItem value="plugin">Plugin (operator lane)</MenuItem>
+          </TextField>
+          <TextField label="Plugin ID (when backend=plugin)" size="small" sx={{ flex: 1 }} placeholder="my-rag-db" value={ragPluginId} onChange={(e)=>setRagPluginId(e.target.value)} />
+        </Stack>
+        <Stack spacing={1} direction={{ xs: 'column', sm: 'row' }} sx={{ mt: 1, alignItems: 'center' }}>
+          <HelpTip title="RAG Settings" content={
+            `Chunk size controls the maximum characters per chunk; overlap adds context continuity between chunks.\n\n`+
+            `Backend:\n- Redis: Default, persistent key/value storage. Vectors stored per chunk, queries ranked by cosine similarity.\n- Plugin: Delegate storage and search to your own RAG/DB plugin via the operator lane. Set the Plugin ID (registered with Core) and implement endpoints rag_index and rag_query as documented.`
+          } />
         </Stack>
         <Stack spacing={1} direction={{ xs: 'column', sm: 'row' }} sx={{ mt: 1 }}>
           <Button variant="outlined" onClick={saveRules} disabled={busy || readOnly} sx={{ borderRadius: 2 }}>Save Rules</Button>

@@ -55,6 +55,12 @@ class RAGService:
         self._tokens: Dict[str, set] = {}
         self._vectors: Dict[str, List[float]] = {}
         self._last_trained: Optional[float] = None
+        # Chunking params (can be overridden by ConfigService at train time)
+        self._chunk_chars: int = int(os.getenv("RAG_CHUNK_CHARS", "4000") or 4000)
+        self._overlap_chars: int = int(os.getenv("RAG_OVERLAP_CHARS", "400") or 400)
+        # Optional plugin-backed storage (operator lane)
+        self._backend: str = os.getenv("RAG_BACKEND", "redis").lower()
+        self._backend_plugin_id: Optional[str] = os.getenv("RAG_PLUGIN_ID")
 
     async def _ensure_redis(self):
         if not self._redis_url:
@@ -124,13 +130,33 @@ class RAGService:
         except Exception:
             pass
         ignore_patterns = self._load_ignore_patterns(root_base)
-        # Load ingestion rules (required traits/classification) from ConfigService
+        # Load ingestion rules (required traits/classification) and backend settings from ConfigService
         trait_rules: Dict[str, List[str]] = {}
         class_rules: Dict[str, List[str]] = {}
         try:
             from core.config.service import get_config_service  # type: ignore
 
             cfg = get_config_service()
+            # Optional: override backend and plugin id
+            try:
+                be = await cfg.get("ai.rag.backend")
+                if isinstance(be, str):
+                    self._backend = be.lower()
+                pid = await cfg.get("ai.rag.plugin_id")
+                if isinstance(pid, str) and pid:
+                    self._backend_plugin_id = pid
+            except Exception:
+                pass
+            # Optional: override chunk sizes
+            try:
+                ch = await cfg.get("ai.rag.chunk_chars")
+                if isinstance(ch, int) and ch > 0:
+                    self._chunk_chars = ch
+                ov = await cfg.get("ai.rag.overlap_chars")
+                if isinstance(ov, int) and ov >= 0:
+                    self._overlap_chars = ov
+            except Exception:
+                pass
             maybe_traits = await cfg.get("ai.rag.required_traits")
             if isinstance(maybe_traits, dict):
                 trait_rules = {
@@ -196,7 +222,22 @@ class RAGService:
                             toks = set(_tokenize(chunk))
                             # Compute embedding (best-effort)
                             vec = await self._embed_text(chunk)
-                            if rd:
+                            # Plugin backend: forward to operator lane when configured
+                            if self._backend == "plugin" and self._backend_plugin_id:
+                                try:
+                                    await self._plugin_index(
+                                        plugin_id=self._backend_plugin_id,
+                                        did=did,
+                                        title=f"{title}#chunk{idx}",
+                                        path=path,
+                                        chunk=chunk,
+                                        required_traits=required_traits,
+                                        classification=classification,
+                                        vector=vec,
+                                    )
+                                except Exception:
+                                    logger.debug("plugin index failed", exc_info=True)
+                            elif rd:
                                 try:
                                     pipe = rd.pipeline()
                                     pipe.sadd("ai:rag:docs", did)
@@ -315,8 +356,8 @@ class RAGService:
 
         Uses character windows to avoid tokenization dependency.
         """
-        max_chars = int(os.getenv("RAG_CHUNK_CHARS", "4000"))
-        overlap = int(os.getenv("RAG_OVERLAP_CHARS", "400"))
+        max_chars = int(self._chunk_chars or 4000)
+        overlap = int(self._overlap_chars or 400)
         if max_chars <= 0:
             return [text]
         chunks: List[str] = []
@@ -418,6 +459,41 @@ class RAGService:
             logger.debug("direct embedding failed", exc_info=True)
         return None
 
+    async def _plugin_index(
+        self,
+        *,
+        plugin_id: str,
+        did: str,
+        title: str,
+        path: str,
+        chunk: str,
+        required_traits: List[str],
+        classification: List[str],
+        vector: Optional[List[float]] = None,
+    ) -> None:
+        try:
+            import httpx  # type: ignore
+
+            core_base = os.getenv("PUBLIC_API_URL", "http://localhost:8000").rstrip("/")
+            body = {
+                "caller_plugin": "ai-core",
+                "payload": {
+                    "id": did,
+                    "title": title,
+                    "path": path,
+                    "content": chunk,
+                    "required_traits": required_traits,
+                    "classification": classification,
+                    "vector": vector,
+                },
+                "timeout": 20,
+            }
+            await httpx.AsyncClient(timeout=20).post(
+                f"{core_base}/gateway/{plugin_id}/rag_index", json=body
+            )
+        except Exception:
+            raise
+
     async def query(
         self,
         question: str,
@@ -428,6 +504,43 @@ class RAGService:
         rd = await self._ensure_redis()
         scores: Dict[str, float] = {}
         trait_set = set(user_traits or [])
+        # Plugin backend delegation
+        if self._backend == "plugin" and self._backend_plugin_id:
+            try:
+                import httpx  # type: ignore
+
+                core_base = os.getenv("PUBLIC_API_URL", "http://localhost:8000").rstrip(
+                    "/"
+                )
+                body = {
+                    "caller_plugin": "ai-core",
+                    "payload": {
+                        "q": question,
+                        "top_k": top_k,
+                        "user_traits": list(trait_set),
+                    },
+                    "timeout": 30,
+                }
+                resp = await httpx.AsyncClient(timeout=30).post(
+                    f"{core_base}/gateway/{self._backend_plugin_id}/rag_query",
+                    json=body,
+                )
+                if resp.status_code < 300:
+                    data = resp.json() or {}
+                    items = data.get("items") or data.get("results") or []
+                    out: List[Dict[str, str]] = []
+                    for it in items:
+                        if not isinstance(it, dict):
+                            continue
+                        title = str(it.get("title") or "")
+                        path = str(it.get("path") or title)
+                        did = str(
+                            it.get("id") or hashlib.sha1(title.encode()).hexdigest()[:8]
+                        )
+                        out.append({"id": did, "title": title, "path": path})
+                    return out[:top_k]
+            except Exception:
+                logger.debug("plugin query failed", exc_info=True)
         # Try semantic (vector) search first if we have vectors
         q_vec = await self._embed_text(question)
         used_vector = q_vec is not None
