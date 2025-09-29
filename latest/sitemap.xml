@@ -209,6 +209,10 @@
          <lastmod>2025-09-29</lastmod>
     </url>
     <url>
+         <loc>https://docs.vivified.dev/latest/pilots/llm-pilot/</loc>
+         <lastmod>2025-09-29</lastmod>
+    </url>
+    <url>
          <loc>https://docs.vivified.dev/latest/plugins/development/</loc>
          <lastmod>2025-09-29</lastmod>
     </url>
@@ -234,6 +238,10 @@
     </url>
     <url>
          <loc>https://docs.vivified.dev/latest/plugins/sdk/</loc>
+         <lastmod>2025-09-29</lastmod>
+    </url>
+    <url>
+         <loc>https://docs.vivified.dev/latest/policy/operator-allowlist/</loc>
          <lastmod>2025-09-29</lastmod>
     </url>
     <url>
