@@ -136,6 +136,7 @@ nav:
   - Monitoring: admin-console/monitoring.md
 - Plugins:
   - Overview: plugins/overview.md
+  - Plugin System: plugins/plugin-system.md
   - Development Guide: plugins/development.md
   - SDK Reference: plugins/sdk.md
   - Examples: plugins/examples.md

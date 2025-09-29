@@ -1,36 +1,55 @@
-# Vivified Platform — Phase 1 Scaffold
+# Vivified Platform
 
-This repository contains the Phase 1 scaffold for the Vivified platform: a minimal core service, plugin interface contracts, an example plugin, and Docker Compose wiring.
+HIPAA-conscious, plugin-first platform with an Admin Console–first mandate and a Zero Trust, three-lane communication model. Everything is trait‑aware and fully operable from the Admin Console.
 
-Quick start
+Key ideas
+- Three Lanes: Canonical (events), Operator (RPC), Proxy (egress). All traffic passes through Core for policy, audit, redaction, and rate limits.
+- Admin Console First: No CLI‑only features. Trait‑gated surfaces; in DEV_MODE a one‑click dev login is available.
+- Security: Default‑deny policy; strict allowlists for RPC operations and egress domains/paths; audit everything.
 
-- Prereqs: Docker, Docker Compose
-- Start stack: `make up`
-- Stop stack: `make down`
+Defaults
+- Database: Postgres by default for non‑test runs (`postgresql+asyncpg://…`). Tests remain on in‑memory SQLite unless `TEST_DB_URL` overrides.
+- RAG (AI): Redis by default (`redis://localhost:6379/0`) with graceful fallback to in‑memory.
 
-Services
+Quick start (Docker Compose)
+```bash
+docker-compose up -d
+curl -s http://localhost:8080/health | jq
+```
 
-- Core: FastAPI app exposing `/health` and plugin registration endpoints
-- Example Plugin: `user_management` service, registers itself with core on startup
+Dev environment (Python 3.11)
+```bash
+python3.11 -m venv .venv && . .venv/bin/activate
+pip install -r core/requirements.txt \
+  black==25.9.0 flake8==7.3.0 mypy==1.18.2 sqlalchemy==2.0.23 \
+  pytest pytest-cov pytest-asyncio
+
+export DATABASE_URL='postgresql+asyncpg://vivified:changeme@localhost:5432/vivified'
+export REDIS_URL='redis://localhost:6379/0'
+
+black --check core/ || (echo 'Run: black core/' && exit 1)
+flake8 core/
+mypy --config-file mypy.ini core/
+PYTHONPATH=$PWD pytest -q
+```
 
 Docs
+- Live: https://docs.vivified.dev
+- Local preview: `make docs-serve` (or `mkdocs serve`)
+- Three-Lane overview: docs/core/three-lanes.md
 
-- Built with MkDocs + Material, versioned with mike
-- Working branch: `mkdocs` (auto-deploys to `gh-pages`)
-- Build locally: `make docs`; serve: `make docs-serve`
+Admin Console (DEV)
+- Served by Core; open `/admin/ui` from the Core host.
+- In `DEV_MODE=true`, a visible “Sign in (Dev)” uses the bootstrap credential automatically.
 
-Commands
+Security & Compliance
+- PHI/PII tagging and redaction built‑in; encryption at rest via StorageService.
+- Operator SSRF guard; Proxy blocks IP literals/localhost and non‑allowlisted domains.
+- Full audit trails with 7‑year retention target.
 
-- `make build` — Build Docker images
-- `make up` — Bring up services
-- `make down` — Tear down services
-- `make test` — Run unit tests
-- `make lint` — Run linters
-- `make proto` — Compile protobufs
-- `make docs` — Build docs site locally
+Contribution
+- Branch strategy: `develop` as integration branch, feature branches `feature/VIVI-XXX-*`.
+- All PRs must pass lint/type/test locally (see AGENTS.md preflight) before pushing.
 
-Notes
-
-- Containers run as non-root users
-- Registration endpoint is open for Phase 1 (no auth yet)
-- JWT secret and DB password are provided via environment variables
+License
+- See repository LICENSE if present.

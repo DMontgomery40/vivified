@@ -41,10 +41,7 @@ async def _migrate_env_to_config():
     """
     try:
         # Allow disabling migration in production or CI
-        if (
-            os.getenv("CONFIG_ENV_MIGRATE", "true").lower()
-            not in {"1", "true", "yes"}
-        ):
+        if os.getenv("CONFIG_ENV_MIGRATE", "true").lower() not in {"1", "true", "yes"}:
             return
         cfg = get_config_service()
         # Provider
