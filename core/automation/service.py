@@ -12,7 +12,7 @@ Audience/conditions can be extended later; this provides GUI-friendly flows with
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from core.audit.service import AuditService, AuditLevel
 from core.policy.engine import PolicyEngine
