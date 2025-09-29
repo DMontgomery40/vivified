@@ -1980,8 +1980,12 @@ async def get_settings(_: Dict = Depends(require_auth(["admin", "viewer"]))):
         },
         "storage": {"backend": "memory", "s3_bucket": "", "s3_kms_enabled": False},
         "database": {
-            "url": os.getenv("DATABASE_URL", "sqlite+aiosqlite:///:memory:"),
-            "persistent": False,
+            # Prefer Postgres by default; override via DATABASE_URL
+            "url": os.getenv(
+                "DATABASE_URL",
+                "postgresql+asyncpg://vivified:changeme@localhost:5432/vivified",
+            ),
+            "persistent": True,
         },
         "inbound": {"enabled": inbound_enabled, "retention_days": 30},
         "features": {

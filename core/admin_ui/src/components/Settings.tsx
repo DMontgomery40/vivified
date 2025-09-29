@@ -1137,8 +1137,8 @@ function Settings({ client, readOnly = false }: SettingsProps) {
                   <ResponsiveSettingItem
                     icon={getStatusIcon(!!settings.database?.url)}
                     label="Database URL"
-                    value={settings.database?.url || 'sqlite:///./vivified.db'}
-                    helperText="SQLite in /faxdata persists across rebuilds. For production scale, use Postgres."
+                    value={settings.database?.url || 'postgresql+asyncpg://vivified:changeme@localhost:5432/vivified'}
+                    helperText="Default is PostgreSQL via asyncpg. Avoid SQLite for PHI/PII."
                     showCurrentValue={true}
                   />
                   <Box sx={{ 
@@ -1154,10 +1154,10 @@ function Settings({ client, readOnly = false }: SettingsProps) {
                         try{ 
                           setLoading(true); 
                           setError(null); 
-                          await client.updateSettings({ database_url: 'sqlite:////data/vivified.db' }); 
+                          await client.updateSettings({ database_url: 'postgresql+asyncpg://vivified:changeme@localhost:5432/vivified' }); 
                           await client.reloadSettings(); 
                           await fetchSettings(); 
-                          setSnack('Switched DB to /data/vivified.db'); 
+                          setSnack('Switched DB to Postgres on localhost:5432'); 
                         } catch(e:any){ 
                           setError(e?.message||'Failed to switch DB'); 
                         } finally{ 
@@ -1167,7 +1167,7 @@ function Settings({ client, readOnly = false }: SettingsProps) {
                       sx={{ borderRadius: 2 }}
                       fullWidth={isSmall}
                     >
-                      Use persistent
+                      Use PostgreSQL (local)
                     </Button>
                     <Button 
                       variant="outlined"
