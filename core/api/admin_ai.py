@@ -46,8 +46,8 @@ async def ai_train(payload: Dict[str, Any], _: Dict = Depends(require_auth(["adm
         _RAG = RAGService(os.getenv("REDIS_URL"))
     sources = payload.get("sources") or []
     if not isinstance(sources, list) or not sources:
-        # Default to local docs, internal plans, and codebase
-        sources = ["docs", "internal-plans", "core", "plugins", "sdk", "tools", "tests"]
+        # Default to repository root: index everything not ignored
+        sources = ["."]
     try:
         count = await _RAG.train([str(s) for s in sources])  # type: ignore[union-attr]
         st = await _RAG.status()  # type: ignore[union-attr]

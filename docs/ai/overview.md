@@ -38,7 +38,7 @@ If Redis is unavailable, an in-memory index is used.
 
 ## Auto-train
 
-Set `AI_AUTO_TRAIN=true` in the environment to index `docs/`, `internal-plans/`, and the codebase directories (`core/`, `plugins/`, `sdk/`, `tools/`, `tests/`) at startup.
+Set `AI_AUTO_TRAIN=true` in the environment to index the entire repository (`.`) at startup. Indexing respects `.ragignore` (first) and `.gitignore` (second).
 
 ## TBAC (Trait-Based Access Control)
 
