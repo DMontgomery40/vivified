@@ -225,6 +225,11 @@ export class AdminAPIClient {
     return res.json();
   }
 
+  async autoGenerateOperatorAllowlist(payload: { caller: string; target: string; merge?: boolean }): Promise<{ ok: boolean; caller: string; target: string; operations: string[] }>{
+    const res = await this.fetch('/admin/operator/allowlist/auto-generate', { method: 'POST', body: JSON.stringify(payload || {}) });
+    return res.json();
+  }
+
   // Canonical transformations
   async getCanonicalTransforms(source: string, target: string): Promise<{ source: string; target: string; mappings: Record<string, any> }>{
     const res = await this.fetch(`/admin/canonical/transforms?source=${encodeURIComponent(source)}&target=${encodeURIComponent(target)}`);

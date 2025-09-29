@@ -2,6 +2,21 @@
 
 # **ALL PYTHON CODE MUST BE BACK CONFORMANT - your code will not pass CI unless it is**
 
+## Workspace Branch Safety — READ FIRST (Multi‑Agent)
+
+Multiple agents (and humans) share this workspace. Do not switch branches in the workspace. Ever.
+
+- Never run `git checkout <branch>` or change HEAD waiin this repo.
+- When you need to work on a different branch, use a dedicated worktree path for that branch and operate there via its full filesystem path.
+  - Example (docs): use the mkdocs worktree at `/private/tmp/vivified-mkdocs-check` (HEAD=mkdocs) instead of switching this repo to `mkdocs`.
+- Always reference the full path of the correct worktree in commands and scripts (do not assume the current directory’s branch).
+- If a required worktree does not exist, do not create or switch branches on your own—ask the maintainer to create the proper worktree.
+
+Hard rules (enforced expectations):
+- No branch switching inside this workspace.
+- No global `git add -A` at the workspace root; scope your staging to the intended paths only.
+- Prefer read/patch by absolute or project‑relative paths, not by moving HEAD.
+
 ## Documentation Workflow — CRITICAL FOR AGENTS
 
 **NEVER change branches when updating documentation. Use full paths with branch names.**
@@ -33,6 +48,19 @@ git push origin mkdocs
 mike deploy latest -u -p
 ```
 
+Docs Safe Mode (must follow exactly):
+
+- Verify you are in the mkdocs worktree and HEAD is `mkdocs`:
+  - `git rev-parse --abbrev-ref HEAD` must output `mkdocs`. If not, STOP and ask for help.
+- Scope staging to docs only:
+  - `git add docs/ mkdocs.yml` (never use `git add -A` here)
+- Ignore local artifacts:
+  - Ensure `.venv-docs/` and `site/` are not tracked (use local exclude or remove from index if necessary)
+- Build check before deploy:
+  - `mkdocs build --strict` must pass with zero errors/warnings before running `mike deploy`
+- Deploy only from the mkdocs worktree:
+  - `mike deploy latest -u -p`
+
 ### Common Documentation Issues & Fixes
 
 **Grid Cards Not Rendering:**
@@ -62,9 +90,13 @@ mike deploy latest -u -p
 ### NEVER DO THIS
 
 - ❌ Change to mkdocs branch in main repo
+- ❌ Switch branches in the shared workspace for any reason (use worktrees)
 - ❌ Edit docs in claude-test or other branches  
 - ❌ Commit HTML files to source branches
 - ❌ Skip the worktree - always use `/private/tmp/vivified-mkdocs-check/`
+
+If you accidentally staged the wrong files in the mkdocs worktree:
+- Roll back locally (e.g., `git restore --staged <file>`), keep scope to `docs/` and `mkdocs.yml`, then proceed.
 
 ## Local CI Parity — Commit Gate (Read This First)
 

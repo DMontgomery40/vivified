@@ -107,3 +107,58 @@ class SchemaRegistry:
 
     def list_versions(self, name: str) -> List[Version]:
         return sorted(list(self._schemas.get(name, {}).keys()))
+
+    async def hydrate_from_config(self) -> int:
+        """Load schemas and active pointers from ConfigService if available.
+
+        Returns number of schema versions loaded. Safe to call multiple times.
+        """
+        if get_config_service is None:
+            return 0
+        try:
+            svc = get_config_service()
+            all_items = await svc.get_all(reveal=True)
+        except Exception:  # pragma: no cover - config not available
+            return 0
+
+        loaded = 0
+        # Load versions
+        for key, value in all_items.items():
+            # canonical.schemas.<name>.versions
+            if not key.startswith("canonical.schemas."):
+                continue
+            parts = key.split(".")
+            if len(parts) == 4 and parts[-1] == "versions":
+                name = parts[2]
+                try:
+                    if isinstance(value, dict):
+                        for ver_str, sch in value.items():
+                            try:
+                                vx = tuple(int(p) for p in str(ver_str).split("."))
+                                if len(vx) != 3:
+                                    continue
+                                self.upsert(name, (vx[0], vx[1], vx[2]), sch or {})
+                                loaded += 1
+                            except Exception:
+                                continue
+                except Exception:
+                    continue
+
+        # Load active pointers
+        for key, value in all_items.items():
+            # canonical.schemas.<name>.active.<major>
+            if not key.startswith("canonical.schemas."):
+                continue
+            parts = key.split(".")
+            if len(parts) == 5 and parts[3] == "active":
+                name = parts[2]
+                try:
+                    major = int(parts[4])
+                    ver_str = str(value or "")
+                    vx = tuple(int(p) for p in ver_str.split("."))
+                    if len(vx) == 3 and self._schemas.get(name, {}).get(vx):
+                        self.activate(name, (vx[0], vx[1], vx[2]))
+                except Exception:
+                    continue
+
+        return loaded
