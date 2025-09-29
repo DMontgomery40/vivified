@@ -33,8 +33,8 @@ test:
 # Bootstrap local CI toolchain to match GitHub Actions
 .PHONY: ci-bootstrap ci-local
 ci-bootstrap:
-	python3 -m pip install -q -r core/requirements.txt \
-	  -c constraints.txt black flake8 mypy sqlalchemy pytest pytest-cov pytest-asyncio build
+	python3 -m pip install -q -r core/requirements.txt -c constraints.txt \
+	  black flake8 mypy sqlalchemy pytest pytest-cov pytest-asyncio build
 
 # Run the same checks as CI locally (fails on errors)
 ci-local:
