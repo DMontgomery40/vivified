@@ -34,3 +34,9 @@ Notes
 - Containers run as non-root users
 - Registration endpoint is open for Phase 1 (no auth yet)
 - JWT secret and DB password are provided via environment variables
+# Test Docs Automation Pipeline
+
+This change tests the full docs automation pipeline:
+development → docs-automation.yml → AI generation → PR to mkdocs → mkdocs-deploy.yml → gh-pages
+
+Timestamp: Sun Sep 28 19:29:35 MDT 2025
