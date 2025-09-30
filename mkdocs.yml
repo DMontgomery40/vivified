@@ -9,6 +9,8 @@ theme:
   custom_dir: docs/overrides
   language: en
   favicon: images/favicon.png
+  logo: images/vivified_logo_light_stencil.png
+  logo_dark: images/vivified_logo_dark_mode.png
   palette:
   - scheme: default
     primary: indigo
