@@ -66,37 +66,37 @@ plugins:
 - macros
 markdown_extensions:
   - admonition
-- pymdownx.details
-- pymdownx.superfences
-- pymdownx.tabbed
-- pymdownx.keys
-- pymdownx.snippets
-- pymdownx.progressbar
-- attr_list
-- md_in_html
-- def_list
-- footnotes
-- tables
-- pymdownx.arithmatex
-- pymdownx.betterem
-- pymdownx.caret
-- pymdownx.mark
-- pymdownx.tilde
-- pymdownx.smartsymbols
-- pymdownx.superfences:
-    custom_fences:
-    - name: mermaid
-      class: mermaid
-      format: '!!python/name:pymdownx.superfences.fence_code_format'
-- pymdownx.tabbed:
-    alternate_style: true
-- pymdownx.tasklist:
-    custom_checkbox: true
-- pymdownx.highlight:
-    anchor_linenums: true
-    line_spans: __span
-    pygments_lang_class: true
-- pymdownx.inlinehilite
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.tabbed
+  - pymdownx.keys
+  - pymdownx.snippets
+  - pymdownx.progressbar
+  - attr_list
+  - md_in_html
+  - def_list
+  - footnotes
+  - tables
+  - pymdownx.arithmatex
+  - pymdownx.betterem
+  - pymdownx.caret
+  - pymdownx.mark
+  - pymdownx.tilde
+  - pymdownx.smartsymbols
+  - pymdownx.superfences:
+      custom_fences:
+      - name: mermaid
+        class: mermaid
+        format: '!!python/name:pymdownx.superfences.fence_code_format'
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
 extra:
   version:
     provider: mike
