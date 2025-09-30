@@ -2,6 +2,8 @@
 Messaging service for inter-plugin communication with HIPAA compliance.
 """
 
+from __future__ import annotations
+
 import logging
 from typing import Dict, List, Optional, Any, Callable
 from datetime import datetime
@@ -17,10 +19,14 @@ logger = logging.getLogger(__name__)
 class MessagingService:
     """Main messaging service for inter-plugin communication."""
 
-    def __init__(self, audit_service: AuditService, policy_engine: PolicyEngine):
+    def __init__(self, audit_service: AuditService, policy_engine: PolicyEngine, registry: Optional[Any] = None):
         self.audit_service = audit_service
         self.policy_engine = policy_engine
-        self.event_bus = EventBus(audit_service, policy_engine)
+        # EventBus will auto-select broker via env (EVENT_BUS_BACKEND=nats|redis|memory)
+        from .dispatch import PluginDispatcher
+
+        dispatcher = PluginDispatcher(registry) if registry is not None else None
+        self.event_bus = EventBus(audit_service, policy_engine, dispatcher=dispatcher)
         self.message_store: Dict[str, Message] = {}
         self.event_store: Dict[str, Event] = {}
         self._running = False
@@ -48,8 +54,8 @@ class MessagingService:
         event_type: str,
         payload: Dict[str, Any],
         source_plugin: str,
-        data_traits: List[str] | None = None,
-        metadata: Dict[str, str] | None = None,
+        data_traits: Optional[List[str]] = None,
+        metadata: Optional[Dict[str, str]] = None,
     ) -> str:
         """Publish an event to the event bus."""
         event = Event(

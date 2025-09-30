@@ -2,9 +2,11 @@ README.md
 pyproject.toml
 src/vivified_sdk/__init__.py
 src/vivified_sdk/client.py
+src/vivified_sdk/plugin.py
 src/vivified_sdk.egg-info/PKG-INFO
 src/vivified_sdk.egg-info/SOURCES.txt
 src/vivified_sdk.egg-info/dependency_links.txt
 src/vivified_sdk.egg-info/requires.txt
 src/vivified_sdk.egg-info/top_level.txt
 tests/test_client.py
+tests/test_plugin_sdk.py

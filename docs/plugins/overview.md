@@ -1,17 +1,16 @@
 # Plugins Overview
 
-Plugins are isolated services that implement features and integrations. In Phase 1, we ship a minimal `user_management` plugin to exercise the interface.
+Plugins extend Vivified via canonical events, operator RPC, and proxied egress. This section catalogs available plugins and how to build your own.
 
-User Management plugin
+## Setup Wizard (Admin Console)
 
-- Registers itself with core on startup
-- Exposes `/health` and a placeholder `/api/users/{user_id}` endpoint
+Use Admin → Plugins → Plugin Setup Wizard:
+- Toggle “Use AI Assistance” to have the embedded model draft your manifest.
+- Choose a plugin type (LLM OSS, RAG DB Backend, Notifier, Storage, Other).
+- Fill HIPAA and traits; the wizard pre-populates common traits.
+- Click “Validate” to get schema validation and policy suggestions.
+- “Apply Suggested Policies” writes Gateway allowlist and Operator allowlist (e.g., ai-core → rag_index/rag_query).
+- “Register Plugin” sends your manifest to Core and issues a plugin token.
+- “Download Scaffold” gives you a zip (manifest + server skeleton) to start implementing.
 
-Manifest fields (subset)
-
-- `id`, `name`, `version` — Basic identity
-- `contracts` — Capabilities implemented (e.g., `IdentityPlugin`)
-- `traits` — Security and behavior hints (e.g., `handles_pii`)
-- `security` and `compliance` — HIPAA-related metadata
-
-See `plugins/user_management/main.py` for a concrete example.
+For local/on‑prem LLMs, see LLM OSS (Local). For custom vector/RAG storage, see RAG DB Plugin.

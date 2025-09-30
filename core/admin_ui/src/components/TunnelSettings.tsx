@@ -6,6 +6,7 @@ import type { TunnelStatus } from '../api/types';
 import { useTraits } from '../hooks/useTraits';
 import { ResponsiveFormSection, ResponsiveSelect, ResponsiveTextField, ResponsiveFileUpload } from './common/ResponsiveFormFields';
 import { SmoothLoader, InlineLoader } from './common/SmoothLoader';
+import HelpTip from './common/HelpTip';
 
 type Props = { client: AdminAPIClient; docsBase?: string; hipaaMode?: boolean; inboundBackend?: string; sinchConfigured?: boolean; readOnly?: boolean };
 

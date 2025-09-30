@@ -22,6 +22,7 @@ import { Chip } from '@mui/material';
 import AdminAPIClient from '../api/client';
 import { useTraits } from '../hooks/useTraits';
 import SecretInput from './common/SecretInput';
+import HelpTip from './common/HelpTip';
 
 interface SetupWizardProps {
   client: AdminAPIClient;
@@ -327,29 +328,12 @@ function SetupWizard({ client, onDone, docsBase, onNavigate }: SetupWizardProps)
       case 0:
         return (
           <Box>
-            <Typography variant="h6" gutterBottom>Choose Outbound and Inbound Providers</Typography>
+            <Typography variant="h6" gutterBottom>Setup Essentials</Typography>
             
-            <FormControl fullWidth sx={{ mt: 2 }}>
-              <InputLabel>Outbound Provider</InputLabel>
-              <Select value={config.outbound_backend || config.backend} onChange={(e)=> handleConfigChange('outbound_backend', e.target.value)} label="Outbound Provider">
-                <MenuItem value="phaxio">Phaxio (Cloud - Recommended)</MenuItem>
-                <MenuItem value="sinch">Sinch Fax API v3 (Cloud)</MenuItem>
-                <MenuItem value="signalwire">SignalWire (Compatibility API)</MenuItem>
-                <MenuItem value="documo">Documo (mFax)</MenuItem>
-                <MenuItem value="sip">SIP/Asterisk (Self-hosted)</MenuItem>
-                <MenuItem value="freeswitch">FreeSWITCH (Self-hosted)</MenuItem>
-              </Select>
-            </FormControl>
-
-            <FormControl fullWidth sx={{ mt: 2 }}>
-              <InputLabel>Inbound Provider</InputLabel>
-              <Select value={config.inbound_backend ?? ''} onChange={(e)=> handleConfigChange('inbound_backend', e.target.value)} label="Inbound Provider">
-                <MenuItem value="">Same as outbound (recommended)</MenuItem>
-                <MenuItem value="phaxio">Phaxio (Webhook)</MenuItem>
-                <MenuItem value="sinch">Sinch (Webhook)</MenuItem>
-                <MenuItem value="sip">SIP/Asterisk (Internal)</MenuItem>
-              </Select>
-            </FormControl>
+            {/* Legacy fax provider selection removed. Direct users to Tools → Notifications and Settings for security and connections. */}
+            <Alert severity="info" sx={{ mt: 2 }}>
+              Fax transport provider selection has moved out of the Setup wizard. Use Settings for security, and Tools → Notifications for outbound alerts.
+            </Alert>
             
             {(() => { const m = (traitValue('outbound','auth.methods') || []) as string[]; return Array.isArray(m) && m.includes('basic') && !m.includes('oauth2'); })() && (
               <Alert severity="success" sx={{ mt: 2 }}>
@@ -870,6 +854,10 @@ function SetupWizard({ client, onDone, docsBase, onNavigate }: SetupWizardProps)
 
   return (
     <Box>
+      <Box display="flex" alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
+        <Typography variant="h6">Setup Wizard</Typography>
+        <HelpTip topic="setup" />
+      </Box>
       <Paper sx={{ p: 2, mb: 2 }}>
         <Typography variant="h5" gutterBottom>Setup Wizard</Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>

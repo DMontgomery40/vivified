@@ -3,6 +3,31 @@ networks:
     driver: bridge
 
 services:
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    networks:
+      - vivified-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Optional: Redis Stack for native vector search (RediSearch)
+  redis-stack:
+    image: redis/redis-stack-server:7.2.0-v10
+    ports:
+      - "6380:6379"
+    networks:
+      - vivified-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
   postgres:
     image: postgres:15-alpine
     environment:
@@ -37,17 +62,21 @@ services:
     build: ./core
     environment:
       DATABASE_URL: postgresql+asyncpg://vivified:${DB_PASSWORD:-changeme}@postgres:5432/vivified
+      REDIS_URL: redis://redis:6379/0
       NATS_URL: nats://nats:4222
       JWT_SECRET: ${JWT_SECRET:-change-this-secret}
       # When UI is served from the same origin (/admin/ui), CORS is not needed.
       # Keep dev Vite origin allowed if using the dev server.
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:5173}
       DEV_MODE: "true"
+      AI_AGENT_TOOL_CALLING: "true"
       DB_INIT: "true"
       ADMIN_USERNAME: admin
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin-pass-change-me}
       LOG_LEVEL: INFO
-      USE_TLS: "true"
+      USE_TLS: "false"
+      PUBLIC_API_URL: http://vivified-core:8000
+      RAG_ROOT: /workspace
     ports:
       - "8000:8000"
       - "8443:8443"
@@ -56,10 +85,13 @@ services:
         condition: service_healthy
       nats:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     networks:
       - vivified-net
     volumes:
       - ./tls:/certs:ro
+      - .:/workspace:ro
     healthcheck:
       test: ["CMD", "curl", "-fk", "https://localhost:8443/health"]
       interval: 30s

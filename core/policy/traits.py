@@ -204,6 +204,14 @@ class TraitRegistry:
                 requires=["admin"],
             ),
             Trait(
+                name="ui.automations",
+                description="Access to automations (rules & flows)",
+                category=TraitCategory.UI_FEATURE,
+                ui_label="Automations",
+                ui_icon="bolt",
+                requires=["user_manager"],
+            ),
+            Trait(
                 name="ui.notifications",
                 description="Access to notifications surfaces",
                 category=TraitCategory.UI_FEATURE,
@@ -306,6 +314,14 @@ class TraitRegistry:
                 ui_label="Policy Inspector",
                 ui_icon="policy",
                 requires=["admin"],
+            ),
+            Trait(
+                name="ui.plugin_dev_guide",
+                description="Access to Plugin Development Guide",
+                category=TraitCategory.UI_FEATURE,
+                ui_label="Plugin Dev Guide",
+                ui_icon="menu_book",
+                requires=["developer"],
             ),
             Trait(
                 name="ui.register",
@@ -575,6 +591,7 @@ class TraitRegistry:
             "ui.messaging": "ui.messaging",
             "ui.canonical": "ui.canonical",
             "ui.policy": "ui.policy",
+            "ui.plugin_dev_guide": "ui.plugin_dev_guide",
             "ui.register": "ui.register",
             "ui.storage": "ui.storage",
             "ui.send_demo": "ui.send_demo",

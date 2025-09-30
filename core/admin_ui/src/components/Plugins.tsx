@@ -36,6 +36,8 @@ import {
 import AdminAPIClient from '../api/client';
 import PluginConfigDialog from './PluginConfigDialog';
 import { ResponsiveFormSection, ResponsiveTextField } from './common/ResponsiveFormFields';
+import HelpTip from './common/HelpTip';
+import PluginSetupWizard from './PluginSetupWizard';
 
 type Props = { client: AdminAPIClient; readOnly?: boolean };
 
@@ -214,6 +216,8 @@ export default function Plugins({ client, readOnly = false }: Props) {
       </Typography>
 
       <Stack spacing={3}>
+        {/* Setup Wizard */}
+        <PluginSetupWizard client={client as any} readOnly={readOnly} />
         {pluginsEnabled === false && (
           <Alert severity="info" sx={{ borderRadius: 2 }}>
             v3 Plugins are disabled. Enable it under Settings → Feature Flags → "Enable v3 Plugin System" to manage plugins here.

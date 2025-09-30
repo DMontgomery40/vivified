@@ -23,6 +23,12 @@ from core.security.tls_config import create_tls_context
 from core.policy.traits import registry as trait_registry
 from core.identity.models import User, APIKey
 from sqlalchemy import select, update
+import io
+import zipfile
+import re
+import pathlib
+from urllib.parse import urlparse
+import ipaddress
 
 
 admin_router = APIRouter(prefix="/admin", tags=["admin"])
@@ -113,6 +119,490 @@ async def disable_plugin(
     return {"status": "disabled", "plugin_id": plugin_id}
 
 
+@admin_router.post("/plugins/scaffold")
+async def scaffold_plugin(
+    payload: Dict[str, Any],
+    _: Dict = Depends(require_auth(["admin", "plugin_manager"])),
+):
+    """Generate a minimal plugin scaffold as a ZIP archive.
+
+    Payload fields:
+      - id (str, required)
+      - name (str, optional)
+      - version (str, default 1.0.0)
+      - language (str: python|node, default python)
+      - traits (list[str], optional)
+      - capabilities (list[str], optional)
+    """
+    plugin_id = str(payload.get("id") or "").strip()
+    language = str(payload.get("language") or "python").lower()
+    name = str(payload.get("name") or plugin_id or "Plugin").strip() or "Plugin"
+    version = str(payload.get("version") or "1.0.0").strip() or "1.0.0"
+    traits = payload.get("traits") or []
+    capabilities = payload.get("capabilities") or []
+    template = str(payload.get("template") or "").lower().strip()
+
+    if not plugin_id or not re.match(r"^[a-z0-9\-_.]+$", plugin_id):
+        raise HTTPException(status_code=400, detail="Invalid plugin id")
+
+    # Build files
+    files: Dict[str, str] = {}
+    manifest = {
+        "id": plugin_id,
+        "name": name,
+        "version": version,
+        "description": f"Scaffolded plugin {name}",
+        "categories": ["outbound"],
+        "capabilities": capabilities or ["send"],
+        "traits": traits or ["communication_plugin"],
+        "endpoints": {"health": "/health"},
+        "security": {
+            "authentication_required": True,
+            "data_classification": ["internal"],
+        },
+        "compliance": {"hipaa_controls": [], "audit_level": "standard"},
+    }
+
+    if template == "llm-oss":
+        manifest["endpoints"] = {"health": "/health", "chat": "/chat", "embeddings": "/embeddings"}
+    if template in {"rag-db", "rag-db-pgvector"}:
+        manifest["endpoints"] = {"health": "/health", "rag_index": "/rag/index", "rag_query": "/rag/query"}
+
+    if language == "node":
+        main_path = f"{plugin_id}/index.js"
+        files[main_path] = (
+            "const { FaxPlugin } = require('@faxbot/plugin-dev');\n"
+            f"class {re.sub(r'[^A-Za-z0-9]', '', name) or 'My'}Plugin extends FaxPlugin {{\n"
+            "  constructor(deps){ super(deps); }\n"
+            "  async sendFax(toNumber, filePath){ return { jobId: 'test', status: 'QUEUED' }; }\n"
+            "}\n"
+            "module.exports = { Plugin: "
+            f"{re.sub(r'[^A-Za-z0-9]', '', name) or 'My'}Plugin, manifest: "
+            + __import__("json").dumps(manifest)
+            + " };\n"
+        )
+        files[f"{plugin_id}/package.json"] = (
+            '{\n  "name": "'
+            + plugin_id
+            + '",\n  "version": "'
+            + version
+            + '",\n  "main": "index.js"\n}\n'
+        )
+    else:  # python
+        main_path = f"{plugin_id}/main.py"
+        files[main_path] = (
+            "from vivified_sdk import VivifiedPlugin, rpc_endpoint\n\n"
+            f"class {re.sub(r'[^A-Za-z0-9]', '', name) or 'My'}Plugin(VivifiedPlugin):\n"
+            "    def __init__(self):\n        super().__init__('manifest.json')\n\n"
+            "    @rpc_endpoint('/health')\n    async def health(self):\n        return {'status': 'ok'}\n"
+        )
+        files[f"{plugin_id}/manifest.json"] = __import__("json").dumps(
+            manifest, indent=2
+        )
+        files[f"{plugin_id}/Dockerfile"] = (
+            'FROM python:3.11-slim\nWORKDIR /app\nCOPY . .\nCMD ["python", "-m", "'
+            + plugin_id
+            + '"]\n'
+        )
+
+        # Optional: template-specific server stub
+        if template in {"llm-oss", "rag-db", "rag-db-pgvector"}:
+            server = [
+                "from fastapi import FastAPI\n",
+                "from pydantic import BaseModel\n",
+                "app = FastAPI()\n\n",
+                "@app.get('/health')\nasync def health(): return {'ok': True}\n\n",
+            ]
+            if template == "llm-oss":
+                server += [
+                    "class Chat(BaseModel): messages: list; tools: list|None=None; model: str|None=None\n",
+                    "class Embeddings(BaseModel): input: str|list; model: str|None=None\n",
+                    "@app.post('/chat')\nasync def chat(req: Chat): return {'text':'hello from llm-oss','tool_calls':[]}\n",
+                    "@app.post('/embeddings')\nasync def emb(req: Embeddings): return {'data':[{'embedding':[0.0]*8}]}\n",
+                ]
+            else:
+                server += [
+                    "class RagIndex(BaseModel): id:str; title:str; path:str; content:str; required_traits:list[str]|None=None; classification:list[str]|None=None; vector:list[float]|None=None\n",
+                    "class RagQuery(BaseModel): q:str; top_k:int=5; user_traits:list[str]|None=None\n",
+                    "@app.post('/rag/index')\nasync def rindex(req: RagIndex): return {'ok':True}\n",
+                    "@app.post('/rag/query')\nasync def rquery(req: RagQuery): return {'items':[]}\n",
+                ]
+                if template == "rag-db-pgvector":
+                    readme = (
+                        "# RAG DB (pgvector)\n\n"
+                        "1) Enable extension in Postgres: `CREATE EXTENSION IF NOT EXISTS vector;`\n\n"
+                        "2) Create tables:\n\n"
+                        "```sql\nCREATE TABLE documents (id text primary key, title text, path text, required_traits jsonb, classification jsonb);\nCREATE TABLE chunks (id text primary key, doc_id text references documents(id), chunk_no int, content text, vector vector(1536));\nCREATE INDEX ON chunks USING hnsw (vector vector_l2_ops);\n```\n\n"
+                        "3) Implement /rag/index to upsert docs and chunks, /rag/query to compute embedding and ANN search (`ORDER BY vector <-> $qvec LIMIT $k`).\n\n"
+                        "4) Set PG_DSN env, add psycopg/async driver to requirements, and wire your DB client.\n"
+                    )
+                    files[f"{plugin_id}/README.md"] = readme
+            files[f"{plugin_id}/server.py"] = "".join(server)
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+        for path, content in files.items():
+            zf.writestr(path, content)
+    buf.seek(0)
+
+    return StreamingResponse(
+        buf,
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": f"attachment; filename={plugin_id}_scaffold.zip",
+            "X-Scaffold-Language": language,
+        },
+    )
+
+
+# Manifest schema + validation for core plugins
+def _load_manifest_schema() -> Dict[str, Any]:
+    schema_path = (
+        pathlib.Path(__file__).resolve().parents[1]
+        / "plugin_manager"
+        / "manifest.schema.json"
+    )
+    try:
+        return json.loads(schema_path.read_text())
+    except Exception:  # pragma: no cover - fallback minimal schema
+        return {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "type": "object",
+            "properties": {
+                "id": {"type": "string"},
+                "name": {"type": "string"},
+                "version": {"type": "string"},
+                "contracts": {"type": "array", "items": {"type": "string"}},
+                "traits": {"type": "array", "items": {"type": "string"}},
+                "security": {"type": "object"},
+                "compliance": {"type": "object"},
+            },
+            "required": [
+                "id",
+                "name",
+                "version",
+                "contracts",
+                "traits",
+                "security",
+                "compliance",
+            ],
+            "additionalProperties": True,
+        }
+
+
+@admin_router.get("/plugins/manifest-schema")
+async def get_plugin_manifest_schema(
+    _: Dict = Depends(require_auth(["admin", "plugin_manager"]))
+):
+    return _load_manifest_schema()
+
+
+@admin_router.post("/plugins/validate-manifest")
+async def validate_plugin_manifest(
+    payload: Dict[str, Any],
+    _: Dict = Depends(require_auth(["admin", "plugin_manager"])),
+):
+    """Validate a plugin manifest against the server's JSON Schema and
+    suggest allowlists.
+
+    Returns a dict: {
+        ok,
+        errors: [{message, path, schema_path}],
+        suggestions: { operations, allowlist, invalid_domains, parsed_domains }
+    }
+    """
+    manifest = payload if isinstance(payload, dict) else {}
+    schema = _load_manifest_schema()
+    from jsonschema import Draft202012Validator
+
+    validator = Draft202012Validator(schema)
+    errors = []
+    for err in validator.iter_errors(manifest):
+        errors.append(
+            {
+                "message": err.message,
+                "path": list(err.path),
+                "schema_path": list(err.schema_path),
+            }
+        )
+
+    # Suggestions
+    operations = []
+    allowlist: Dict[str, Dict[str, list]] = {}
+    invalid_domains: list[str] = []
+    parsed_domains: list[str] = []
+    try:
+        eps = manifest.get("endpoints") or {}
+        if isinstance(eps, dict):
+            operations = [str(k) for k in eps.keys()]
+            for _name, ep in eps.items():
+                if not isinstance(ep, str):
+                    continue
+                try:
+                    u = urlparse(ep)
+                    if u.scheme and u.netloc:
+                        host = u.netloc.split("@")[-1].split(":")[0]
+                        parsed_domains.append(host)
+                        # Validate host is not an IP literal
+                        try:
+                            ipaddress.ip_address(host)
+                            invalid_domains.append(host)
+                            continue
+                        except Exception:
+                            pass
+                        ent = allowlist.setdefault(
+                            host,
+                            {"allowed_methods": ["GET", "POST"], "allowed_paths": []},
+                        )
+                        if u.path and u.path not in ent["allowed_paths"]:
+                            ent["allowed_paths"].append(u.path)
+                except Exception:
+                    continue
+
+        # Merge explicit allowed_domains
+        ad = manifest.get("allowed_domains") or []
+        if isinstance(ad, list):
+            for d in ad:
+                if not isinstance(d, str) or not d:
+                    continue
+                host = d
+                # Skip IPs
+                try:
+                    ipaddress.ip_address(host)
+                    invalid_domains.append(host)
+                    continue
+                except Exception:
+                    pass
+                allowlist.setdefault(
+                    host, {"allowed_methods": ["GET", "POST"], "allowed_paths": []}
+                )
+    except Exception:
+        pass
+
+    return {
+        "ok": len(errors) == 0,
+        "errors": errors,
+        "suggestions": {
+            "operations": operations,
+            "allowlist": allowlist,
+            "invalid_domains": sorted(list(set(invalid_domains))),
+            "parsed_domains": sorted(list(set(parsed_domains))),
+        },
+    }
+
+
+# Operator policy allowlist (fine-grained operator rules)
+@admin_router.get("/operator/allowlist")
+async def operator_allowlist_get(
+    caller: str,
+    target: str,
+    _: Dict = Depends(require_auth(["admin", "plugin_manager"])),
+):
+    if _CONFIG_SVC is None:
+        raise HTTPException(status_code=500, detail="Config service not available")
+    key = f"operator.allow.{caller}->{target}"
+    try:
+        allowed = await _CONFIG_SVC.get(key) or []
+        if not isinstance(allowed, list):
+            allowed = []
+        return {"caller": caller, "target": target, "operations": allowed}
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@admin_router.put("/operator/allowlist")
+@audit_log("operator_allowlist_update")
+async def operator_allowlist_set(
+    payload: Dict[str, Any],
+    _: Dict = Depends(require_auth(["admin", "plugin_manager"])),
+):
+    if _CONFIG_SVC is None:
+        raise HTTPException(status_code=500, detail="Config service not available")
+    caller = str(payload.get("caller") or "").strip()
+    target = str(payload.get("target") or "").strip()
+    operations = payload.get("operations")
+    if not caller or not target or not isinstance(operations, list):
+        raise HTTPException(
+            status_code=400, detail="caller, target, operations required"
+        )
+    key = f"operator.allow.{caller}->{target}"
+    await _CONFIG_SVC.set(
+        key,
+        [str(op) for op in operations],
+        is_sensitive=False,
+        updated_by="admin",
+        reason="operator_allowlist_update",
+    )
+    return {"ok": True, "caller": caller, "target": target}
+
+
+@admin_router.post("/operator/allowlist/auto-generate")
+@audit_log("operator_allowlist_autogen")
+async def operator_allowlist_autogen(
+    payload: Dict[str, Any],
+    _: Dict = Depends(require_auth(["admin", "plugin_manager"])),
+):
+    """Auto-generate operator allowlist from target plugin manifest endpoints.
+
+    Body: { caller: str, target: str, merge?: bool }
+    - If merge is true, merges with existing list; otherwise replaces.
+    """
+    if _CONFIG_SVC is None:
+        raise HTTPException(status_code=500, detail="Config service not available")
+    caller = str(payload.get("caller") or "").strip()
+    target = str(payload.get("target") or "").strip()
+    merge = bool(payload.get("merge") or False)
+    if not caller or not target:
+        raise HTTPException(status_code=400, detail="caller and target required")
+
+    if _REGISTRY is None:
+        raise HTTPException(status_code=500, detail="Plugin registry not available")
+    target_info = _REGISTRY.plugins.get(target)
+    if not target_info or not isinstance(target_info, dict):
+        raise HTTPException(status_code=404, detail="Target plugin not found")
+    endpoints = (target_info.get("manifest") or {}).get("endpoints") or {}
+    if not isinstance(endpoints, dict) or not endpoints:
+        raise HTTPException(status_code=400, detail="No endpoints declared on target")
+
+    operations = sorted([str(k) for k in endpoints.keys()])
+
+    key = f"operator.allow.{caller}->{target}"
+    if merge:
+        try:
+            cur = await _CONFIG_SVC.get(key) or []
+        except Exception:
+            cur = []
+        if not isinstance(cur, list):
+            cur = []
+        merged = sorted(list({*(str(x) for x in cur), *operations}))
+        await _CONFIG_SVC.set(
+            key, merged, is_sensitive=False, updated_by="admin", reason="operator_allowlist_autogen"
+        )
+    else:
+        await _CONFIG_SVC.set(
+            key, operations, is_sensitive=False, updated_by="admin", reason="operator_allowlist_autogen"
+        )
+
+    return {"ok": True, "caller": caller, "target": target, "operations": operations}
+
+
+# Canonical transformation mappings registry
+@admin_router.get("/canonical/transforms")
+async def canonical_transforms_get(
+    source: str, target: str, _: Dict = Depends(require_auth(["admin"]))
+):
+    if _CONFIG_SVC is None:
+        raise HTTPException(status_code=500, detail="Config service not available")
+    key = f"canonical.transforms.{source}->{target}"
+    try:
+        data = await _CONFIG_SVC.get(key) or {}
+        if not isinstance(data, dict):
+            data = {}
+        return {"source": source, "target": target, "mappings": data}
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@admin_router.put("/canonical/transforms")
+@audit_log("canonical_transform_update")
+async def canonical_transforms_set(
+    payload: Dict[str, Any], _: Dict = Depends(require_auth(["admin"]))
+):
+    if _CONFIG_SVC is None:
+        raise HTTPException(status_code=500, detail="Config service not available")
+    source = str(payload.get("source") or "").strip()
+    target = str(payload.get("target") or "").strip()
+    mappings = payload.get("mappings")
+    if not source or not target or not isinstance(mappings, dict):
+        raise HTTPException(status_code=400, detail="source, target, mappings required")
+    key = f"canonical.transforms.{source}->{target}"
+    await _CONFIG_SVC.set(
+        key,
+        mappings,
+        is_sensitive=False,
+        updated_by="admin",
+        reason="canonical_transform_update",
+    )
+    return {"ok": True, "source": source, "target": target}
+
+
+# Gateway rate policy
+@admin_router.get("/gateway/rate-policy")
+async def gateway_rate_policy_get(_: Dict = Depends(require_auth(["admin"]))):
+    if _CONFIG_SVC is None:
+        raise HTTPException(status_code=500, detail="Config service not available")
+    rpm = await _CONFIG_SVC.get("gateway.rate.requests_per_minute")
+    burst = await _CONFIG_SVC.get("gateway.rate.burst_limit")
+    return {"requests_per_minute": int(rpm or 60), "burst_limit": int(burst or 100)}
+
+
+@admin_router.put("/gateway/rate-policy")
+@audit_log("gateway_rate_policy_update")
+async def gateway_rate_policy_set(
+    payload: Dict[str, Any], _: Dict = Depends(require_auth(["admin"]))
+):
+    if _CONFIG_SVC is None:
+        raise HTTPException(status_code=500, detail="Config service not available")
+    rpm = int(payload.get("requests_per_minute") or 60)
+    burst = int(payload.get("burst_limit") or 100)
+    await _CONFIG_SVC.set(
+        "gateway.rate.requests_per_minute",
+        rpm,
+        is_sensitive=False,
+        updated_by="admin",
+        reason="rate_policy_update",
+    )
+    await _CONFIG_SVC.set(
+        "gateway.rate.burst_limit",
+        burst,
+        is_sensitive=False,
+        updated_by="admin",
+        reason="rate_policy_update",
+    )
+    return {"ok": True}
+
+
+@admin_router.get("/gateway/rate-policy/{plugin_id}")
+async def gateway_plugin_rate_policy_get(
+    plugin_id: str, _: Dict = Depends(require_auth(["admin"]))
+):
+    if _CONFIG_SVC is None:
+        raise HTTPException(status_code=500, detail="Config service not available")
+    rpm = await _CONFIG_SVC.get(f"gateway.rate.{plugin_id}.requests_per_minute")
+    burst = await _CONFIG_SVC.get(f"gateway.rate.{plugin_id}.burst_limit")
+    return {
+        "plugin_id": plugin_id,
+        "requests_per_minute": int(rpm or 0),
+        "burst_limit": int(burst or 0),
+    }
+
+
+@admin_router.put("/gateway/rate-policy/{plugin_id}")
+@audit_log("gateway_rate_policy_update_plugin")
+async def gateway_plugin_rate_policy_set(
+    plugin_id: str, payload: Dict[str, Any], _: Dict = Depends(require_auth(["admin"]))
+):
+    if _CONFIG_SVC is None:
+        raise HTTPException(status_code=500, detail="Config service not available")
+    rpm = int(payload.get("requests_per_minute") or 0)
+    burst = int(payload.get("burst_limit") or 0)
+    await _CONFIG_SVC.set(
+        f"gateway.rate.{plugin_id}.requests_per_minute",
+        rpm,
+        is_sensitive=False,
+        updated_by="admin",
+        reason="rate_policy_update_plugin",
+    )
+    await _CONFIG_SVC.set(
+        f"gateway.rate.{plugin_id}.burst_limit",
+        burst,
+        is_sensitive=False,
+        updated_by="admin",
+        reason="rate_policy_update_plugin",
+    )
+    return {"ok": True}
+
+
 @admin_router.get("/users")
 async def list_users(
     _: Dict = Depends(require_auth(["admin"])), session=Depends(get_session)
@@ -193,6 +683,8 @@ async def get_user_traits(user: Dict = Depends(get_current_user)):
             "ui.register",
             "ui.users",
             "ui.storage",
+            "ui.notifications",
+            "ui.automations",
             "ui.send_demo",
             "ui.inbound_demo",
             "ui.jobs",
@@ -259,6 +751,7 @@ async def get_ui_config(
             "plugin_install": bool(plugin_install_enabled),
             "sessions_enabled": bool(sessions_enabled),
             "csrf_enabled": bool(csrf_enabled),
+            "ai": {"enabled": True},
         },
         "endpoints": {},
     }
@@ -382,6 +875,386 @@ async def run_diagnostics(_: Dict = Depends(require_auth(["admin", "viewer"]))):
     return {"checks": {}, "summary": {"ok": True}}
 
 
+# ----- QA Environment Orchestration (containerized E2E) -----
+def _docker_available() -> bool:
+    try:
+        import shutil
+
+        return shutil.which("docker") is not None
+    except Exception:  # noqa: BLE001
+        return False
+
+
+@admin_router.get("/tests/env/status")
+async def qa_env_status(_: Dict = Depends(require_auth(["admin"]))):
+    """Return basic QA environment status.
+
+    Attempts to detect Docker availability. Does not start containers.
+    """
+    ok = _docker_available()
+    status: Dict[str, Any] = {"docker": ok}
+    if not ok:
+        status["note"] = "Docker not available on this host."
+        return status
+    # Light status via `docker ps` without assuming compose project name
+    try:
+        import subprocess
+
+        out = subprocess.run(
+            ["docker", "ps", "--format", "{{.Names}}|{{.Status}}|{{.Image}}"],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        lines = [
+            line.strip() for line in (out.stdout or "").splitlines() if line.strip()
+        ]
+        items = []
+        for line in lines[:50]:
+            parts = line.split("|")
+            if len(parts) >= 3:
+                items.append({"name": parts[0], "status": parts[1], "image": parts[2]})
+        status["containers"] = items
+    except Exception:  # noqa: BLE001
+        status["containers"] = []
+    return status
+
+
+@admin_router.post("/tests/env/start")
+@audit_log("qa_env_start")
+async def qa_env_start(
+    payload: Optional[Dict[str, Any]] = None, _: Dict = Depends(require_auth(["admin"]))
+):
+    """Start containerized QA environment via docker compose when available.
+
+    Body: { compose_file?: string, project?: string }
+    """
+    if not _docker_available():
+        return {"ok": False, "error": "docker_not_available"}
+    cfg = payload or {}
+    compose_file = str(cfg.get("compose_file") or "docker-compose.yml")
+    project = str(cfg.get("project") or "vivified-tests")
+    try:
+        import subprocess
+
+        cmd = ["docker", "compose", "-f", compose_file, "-p", project, "up", "-d"]
+        out = subprocess.run(cmd, check=False, capture_output=True, text=True)
+        ok = out.returncode == 0
+        return {
+            "ok": ok,
+            "code": out.returncode,
+            "stdout": (out.stdout or "")[-4000:],
+            "stderr": (out.stderr or "")[-4000:],
+        }
+    except Exception as e:  # noqa: BLE001
+        return {"ok": False, "error": str(e)}
+
+
+@admin_router.post("/tests/env/stop")
+@audit_log("qa_env_stop")
+async def qa_env_stop(
+    payload: Optional[Dict[str, Any]] = None, _: Dict = Depends(require_auth(["admin"]))
+):
+    if not _docker_available():
+        return {"ok": False, "error": "docker_not_available"}
+    cfg = payload or {}
+    compose_file = str(cfg.get("compose_file") or "docker-compose.yml")
+    project = str(cfg.get("project") or "vivified-tests")
+    try:
+        import subprocess
+
+        cmd = ["docker", "compose", "-f", compose_file, "-p", project, "down"]
+        out = subprocess.run(cmd, check=False, capture_output=True, text=True)
+        ok = out.returncode == 0
+        return {
+            "ok": ok,
+            "code": out.returncode,
+            "stdout": (out.stdout or "")[-4000:],
+            "stderr": (out.stderr or "")[-4000:],
+        }
+    except Exception as e:  # noqa: BLE001
+        return {"ok": False, "error": str(e)}
+
+
+# QA Test Suites (Phase 8) — lightweight, in-process smoke tests
+@admin_router.get("/tests")
+async def list_test_suites(_: Dict = Depends(require_auth(["admin", "viewer"]))):
+    """List available lightweight test suites runnable from the Admin Console."""
+    return {
+        "suites": [
+            {"id": "smoke", "label": "Smoke (core flows)"},
+            {"id": "unit-policy", "label": "Unit: Policy Engine"},
+            {"id": "security", "label": "Security (sanity)"},
+            {"id": "compliance", "label": "Compliance (PHI encryption)"},
+            {"id": "integration", "label": "Integration (user onboarding)"},
+            {"id": "owasp", "label": "Security: OWASP Inputs"},
+            {"id": "performance", "label": "Performance (latency/throughput)"},
+            {"id": "chaos", "label": "Chaos (simulated)"},
+        ]
+    }
+
+
+@admin_router.post("/tests/run")
+async def run_test_suite(
+    payload: Dict[str, Any],
+    user: Dict = Depends(require_auth(["admin"])),
+    session=Depends(get_session),
+):
+    """Run a small, deterministic test suite and return structured results.
+
+    This is intentionally scoped to quick, side-effect-safe checks to support
+    Admin Console UX parity without spawning external runners.
+    """
+    suite = str(payload.get("suite") or "smoke").strip().lower()
+
+    logs: list[dict] = []
+
+    def log(level: str, message: str, **kw: Any) -> None:
+        entry = {"level": level, "message": message}
+        if kw:
+            entry.update(kw)
+        logs.append(entry)
+
+    async def run_smoke() -> dict:
+        # Identity: ensure we can list and (logically) create users
+        ids = IdentityService(session, get_auth_manager())
+        log("info", "Listing users…")
+        users = await ids.list_users(page=1, page_size=5)
+        assert isinstance(users, dict) and "users" in users
+        log("pass", f"Listed {len(users.get('users', []))} users")
+
+        # Audit: fetch recent events
+        log("info", "Fetching audit events…")
+        svc = await get_audit_service()
+        events = await svc.list_events(limit=10, offset=0)
+        assert isinstance(events, dict)
+        log("pass", f"Audit entries fetched: {len(events.get('items', []))}")
+
+        # Gateway: read rate policy
+        log("info", "Reading gateway rate policy…")
+        rp = await gateway_rate_policy_get(user)  # type: ignore[arg-type]
+        assert isinstance(rp, dict) and "requests_per_minute" in rp
+        log("pass", "Gateway policy ok", rpm=rp.get("requests_per_minute"))
+        return {"ok": True}
+
+    async def run_unit_policy() -> dict:
+        from core.policy.engine import (
+            PolicyEngine,
+            PolicyRequest,
+            PolicyContext,
+            PolicyDecision,
+        )
+
+        pe = PolicyEngine()
+        # PHI allowed when both sides have trait and audit_required present
+        req_allow = PolicyRequest(
+            user_id=str(user.get("id")),
+            resource_type="record",
+            resource_id="rec-1",
+            action="read",
+            traits=["handles_phi", "audit_required"],
+            context={"data_classification": "phi"},
+            policy_context=PolicyContext.USER_ACTION,
+        )
+        res_allow = await pe.evaluate_request(req_allow)
+        assert res_allow.decision == PolicyDecision.ALLOW
+        log("pass", "PHI allow with traits", reason=res_allow.reason)
+        # PHI denied when trait missing
+        req_deny = PolicyRequest(
+            user_id=str(user.get("id")),
+            resource_type="record",
+            resource_id="rec-2",
+            action="read",
+            traits=["viewer"],
+            context={"data_classification": "phi"},
+            policy_context=PolicyContext.USER_ACTION,
+        )
+        res_deny = await pe.evaluate_request(req_deny)
+        assert res_deny.decision in {PolicyDecision.DENY}
+        log("pass", "PHI blocked without trait", reason=res_deny.reason)
+        return {"ok": True}
+
+    async def run_security() -> dict:
+        # Encryption status endpoint
+        enc = await encryption_status(user)  # type: ignore[arg-type]
+        assert enc.get("algorithm") == "AES-256-GCM"
+        log("pass", "Encryption configured", version=enc.get("version"))
+        # TLS status endpoint
+        tls = await tls_status(user)  # type: ignore[arg-type]
+        assert "configured" in tls
+        log("pass", "TLS status fetched", configured=bool(tls.get("configured")))
+        return {"ok": True}
+
+    async def run_compliance() -> dict:
+        cfg = StorageConfig(
+            default_provider="filesystem",
+            encryption_enabled=True,
+            auto_classify_content=True,
+            filesystem_base_path=os.getenv("TMPDIR", "/tmp"),
+        )
+        svc = StorageService(
+            config=cfg,
+            policy_engine=policy_engine,
+            audit_service=await get_audit_service(),
+        )
+        uid = str(user.get("id")) or "admin"
+        # Store PHI and verify encrypted
+        meta = await svc.store_object(
+            content=b"patient data",
+            filename="phi.txt",
+            user_id=uid,
+            content_type="text/plain",
+            data_classification=None,
+            traits=["handles_phi", "audit_required"],
+        )
+        assert bool(meta.is_encrypted)
+        log("pass", "PHI stored encrypted", key_id=meta.encryption_key_id)
+        # List with minimal details
+        items = await svc.list_objects(query=StorageQuery(limit=5), user_id=uid)
+        assert isinstance(items, list)
+        log("pass", f"Storage list returned {len(items)} items")
+        return {"ok": True}
+
+    async def run_integration() -> dict:
+        """Simulate user onboarding workflow end-to-end within current process."""
+        # Ensure identity schema and create a user
+        from core.api.models import UserCreateRequest
+
+        await _ensure_identity_schema(session)
+        ids = IdentityService(session, get_auth_manager())
+        uname = f"user_{os.urandom(4).hex()}"
+        payload = UserCreateRequest(
+            username=uname, email=f"{uname}@example.com", password="SecureP@ss123!"
+        )
+        log("info", f"Creating user {payload.username}")
+        ok, user_id = await ids.create_user(
+            payload.username, payload.email, payload.password, roles=["viewer"]
+        )
+        assert ok and user_id
+        log("pass", "User created", id=str(user_id))
+
+        # Emit audit event equivalent to endpoint decorator for visibility
+        svc = await get_audit_service()
+        await svc.log_event(
+            event_type="user_created",
+            category="system",
+            action="create_user",
+            result="success",
+            description=f"User {payload.username} created",
+            user_id=str(user.get("id")),
+            details={"new_user": payload.username},
+        )
+        # Verify audit contains the new event
+        events = await svc.list_events(limit=50, offset=0)
+        found = any(it.get("type") == "user_created" for it in events.get("items", []))
+        assert found
+        log("pass", "Audit recorded user_created event")
+        return {"ok": True}
+
+    async def run_owasp() -> dict:
+        """Exercise typical OWASP input payloads against auth endpoint.
+
+        This is a light in-process variant that validates inputs are safely
+        rejected (401) without server errors.
+        """
+        from core.api.auth import login, LoginRequest
+
+        bads = [
+            "'; DROP TABLE users; --",
+            "' OR '1'='1",
+            "admin'--",
+            "' UNION SELECT * FROM users--",
+        ]
+        for inj in bads:
+            try:
+                await login(LoginRequest(username=inj, password="test"))
+                # If no exception, login wrongly succeeded
+                raise AssertionError("Injection login unexpectedly succeeded")
+            except HTTPException as he:  # expected invalid credentials
+                assert he.status_code == 401
+                log("pass", "Injection blocked", payload=inj)
+        return {"ok": True}
+
+    async def run_performance() -> dict:
+        """Measure approximate latency for simple admin call 100x and compute p50/p95/p99."""
+        import time
+
+        samples: list[float] = []
+        for _ in range(100):
+            t0 = time.perf_counter()
+            rp = await gateway_rate_policy_get(user)  # type: ignore[arg-type]
+            assert isinstance(rp, dict)
+            dt_ms = (time.perf_counter() - t0) * 1000.0
+            samples.append(dt_ms)
+        samples.sort()
+        n = len(samples)
+        p50 = samples[int(0.5 * (n - 1))]
+        p95 = samples[int(0.95 * (n - 1))]
+        p99 = samples[int(0.99 * (n - 1))]
+        log(
+            "pass",
+            "Latency percentiles",
+            p50_ms=round(p50, 2),
+            p95_ms=round(p95, 2),
+            p99_ms=round(p99, 2),
+        )
+        # Very loose local thresholds to avoid flakes
+        assert p50 < 50 and p99 < 200
+        return {"ok": True}
+
+    async def run_chaos() -> dict:
+        """Simulate plugin failure isolation by toggling status in registry."""
+        # Register a fake plugin, disable it, ensure core functions still operate
+        pid = f"plugin_{os.urandom(3).hex()}"
+        if _REGISTRY is None:
+            raise HTTPException(status_code=500, detail="Plugin registry not available")
+        _REGISTRY.plugins[pid] = {"id": pid, "name": pid, "status": "active"}
+        log("info", "Registered temp plugin", plugin_id=pid)
+        # Disable via admin helper to simulate operator action
+        await disable_plugin(pid, reason="chaos_test", _=user)  # type: ignore[arg-type]
+        assert _REGISTRY.plugins[pid]["status"] == "disabled"
+        log("pass", "Plugin disabled; core continues healthy")
+        # Read health-like info
+        rp = await gateway_rate_policy_get(user)  # type: ignore[arg-type]
+        assert "requests_per_minute" in rp
+        log("pass", "Gateway still reachable")
+        # Re-enable
+        await enable_plugin(pid, _=user)  # type: ignore[arg-type]
+        assert _REGISTRY.plugins[pid]["status"] == "active"
+        log("pass", "Plugin re-enabled")
+        return {"ok": True}
+
+    try:
+        match suite:
+            case "smoke":
+                result = await run_smoke()
+            case "unit-policy":
+                result = await run_unit_policy()
+            case "security":
+                result = await run_security()
+            case "compliance":
+                result = await run_compliance()
+            case "integration":
+                result = await run_integration()
+            case "owasp":
+                result = await run_owasp()
+            case "performance":
+                result = await run_performance()
+            case "chaos":
+                result = await run_chaos()
+            case _:
+                raise HTTPException(status_code=400, detail="Unknown suite")
+        return {"suite": suite, "ok": bool(result.get("ok")), "logs": logs}
+    except HTTPException:
+        raise
+    except AssertionError as e:  # explicit failure surfaced in logs
+        log("fail", f"Assertion failed: {e!s}")
+        return {"suite": suite, "ok": False, "logs": logs}
+    except Exception as e:  # noqa: BLE001
+        log("error", f"Unexpected error: {type(e).__name__}: {e}")
+        return {"suite": suite, "ok": False, "logs": logs}
+
+
 # Security → Encryption admin endpoints
 @admin_router.get("/security/encryption/status")
 async def encryption_status(
@@ -398,7 +1271,7 @@ async def encryption_status(
 @admin_router.post("/security/encryption/rotate")
 @audit_log("security_encryption_rotated")
 async def encryption_rotate(
-    payload: Dict[str, Any] | None = None, _: Dict = Depends(require_auth(["admin"]))
+    payload: Optional[Dict[str, Any]] = None, _: Dict = Depends(require_auth(["admin"]))
 ):
     new_master_key = None
     if isinstance(payload, dict):
@@ -603,6 +1476,71 @@ async def webauthn_assert(
     if not ok:
         raise HTTPException(status_code=400, detail="assertion failed")
     return {"ok": True}
+
+
+# Notifications admin endpoints
+@admin_router.get("/notifications")
+async def list_notifications(
+    limit: int = Query(50, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
+    _: Dict = Depends(require_auth(["admin", "viewer"])),
+):
+    svc = await get_audit_service()
+    data = await svc.list_events(limit=limit, offset=offset)
+    return {"items": data["items"]}
+
+
+@admin_router.post("/notifications/send")
+@audit_log("notification_send")
+async def send_notification(
+    payload: Dict[str, Any],
+    user: Dict = Depends(get_current_user),
+    _: Dict = Depends(require_auth(["admin", "viewer"])),
+):
+    title = str(payload.get("title") or "Notification")
+    body = str(payload.get("body") or "")
+    channel = str(payload.get("channel") or "inbox")
+    metadata = (
+        payload.get("metadata") if isinstance(payload.get("metadata"), dict) else {}
+    )
+    if not body:
+        raise HTTPException(status_code=400, detail="body is required")
+    svc = await get_audit_service()
+    await svc.log_event(
+        event_type="notification",
+        category="system",
+        action="send",
+        result="queued",
+        description=title,
+        details={"channel": channel, "metadata": metadata},
+        user_id=str(user.get("id")),
+    )
+    return {"status": "ok", "notification_id": os.urandom(6).hex(), "queued": True}
+
+
+@admin_router.get("/notifications/settings")
+async def get_notifications_settings(
+    _: Dict = Depends(require_auth(["admin", "viewer"]))
+):
+    return {"enabled": True, "channels": ["inbox"], "defaults": {"priority": "normal"}}
+
+
+@admin_router.put("/notifications/settings")
+@audit_log("notifications_settings_updated")
+async def set_notifications_settings(
+    payload: Dict[str, Any], _: Dict = Depends(require_auth(["admin"]))
+):
+    return {"ok": True, **payload}
+
+
+@admin_router.get("/notifications/help")
+async def notifications_help(_: Dict = Depends(require_auth(["admin", "viewer"]))):
+    return {
+        "links": {
+            "webhooks": "https://docs.example.com/notifications/webhooks",
+            "smtp": "https://docs.example.com/notifications/smtp",
+        }
+    }
 
 
 @admin_router.patch("/users/{user_id}")
@@ -891,7 +1829,7 @@ async def inbound_purge(
 @admin_router.post("/inbound/simulate")
 @audit_log("inbound_simulated")
 async def inbound_simulate(
-    payload: Dict[str, Any] | None = None, _: Dict = Depends(require_auth(["admin"]))
+    payload: Optional[Dict[str, Any]] = None, _: Dict = Depends(require_auth(["admin"]))
 ):
     p = payload or {}
     job_id = os.urandom(6).hex()
@@ -1132,8 +2070,12 @@ async def get_settings(_: Dict = Depends(require_auth(["admin", "viewer"]))):
         },
         "storage": {"backend": "memory", "s3_bucket": "", "s3_kms_enabled": False},
         "database": {
-            "url": os.getenv("DATABASE_URL", "sqlite+aiosqlite:///:memory:"),
-            "persistent": False,
+            # Prefer Postgres by default; override via DATABASE_URL
+            "url": os.getenv(
+                "DATABASE_URL",
+                "postgresql+asyncpg://vivified:changeme@localhost:5432/vivified",
+            ),
+            "persistent": True,
         },
         "inbound": {"enabled": inbound_enabled, "retention_days": 30},
         "features": {
@@ -1210,6 +2152,17 @@ async def update_settings(
         "backend": "backend.type",
         "outbound_backend": "hybrid.outbound_backend",
         "inbound_backend": "hybrid.inbound_backend",
+        # MCP toggles
+        "enable_mcp_sse": "mcp.sse_enabled",
+        "enable_mcp_http": "mcp.http_enabled",
+        "require_mcp_oauth": "mcp.require_oauth",
+        "oauth_issuer": "mcp.oauth.issuer",
+        "oauth_audience": "mcp.oauth.audience",
+        "oauth_jwks_url": "mcp.oauth.jwks_url",
+        # AI LLM defaults (provider/model)
+        "ai_llm_provider": "ai.llm.provider",
+        "ai_llm_model": "ai.llm.model",
+        "ai_llm_base_url": "ai.llm.base_url",
         "require_api_key": "security.require_api_key",
         "enforce_public_https": "security.enforce_https",
         "public_api_url": "security.public_api_url",
@@ -1259,7 +2212,7 @@ async def list_event_types(_: Dict = Depends(require_auth(["admin", "viewer"])))
 # Config helpers
 @admin_router.post("/config/import-env")
 async def import_env_vars(
-    payload: Dict[str, Any] | None = None,
+    payload: Optional[Dict[str, Any]] = None,
     user: Dict = Depends(get_current_user),
     _: Dict = Depends(require_auth(["admin", "config_manager"])),
 ):
@@ -1409,7 +2362,7 @@ async def tunnel_status(_: Dict = Depends(require_auth(["admin", "viewer"]))):
 @admin_router.post("/tunnel/config")
 @audit_log("tunnel_config_set")
 async def set_tunnel_config(
-    payload: Dict[str, Any] | None = None, _: Dict = Depends(require_auth(["admin"]))
+    payload: Optional[Dict[str, Any]] = None, _: Dict = Depends(require_auth(["admin"]))
 ):
     cfg = payload or {}
     _TUNNEL_CFG_CACHE.update(cfg)
@@ -1451,7 +2404,7 @@ async def cloudflared_logs(
 
 @admin_router.post("/tunnel/wg/import")
 async def wg_import_json(
-    payload: Dict[str, Any] | None = None, _: Dict = Depends(require_auth(["admin"]))
+    payload: Optional[Dict[str, Any]] = None, _: Dict = Depends(require_auth(["admin"]))
 ):
     target = "/tmp/vivified-wg.conf"
     content = None

@@ -41,6 +41,8 @@ import ExtensionIcon from '@mui/icons-material/Extension';
 import ScienceIcon from '@mui/icons-material/Science';
 import LogoutIcon from '@mui/icons-material/Logout';
 import HelpIcon from '@mui/icons-material/Help';
+import Automations from './components/Automations';
+import AIStudio from './components/AIStudio';
 import { Tooltip } from '@mui/material';
 import VpnLockIcon from '@mui/icons-material/VpnLock';
 import AdminAPIClient from './api/client';
@@ -55,17 +57,22 @@ import Diagnostics from './components/Diagnostics';
 import Audit from './components/Audit';
 import MCP from './components/MCP';
 import Logs from './components/Logs';
-import SendFax from './components/SendFax';
+import DemoSend from './components/DemoSend';
 import Inbound from './components/Inbound';
 import Terminal from './components/Terminal';
 import ScriptsTests from './components/ScriptsTests';
 import TunnelSettings from './components/TunnelSettings';
 import GatewayTester from './components/GatewayTester';
 import GatewayAllowlist from './components/GatewayAllowlist';
+import ManifestEditor from './components/ManifestEditor';
+import ChatBot from './components/ChatBot';
+import HelpOverlayToggle from './components/common/HelpOverlayToggle';
 import MessagingConsole from './components/MessagingConsole';
 import NotificationsPanel from './components/Notifications';
 import CanonicalTools from './components/CanonicalTools';
+import CanonicalTransforms from './components/CanonicalTransforms';
 import PolicyInspector from './components/PolicyInspector';
+import OperatorPolicy from './components/OperatorPolicy';
 import PluginRegister from './components/PluginRegister';
 import StorageBrowser from './components/StorageBrowser';
 import ProviderSetupWizard from './components/ProviderSetupWizard';
@@ -73,8 +80,10 @@ import InboundWebhookTester from './components/InboundWebhookTester';
 import OutboundSmokeTests from './components/OutboundSmokeTests';
 import ConfigurationManager from './components/ConfigurationManager';
 import PluginMarketplace from './components/PluginMarketplace';
+import MFA from './components/MFA';
 import { ThemeProvider } from './theme/ThemeContext';
 import { ThemeToggle } from './components/ThemeToggle';
+import PluginDevGuide from './components/PluginDevGuide';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -332,17 +341,25 @@ function AppContent() {
     { label: 'Logs', icon: <DescriptionIcon />, trait: 'ui.monitoring' },
     { label: 'Plugins', icon: <ExtensionIcon />, trait: 'ui.plugins' },
     { label: 'Marketplace', icon: <ExtensionIcon />, trait: 'ui.plugins' },
+    { label: 'Plugin Dev Guide', icon: <CodeIcon />, trait: 'ui.plugin_dev_guide' },
     { label: 'Scripts & Tests', icon: <ScienceIcon />, trait: 'role.admin' },
+    { label: 'AI Studio', icon: <ScienceIcon />, trait: 'role.admin' },
     { label: 'Tunnels', icon: <VpnLockIcon />, trait: 'ui.monitoring' },
     { label: 'Audit', icon: <DescriptionIcon />, trait: 'ui.audit' },
                 { label: 'HTTP Proxy', icon: <AssessmentIcon />, trait: 'ui.gateway' },
     { label: 'HTTP Proxy Allowlist', icon: <AssessmentIcon />, trait: 'ui.gateway' },
     { label: 'Messaging', icon: <AssessmentIcon />, trait: 'ui.messaging' },
     { label: 'Canonical', icon: <AssessmentIcon />, trait: 'ui.canonical' },
+    { label: 'Canonical Transforms', icon: <AssessmentIcon />, trait: 'ui.canonical' },
     { label: 'Policy', icon: <AssessmentIcon />, trait: 'ui.policy' },
+    { label: 'Operator Policy', icon: <AssessmentIcon />, trait: 'ui.policy' },
+    { label: 'Automations', icon: <AssessmentIcon />, trait: 'ui.automations' },
+    { label: 'MFA & Passkeys', icon: <VpnKeyIcon />, trait: 'role.admin' },
     { label: 'Register', icon: <ExtensionIcon />, trait: 'ui.register' },
     { label: 'Storage', icon: <DescriptionIcon />, trait: 'ui.storage' },
     { label: 'Notifications', icon: <InboxIcon />, trait: 'ui.notifications' },
+    { label: 'Manifest Editor', icon: <CodeIcon />, trait: 'ui.plugins' },
+    { label: 'Chat', icon: <ScienceIcon />, trait: 'role.admin' },
   ];
 
   const hasTrait = (t: string) => !!(userTraits && userTraits.includes(t));
@@ -350,6 +367,9 @@ function AppContent() {
   const scriptsDisabled = !hasTrait('role.admin');
   const canSend = hasTrait('ui.send') || hasTrait('role.admin');
   const isAdmin = hasTrait('role.admin');
+  const allowSendDemo = hasTrait('ui.send_demo') || isAdmin;
+  const allowJobs = hasTrait('ui.jobs') || isAdmin;
+  const allowInboundDemo = hasTrait('ui.inbound_demo') || isAdmin;
 
   useEffect(() => {
     if (tabValue === 5) {
@@ -679,6 +699,8 @@ function AppContent() {
               <Tab icon={tabIcons[3]} iconPosition="start" label="Inbox" />
               <Tab icon={tabIcons[4]} iconPosition="start" label="Settings" />
               <Tab icon={tabIcons[5]} iconPosition="start" label="Tools" />
+              {/* Promoted: Notifications top-level */}
+              <Tab icon={<InboxIcon />} iconPosition="start" label="Notifications" />
             </Tabs>
           </Box>
         )}
@@ -854,6 +876,8 @@ function AppContent() {
               {settingsTab === 4 && <UserManagement client={client!} />}
               {settingsTab === 5 && <MCP client={client!} />}
             </Box>
+            {/* Floating help overlay toggle for contextual guidance */}
+            <HelpOverlayToggle />
           </Paper>
         </TabPanel>
         {/* Tools group */}
@@ -894,7 +918,8 @@ function AppContent() {
               {toolsTab === 2 && <Logs client={client!} />}
               {toolsTab === 3 && <Plugins client={client!} readOnly={!hasTrait('role.admin')} />}
               {toolsTab === 4 && <PluginMarketplace client={client!} docsBase={uiConfig?.docs_base || adminConfig?.branding?.docs_base} />}
-              {toolsTab === 5 && (
+              {toolsTab === 5 && <PluginDevGuide client={client!} />}
+              {toolsTab === 6 && (
                 <Box>
                   <ScriptsTests client={client!} docsBase={uiConfig?.docs_base || adminConfig?.branding?.docs_base} canSend={canSend} readOnly={!isAdmin} />
                   <Box sx={{ mt: 4 }}>
@@ -905,7 +930,10 @@ function AppContent() {
                   </Box>
                 </Box>
               )}
-              {toolsTab === 6 && (
+              {toolsTab === 7 && (
+                <AIStudio client={client!} readOnly={!isAdmin} />
+              )}
+              {toolsTab === 8 && (
                 <TunnelSettings
                   client={client!}
                   docsBase={uiConfig?.docs_base || adminConfig?.branding?.docs_base}
@@ -915,17 +943,36 @@ function AppContent() {
                   readOnly={!isAdmin}
                 />
               )}
-              {toolsTab === 7 && <Audit client={client!} />}
-              {toolsTab === 8 && <GatewayTester client={client!} />}
-              {toolsTab === 9 && <GatewayAllowlist client={client!} />}
-              {toolsTab === 10 && <MessagingConsole client={client!} />}
-              {toolsTab === 11 && <CanonicalTools client={client!} />}
-              {toolsTab === 12 && <PolicyInspector client={client!} />}
-              {toolsTab === 13 && <PluginRegister client={client!} />}
-              {toolsTab === 14 && <StorageBrowser client={client!} />}
-              {toolsTab === 15 && <NotificationsPanel client={client!} readOnly={!isAdmin} />}
+              {toolsTab === 9 && <Audit client={client!} />}
+              {toolsTab === 10 && <GatewayTester client={client!} />}
+              {toolsTab === 11 && <GatewayAllowlist client={client!} />}
+              {toolsTab === 12 && <MessagingConsole client={client!} />}
+              {toolsTab === 13 && <CanonicalTools client={client!} />}
+              {toolsTab === 14 && <CanonicalTransforms client={client!} />}
+              {toolsTab === 15 && <PolicyInspector client={client!} />}
+              {toolsTab === 16 && <OperatorPolicy client={client!} />}
+              {toolsTab === 17 && <Automations client={client!} readOnly={!isAdmin} />}
+              {toolsTab === 18 && <MFA client={client!} readOnly={!isAdmin} />}
+              {toolsTab === 19 && <PluginRegister client={client!} />}
+              {toolsTab === 20 && <StorageBrowser client={client!} />}
+              {toolsTab === 21 && <NotificationsPanel client={client!} readOnly={!isAdmin} />}
+              {toolsTab === 22 && <ManifestEditor client={client!} />}
+              {toolsTab === 23 && <ChatBot client={client!} />}
             </Box>
           </Paper>
+        </TabPanel>
+        {/* Notifications top-level */}
+        <TabPanel value={tabValue} index={6}>
+          {hasTrait('ui.notifications') || isAdmin ? (
+            <NotificationsPanel client={client!} readOnly={!isAdmin} />
+          ) : (
+            <Paper sx={{ p: 3 }}>
+              <Typography variant="h6" gutterBottom>Notifications access is disabled</Typography>
+              <Typography variant="body2" color="text.secondary">
+                This surface is gated by trait <code>ui.notifications</code>. Ask an administrator to grant access.
+              </Typography>
+            </Paper>
+          )}
         </TabPanel>
       </Container>
 

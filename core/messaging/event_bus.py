@@ -2,21 +2,178 @@
 Event bus implementation for canonical communication.
 """
 
+from __future__ import annotations
+
 import asyncio
 import logging
-from typing import Dict, List, Optional, Callable
+from typing import Dict, List, Optional, Callable, Protocol, Any
+import os
+import json
 
 from .models import Event, Message, MessageDeliveryStatus
+from .dispatch import PluginDispatcher
+from .durable import select_durable_from_env
 from ..audit.service import AuditService, AuditLevel
 from ..policy.engine import PolicyEngine, PolicyRequest, PolicyDecision
 
 logger = logging.getLogger(__name__)
 
 
+class BrokerClient(Protocol):
+    async def start(self) -> None: ...
+    async def stop(self) -> None: ...
+    async def publish(self, subject: str, data: bytes) -> None: ...
+    async def subscribe(self, subject: str, handler: Callable[[bytes], Any]) -> Any: ...
+
+
+class InMemoryBroker:
+    """Simple in-memory broker used by default and for tests."""
+
+    def __init__(self) -> None:
+        self._subs: Dict[str, List[Callable[[bytes], Any]]] = {}
+        self._running = False
+
+    async def start(self) -> None:
+        self._running = True
+
+    async def stop(self) -> None:
+        self._running = False
+        self._subs.clear()
+
+    async def publish(self, subject: str, data: bytes) -> None:
+        for handler in list(self._subs.get(subject, [])):
+            try:
+                await handler(data)
+            except Exception as e:  # noqa: BLE001
+                logger.exception("InMemoryBroker handler error: %s", e)
+
+    async def subscribe(self, subject: str, handler: Callable[[bytes], Any]) -> Any:
+        self._subs.setdefault(subject, []).append(handler)
+        return handler
+
+
+class NatsBroker:
+    """NATS broker adapter (uses nats-py)."""
+
+    def __init__(self, servers: str) -> None:
+        self._servers = servers
+        self._nc: Optional[Any] = None
+        self._subs: List[Any] = []
+
+    async def start(self) -> None:
+        import nats  # type: ignore
+
+        if self._nc is None:
+            # mypy: nats-py provides connect at runtime; ignore attribute typing
+            self._nc = await nats.connect(servers=self._servers)  # type: ignore[attr-defined]
+
+    async def stop(self) -> None:
+        if self._nc is not None:
+            try:
+                for sub in self._subs:
+                    await sub.unsubscribe()
+            finally:
+                await self._nc.drain()
+                await self._nc.close()
+            self._nc = None
+
+    async def publish(self, subject: str, data: bytes) -> None:
+        assert self._nc is not None
+        await self._nc.publish(subject, data)
+
+    async def subscribe(self, subject: str, handler: Callable[[bytes], Any]) -> Any:
+        assert self._nc is not None
+
+        async def _wrapped(msg):
+            try:
+                await handler(msg.data)
+            except Exception as e:  # noqa: BLE001
+                logger.exception("NATS handler error: %s", e)
+
+        sub = await self._nc.subscribe(subject, cb=_wrapped)
+        self._subs.append(sub)
+        return sub
+
+
+class RedisBroker:
+    """Redis Pub/Sub adapter (uses redis asyncio client)."""
+
+    def __init__(self, url: str) -> None:
+        self._url = url
+        self._redis: Optional[Any] = None
+        self._pub: Optional[Any] = None
+        self._ps: Optional[Any] = None
+        self._tasks: List[asyncio.Task] = []
+
+    async def start(self) -> None:
+        import redis.asyncio as redis  # type: ignore
+
+        self._redis = redis.from_url(self._url)
+        self._pub = self._redis
+        self._ps = self._redis.pubsub()
+
+    async def stop(self) -> None:
+        for t in self._tasks:
+            t.cancel()
+        self._tasks.clear()
+        if self._ps is not None:
+            await self._ps.close()
+            self._ps = None
+        if self._redis is not None:
+            await self._redis.close()
+            self._redis = None
+
+    async def publish(self, subject: str, data: bytes) -> None:
+        assert self._pub is not None
+        await self._pub.publish(subject, data)
+
+    async def subscribe(self, subject: str, handler: Callable[[bytes], Any]) -> Any:
+        assert self._ps is not None
+        await self._ps.subscribe(subject)
+
+        async def _reader():
+            assert self._ps is not None
+            while True:
+                try:
+                    msg = await self._ps.get_message(
+                        ignore_subscribe_messages=True, timeout=1.0
+                    )
+                    if msg and msg.get("type") == "message":
+                        data = msg.get("data")
+                        if isinstance(data, (bytes, bytearray)):
+                            await handler(data)
+                except asyncio.CancelledError:
+                    break
+                except Exception as e:  # noqa: BLE001
+                    logger.exception("Redis handler error: %s", e)
+
+        task = asyncio.create_task(_reader())
+        self._tasks.append(task)
+        return task
+
+
+def _select_broker_from_env() -> BrokerClient:
+    backend = os.getenv("EVENT_BUS_BACKEND", "memory").lower()
+    if backend == "nats":
+        servers = os.getenv("NATS_SERVERS", "nats://127.0.0.1:4222")
+        return NatsBroker(servers)
+    if backend == "redis":
+        url = os.getenv("REDIS_URL", "redis://127.0.0.1:6379/0")
+        return RedisBroker(url)
+    return InMemoryBroker()
+
+
 class EventBus:
     """Event bus for canonical inter-plugin communication."""
 
-    def __init__(self, audit_service: AuditService, policy_engine: PolicyEngine):
+    def __init__(
+        self,
+        audit_service: AuditService,
+        policy_engine: PolicyEngine,
+        broker: Optional[BrokerClient] = None,
+        dispatcher: Optional[PluginDispatcher] = None,
+        config_service: Optional[Any] = None,
+    ):
         self.audit_service = audit_service
         self.policy_engine = policy_engine
         self.subscribers: Dict[str, List[Callable]] = {}
@@ -24,6 +181,23 @@ class EventBus:
         self.delivery_tracking: Dict[str, MessageDeliveryStatus] = {}
         self._running = False
         self._processing_task: Optional[asyncio.Task] = None
+        self._broker: BrokerClient = broker or _select_broker_from_env()
+        self._dispatcher = dispatcher
+        # Delivery config
+        self._max_attempts = int(os.getenv("MESSAGE_MAX_ATTEMPTS", "3") or 3)
+        self._base_retry_delay = float(
+            os.getenv("MESSAGE_RETRY_BASE_SECONDS", "2.0") or 2.0
+        )
+        # Optional persistence for pending messages via ConfigService
+        try:
+            if config_service is not None:
+                self._config = config_service
+            else:
+                from ..config.service import get_config_service as _get_cfg
+
+                self._config = _get_cfg()
+        except Exception:
+            self._config = None  # type: ignore[assignment]
 
     async def start(self):
         """Start the event bus processing."""
@@ -31,7 +205,45 @@ class EventBus:
             return
 
         self._running = True
+        await self._broker.start()
+        # Rehydrate any pending messages for at-least-once best-effort
+        try:
+            if self._config is not None:
+                items = await self._config.get_all(reveal=True)
+                for k, v in items.items():
+                    if not str(k).startswith("messaging.pending."):
+                        continue
+                    try:
+                        obj = json.loads(json.dumps(v)) if not isinstance(v, dict) else v
+                        msg_data = obj.get("message") or obj
+                        src = obj.get("source_plugin") or msg_data.get("source_plugin")
+                        message = Message(**msg_data)
+                        # Do not republish to broker here; only enqueue local delivery
+                        await self.message_queue.put(("message", message, str(src or "unknown")))
+                    except Exception:
+                        continue
+        except Exception:
+            logger.debug("pending rehydrate failed", exc_info=True)
         self._processing_task = asyncio.create_task(self._process_messages())
+        # Start durable backend if configured
+        try:
+            self._durable = select_durable_from_env()
+        except Exception:
+            self._durable = None  # type: ignore[assignment]
+        if getattr(self, "_durable", None) is not None:
+            async def _cb(msg_obj, src):
+                try:
+                    # msg_obj is a raw dict; construct Message model
+                    m = Message(**msg_obj)
+                except Exception:
+                    return
+                await self._process_message(m, str(src))
+
+            try:
+                await self._durable.start(_cb)  # type: ignore[union-attr]
+                logger.info("Durable message backend started")
+            except Exception:
+                logger.debug("durable backend start failed", exc_info=True)
         logger.info("Event bus started")
 
     async def stop(self):
@@ -43,6 +255,13 @@ class EventBus:
                 await self._processing_task
             except asyncio.CancelledError:
                 pass
+        await self._broker.stop()
+        # Stop durable backend if running
+        try:
+            if getattr(self, "_durable", None) is not None:
+                await self._durable.stop()  # type: ignore[union-attr]
+        except Exception:
+            logger.debug("durable backend stop failed", exc_info=True)
         logger.info("Event bus stopped")
 
     async def publish_event(self, event: Event, source_plugin: str) -> bool:
@@ -62,7 +281,15 @@ class EventBus:
                 )
                 return False
 
-            # Add to processing queue
+            # Publish to broker subject for fan-out and also enqueue locally
+            subject = f"events.{event.event_type}"
+            payload = json.dumps(
+                {
+                    "event": event.model_dump(mode="json"),
+                    "source_plugin": source_plugin,
+                }
+            ).encode("utf-8")
+            await self._broker.publish(subject, payload)
             await self.message_queue.put(("event", event, source_plugin))
 
             await self.audit_service.log_event(
@@ -109,8 +336,39 @@ class EventBus:
                 )
                 return False
 
-            # Add to processing queue
-            await self.message_queue.put(("message", message, source_plugin))
+            # Persist pending (best-effort) for at-least-once across restarts
+            try:
+                if self._config is not None:
+                    await self._config.set(
+                        f"messaging.pending.{message.id}",
+                        {
+                            "message": message.model_dump(mode="json"),
+                            "source_plugin": source_plugin,
+                        },
+                        is_sensitive=False,
+                        updated_by=source_plugin,
+                        reason="message_enqueue",
+                    )
+            except Exception:
+                logger.debug("pending persist failed", exc_info=True)
+
+            # If durable backend active, enqueue there; otherwise use broker + local queue
+            if getattr(self, "_durable", None) is not None:
+                try:
+                    await self._durable.enqueue(message.model_dump(mode="json"), source_plugin)  # type: ignore[union-attr]
+                except Exception:
+                    logger.debug("durable enqueue failed", exc_info=True)
+                    raise
+            else:
+                subject = f"messages.{message.target_plugin}"
+                payload = json.dumps(
+                    {
+                        "message": message.model_dump(mode="json"),
+                        "source_plugin": source_plugin,
+                    }
+                ).encode("utf-8")
+                await self._broker.publish(subject, payload)
+                await self.message_queue.put(("message", message, source_plugin))
 
             await self.audit_service.log_event(
                 event_type="message_sent",
@@ -148,10 +406,28 @@ class EventBus:
         self, plugin_id: str, event_types: List[str], callback: Callable
     ):
         """Subscribe a plugin to specific event types."""
+
+        async def _handler_factory(user_callback: Callable):
+            async def _wrapped(data: bytes):
+                try:
+                    obj = json.loads(data.decode("utf-8"))
+                    raw_event = obj.get("event") or {}
+                    evt = Event(**raw_event)
+                    source_plugin = obj.get("source_plugin", "unknown")
+                    await user_callback(evt, source_plugin)
+                except Exception as e:  # noqa: BLE001
+                    logger.exception("Subscriber callback error: %s", e)
+
+            return _wrapped
+
         for event_type in event_types:
             if event_type not in self.subscribers:
                 self.subscribers[event_type] = []
             self.subscribers[event_type].append(callback)
+            # Also subscribe at broker level
+            subject = f"events.{event_type}"
+            handler = await _handler_factory(callback)
+            await self._broker.subscribe(subject, handler)
 
         logger.info(f"Plugin {plugin_id} subscribed to events: {event_types}")
 
@@ -195,14 +471,73 @@ class EventBus:
                     logger.error(f"Error in event callback: {e}")
 
     async def _process_message(self, message: Message, source_plugin: str):
-        """Process a message by delivering to target plugin."""
+        """Process a message by delivering to target plugin with retry/backoff."""
         if not message.target_plugin:
-            logger.warning(f"Message {message.id} has no target plugin")
+            logger.warning("message %s has no target plugin", message.id)
             return
 
-        # In a real implementation, this would route to the actual plugin
-        # For now, we'll just log the delivery
-        logger.info(f"Message {message.id} delivered to {message.target_plugin}")
+        if self._dispatcher is None:
+            logger.info(
+                "no dispatcher configured; dropping message %s -> %s",
+                message.id,
+                message.target_plugin,
+            )
+            return
+
+        attempts = 0
+        delivered = False
+        while attempts < self._max_attempts and self._running:
+            attempts += 1
+            try:
+                ok = await self._dispatcher.deliver_message(message, source_plugin)
+                if ok:
+                    delivered = True
+                    break
+            except Exception as e:  # noqa: BLE001
+                logger.debug("delivery attempt failed: %s", e, exc_info=True)
+
+            # Backoff before retrying
+            delay = self._base_retry_delay * (2 ** (attempts - 1))
+            try:
+                await asyncio.sleep(delay)
+            except asyncio.CancelledError:
+                break
+
+        # Track and audit
+        self.delivery_tracking[message.id] = (
+            MessageDeliveryStatus.DELIVERED if delivered else MessageDeliveryStatus.FAILED
+        )
+        # Clear pending on success
+        try:
+            if delivered and self._config is not None:
+                await self._config.set(
+                    f"messaging.pending.{message.id}",
+                    None,
+                    is_sensitive=False,
+                    updated_by=source_plugin,
+                    reason="message_delivered",
+                )
+        except Exception:
+            logger.debug("pending cleanup failed", exc_info=True)
+        try:
+            await self.audit_service.log_event(
+                event_type="message_delivery",
+                category="messaging",
+                action="deliver",
+                result="success" if delivered else "failed",
+                description=(
+                    f"{source_plugin} -> {message.target_plugin} msg={message.id} attempts={attempts}"
+                ),
+                plugin_id=source_plugin,
+                level=AuditLevel.STANDARD,
+                details={
+                    "message_id": message.id,
+                    "target_plugin": message.target_plugin,
+                    "attempts": attempts,
+                },
+            )
+        except Exception:  # noqa: BLE001
+            logger.debug("message delivery audit failed", exc_info=True)
 
     async def _can_publish_event(self, source_plugin: str, event: Event) -> bool:
         """Check if plugin can publish this event using the policy engine."""

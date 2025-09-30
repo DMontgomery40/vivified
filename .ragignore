@@ -1,0 +1,36 @@
+# General build/artifact directories
+node_modules/
+dist/
+build/
+site/
+coverage/
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.venv/
+venv/
+
+# Logs and cache
+*.log
+*.tmp
+*.cache
+
+# Frontend build artifacts
+core/admin_ui/node_modules/
+core/admin_ui/dist/
+core/ui/node_modules/
+core/ui/dist/
+
+# Binary and media files
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.pdf
+*.svg
+*.ico
+
+# Git and docs site outputs
+.git/
+docs/.DS_Store
+.DS_Store

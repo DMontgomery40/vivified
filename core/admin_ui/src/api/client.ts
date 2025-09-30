@@ -25,6 +25,38 @@ export class AdminAPIClient {
     }
   }
 
+  // Security: MFA (TOTP)
+  async mfaSetup(): Promise<{ secret?: string; qr?: string; qr_png?: string; qr_code?: string; backup_codes?: string[] }>{
+    const res = await this.fetch('/admin/security/mfa/setup', { method: 'POST' });
+    return res.json();
+  }
+
+  async mfaEnable(payload: { totp_code?: string; backup_code?: string }): Promise<{ enabled: boolean; method: string }>{
+    const res = await this.fetch('/admin/security/mfa/enable', { method: 'POST', body: JSON.stringify(payload) });
+    return res.json();
+  }
+
+  // Security: WebAuthn (Passkeys)
+  async webauthnRegistrationOptions(): Promise<any> {
+    const res = await this.fetch('/admin/security/webauthn/registration-options', { method: 'POST' });
+    return res.json();
+  }
+
+  async webauthnRegister(attestation: any): Promise<{ ok: boolean; id?: string }>{
+    const res = await this.fetch('/admin/security/webauthn/register', { method: 'POST', body: JSON.stringify(attestation) });
+    return res.json();
+  }
+
+  async webauthnAssertionOptions(): Promise<any> {
+    const res = await this.fetch('/admin/security/webauthn/assertion-options', { method: 'POST' });
+    return res.json();
+  }
+
+  async webauthnAssert(assertion: any): Promise<{ ok: boolean; user_verified?: boolean }>{
+    const res = await this.fetch('/admin/security/webauthn/assert', { method: 'POST', body: JSON.stringify(assertion) });
+    return res.json();
+  }
+
   // Notifications
   async getNotificationsInbox(limit: number = 50, offset: number = 0): Promise<{ items: any[] }>{
     const res = await this.fetch(`/admin/notifications?limit=${encodeURIComponent(String(limit))}&offset=${encodeURIComponent(String(offset))}`);
@@ -48,6 +80,38 @@ export class AdminAPIClient {
 
   async getNotificationsHelp(): Promise<{ links: Record<string, string> }>{
     const res = await this.fetch('/admin/notifications/help');
+    return res.json();
+  }
+
+  // Notification Rules
+  async listNotificationRules(): Promise<{ items: any[] }>{
+    const res = await this.fetch('/admin/notifications/rules');
+    return res.json();
+  }
+
+  async upsertNotificationRule(rule: any): Promise<any> {
+    const res = await this.fetch('/admin/notifications/rules', { method: 'PUT', body: JSON.stringify(rule) });
+    return res.json();
+  }
+
+  async deleteNotificationRule(id: string): Promise<{ ok: boolean }>{
+    const res = await this.fetch(`/admin/notifications/rules/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    return res.json();
+  }
+
+  // Automations (Rules & Flows)
+  async listAutomationRules(): Promise<{ items: any[] }>{
+    const res = await this.fetch('/admin/automation/rules');
+    return res.json();
+  }
+
+  async upsertAutomationRule(rule: any): Promise<any> {
+    const res = await this.fetch('/admin/automation/rules', { method: 'PUT', body: JSON.stringify(rule) });
+    return res.json();
+  }
+
+  async deleteAutomationRule(id: string): Promise<{ ok: boolean }>{
+    const res = await this.fetch(`/admin/automation/rules/${encodeURIComponent(id)}`, { method: 'DELETE' });
     return res.json();
   }
 
@@ -150,9 +214,89 @@ export class AdminAPIClient {
     return res.json();
   }
 
+  // Operator allowlist (policy)
+  async getOperatorAllowlist(caller: string, target: string): Promise<{ caller: string; target: string; operations: string[] }>{
+    const res = await this.fetch(`/admin/operator/allowlist?caller=${encodeURIComponent(caller)}&target=${encodeURIComponent(target)}`);
+    return res.json();
+  }
+
+  async setOperatorAllowlist(payload: { caller: string; target: string; operations: string[] }): Promise<{ ok: boolean }>{
+    const res = await this.fetch('/admin/operator/allowlist', { method: 'PUT', body: JSON.stringify(payload) });
+    return res.json();
+  }
+
+  async autoGenerateOperatorAllowlist(payload: { caller: string; target: string; merge?: boolean }): Promise<{ ok: boolean; caller: string; target: string; operations: string[] }>{
+    const res = await this.fetch('/admin/operator/allowlist/auto-generate', { method: 'POST', body: JSON.stringify(payload || {}) });
+    return res.json();
+  }
+
+  // Canonical transformations
+  async getCanonicalTransforms(source: string, target: string): Promise<{ source: string; target: string; mappings: Record<string, any> }>{
+    const res = await this.fetch(`/admin/canonical/transforms?source=${encodeURIComponent(source)}&target=${encodeURIComponent(target)}`);
+    return res.json();
+  }
+
+  async setCanonicalTransforms(payload: { source: string; target: string; mappings: Record<string, any> }): Promise<{ ok: boolean }>{
+    const res = await this.fetch('/admin/canonical/transforms', { method: 'PUT', body: JSON.stringify(payload) });
+    return res.json();
+  }
+
+  // Gateway rate policy
+  async getGatewayRatePolicy(): Promise<{ requests_per_minute: number; burst_limit: number }>{
+    const res = await this.fetch('/admin/gateway/rate-policy');
+    return res.json();
+  }
+
+  async setGatewayRatePolicy(rpm: number, burst: number): Promise<{ ok: boolean }>{
+    const res = await this.fetch('/admin/gateway/rate-policy', { method: 'PUT', body: JSON.stringify({ requests_per_minute: rpm, burst_limit: burst }) });
+    return res.json();
+  }
+
+  async getPluginRatePolicy(pluginId: string): Promise<{ plugin_id: string; requests_per_minute: number; burst_limit: number }>{
+    const res = await this.fetch(`/admin/gateway/rate-policy/${encodeURIComponent(pluginId)}`);
+    return res.json();
+  }
+
+  async setPluginRatePolicy(pluginId: string, rpm: number, burst: number): Promise<{ ok: boolean }>{
+    const res = await this.fetch(`/admin/gateway/rate-policy/${encodeURIComponent(pluginId)}`, { method: 'PUT', body: JSON.stringify({ requests_per_minute: rpm, burst_limit: burst }) });
+    return res.json();
+  }
+
   // Canonical
   async getCanonicalStats(): Promise<any> {
     const res = await this.fetch('/canonical/stats');
+    return res.json();
+  }
+
+  // Canonical Schemas
+  async listSchemas(name: string): Promise<{ name: string; versions: Array<[number,number,number]> }>{
+    const res = await this.fetch(`/schemas/${encodeURIComponent(name)}`);
+    return res.json();
+  }
+
+  async getActiveSchema(name: string, major: number): Promise<{ name: string; major: number; active: any }>{
+    const res = await this.fetch(`/schemas/${encodeURIComponent(name)}/active/${encodeURIComponent(String(major))}`);
+    return res.json();
+  }
+
+  async upsertSchema(payload: { name: string; major: number; minor?: number; patch?: number; schema_data?: Record<string, any> }): Promise<any> {
+    const res = await this.fetch('/schemas', { method: 'POST', body: JSON.stringify(payload) });
+    return res.json();
+  }
+
+  async activateSchema(payload: { name: string; major: number; minor?: number; patch?: number }): Promise<any> {
+    const res = await this.fetch('/schemas/activate', { method: 'POST', body: JSON.stringify(payload) });
+    return res.json();
+  }
+
+  async validateSchema(name: string, payload: Record<string, any>, opts: { major?: number; version?: string } = {}): Promise<{ ok: boolean; version?: [number,number,number]; error?: string; path?: any[]; schema_path?: any[] }>{
+    const body: any = { payload };
+    if (typeof opts.major === 'number') body.major = opts.major;
+    if (opts.version) body.version = opts.version;
+    const res = await this.fetch(`/schemas/${encodeURIComponent(name)}/validate`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
     return res.json();
   }
 
@@ -180,6 +324,102 @@ export class AdminAPIClient {
     });
     return res.json();
   }
+
+  // Core plugin manifest schema + validation
+  async getPluginManifestSchema(): Promise<any> {
+    const res = await this.fetch('/admin/plugins/manifest-schema');
+    return res.json();
+  }
+
+  async validatePluginManifest(manifest: any): Promise<{ ok: boolean; errors: Array<{ message: string; path: any[]; schema_path: any[] }>; suggestions: { operations: string[]; allowlist: Record<string, { allowed_methods: string[]; allowed_paths: string[] }>; invalid_domains: string[]; parsed_domains: string[] } }>{
+    const res = await this.fetch('/admin/plugins/validate-manifest', {
+      method: 'POST',
+      body: JSON.stringify(manifest),
+    });
+    return res.json();
+  }
+
+  async scaffoldPlugin(payload: { id: string; name?: string; version?: string; language?: string; traits?: string[]; capabilities?: string[]; template?: string }): Promise<Blob> {
+    const url = `${this.baseURL}/admin/plugins/scaffold`;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${this.apiKey}`,
+        'X-API-Key': this.apiKey,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error(`Scaffold failed: ${res.status}`);
+    return await res.blob();
+  }
+
+  // AI / RAG
+  async aiStatus(): Promise<{ docs_indexed: number; last_trained_ts?: number | null; backend?: string }>{
+    const res = await this.fetch('/admin/ai/status');
+    return res.json();
+  }
+
+  async aiTrain(sources?: string[]): Promise<{ ok: boolean; indexed: number; total: number }>{
+    const res = await this.fetch('/admin/ai/train', { method: 'POST', body: JSON.stringify({ sources: sources || [] }) });
+    return res.json();
+  }
+
+  async aiQuery(query: string): Promise<{ items: Array<{ id: string; title: string; path?: string }> }>{
+    const res = await this.fetch('/admin/ai/query', { method: 'POST', body: JSON.stringify({ q: query }) });
+    return res.json();
+  }
+
+  async aiAgentRun(prompt: string): Promise<{ result: string; tools_used?: Array<{ name?: string; args?: any; content?: string }> }>{
+    const res = await this.fetch('/admin/ai/agent/run', { method: 'POST', body: JSON.stringify({ prompt }) });
+    return res.json();
+  }
+
+  // AI Config (server-side; secrets stored securely)
+  async getAiConfig(): Promise<{ llm: { provider?: string; model?: string; base_url?: string; api_key_present: boolean }, embeddings?: { model?: string } }>{
+    const res = await this.fetch('/admin/ai/config');
+    return res.json();
+  }
+
+  async setAiConfig(payload: { provider?: string; model?: string; base_url?: string; embeddings_model?: string; rag_redis_url?: string; openai_api_key?: string }): Promise<{ ok: boolean; changed: string[] }>{
+    const res = await this.fetch('/admin/ai/config', { method: 'PUT', body: JSON.stringify(payload) });
+    return res.json();
+  }
+
+  // AI RAG rules (ingestion traits/classification)
+  async getAiRagRules(): Promise<{ required_traits: Record<string, string[]>; classification: Record<string, string[]>; chunk_chars?: number; overlap_chars?: number; backend?: string; plugin_id?: string }>{
+    const res = await this.fetch('/admin/ai/rag-rules');
+    return res.json();
+  }
+
+  async setAiRagRules(payload: { required_traits?: Record<string, string[]>; classification?: Record<string, string[]>; chunk_chars?: number; overlap_chars?: number; backend?: string; plugin_id?: string }): Promise<{ ok: boolean }>{
+    const res = await this.fetch('/admin/ai/rag-rules', { method: 'PUT', body: JSON.stringify(payload || {}) });
+    return res.json();
+  }
+
+  async aiConnectorsGet(): Promise<{ provider?: string; openai: any; anthropic: any; local?: any; agent: { tool_calling: boolean } }>{
+    const res = await this.fetch('/admin/ai/connectors');
+    return res.json();
+  }
+
+  async aiConnectorsPut(payload: { provider?: string; openai?: any; anthropic?: any; local?: any; agent?: { tool_calling?: boolean } }): Promise<{ ok: boolean; changed?: string[] }>{
+    const res = await this.fetch('/admin/ai/connectors', { method: 'PUT', body: JSON.stringify(payload || {}) });
+    return res.json();
+  }
+
+  async aiModels(provider: string, type?: 'chat' | 'embeddings'): Promise<{ provider: string; type: string; models: string[]; prices?: Record<string, { input?: number; output?: number; unit?: string }> }>{
+    const t = type ? `&typ=${encodeURIComponent(type)}` : '';
+    const res = await this.fetch(`/admin/ai/models?provider=${encodeURIComponent(provider)}${t}`);
+    return res.json();
+  }
+
+  // Gateway allowlist (effective view)
+  async getGatewayAllowlistEffective(pluginId?: string): Promise<{ entries: Array<{ domain: string; allowed_methods: string[]; allowed_paths: string[] }> }>{
+    const q = pluginId ? `?plugin_id=${encodeURIComponent(pluginId)}` : '';
+    const res = await this.fetch(`/gateway/allowlist/effective${q}`);
+    return res.json();
+  }
+
 
   async importEnv(prefixes?: string[]): Promise<{ ok: boolean; discovered: number; prefixes: string[] }>{
     const body = prefixes && prefixes.length ? { prefixes } : {};
@@ -483,6 +723,34 @@ export class AdminAPIClient {
     const params = new URLSearchParams();
     params.append('X-API-Key', this.apiKey);
     return new EventSource(`${this.baseURL}/admin/diagnostics/events/sse?${params.toString()}`);
+  }
+
+  // QA Test Suites (Phase 8)
+  async listTestSuites(): Promise<{ suites: Array<{ id: string; label: string }> }>{
+    const res = await this.fetch('/admin/tests');
+    return res.json();
+  }
+
+  async runTestSuite(suite: string): Promise<{ suite: string; ok: boolean; logs: Array<{ level: string; message: string }> }>{
+    const res = await this.fetch('/admin/tests/run', {
+      method: 'POST',
+      body: JSON.stringify({ suite }),
+    });
+    return res.json();
+  }
+
+  // QA env (Docker)
+  async qaEnvStatus(): Promise<any> {
+    const res = await this.fetch('/admin/tests/env/status');
+    return res.json();
+  }
+  async qaEnvStart(payload: { compose_file?: string; project?: string } = {}): Promise<any> {
+    const res = await this.fetch('/admin/tests/env/start', { method: 'POST', body: JSON.stringify(payload) });
+    return res.json();
+  }
+  async qaEnvStop(payload: { compose_file?: string; project?: string } = {}): Promise<any> {
+    const res = await this.fetch('/admin/tests/env/stop', { method: 'POST', body: JSON.stringify(payload) });
+    return res.json();
   }
 
   // Provider Health Management
