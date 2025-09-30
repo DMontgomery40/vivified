@@ -1,4 +1,4 @@
-![Vivified Platform](vivified.jpg)
+![Vivified Platform](vivified_logo_dark_mode.png)
 
 # Vivified Platform
 
