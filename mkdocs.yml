@@ -8,6 +8,7 @@ theme:
   name: material
   custom_dir: docs/overrides
   language: en
+  favicon: images/favicon.png
   palette:
   - scheme: default
     primary: indigo
