@@ -36,7 +36,7 @@ except Exception:  # pragma: no cover - lightweight fallback for test envs
             return json.loads(data)
 
     jwt = _FallbackJWT()  # type: ignore[assignment]
-from fastapi import Depends, Header, HTTPException
+from fastapi import Depends, Header, HTTPException, Request
 
 logger = logging.getLogger(__name__)
 
@@ -99,7 +99,31 @@ def get_auth_manager() -> AuthManager:
     return _AUTH_MANAGER
 
 
+def _env_true(name: str, default: str = "false") -> bool:
+    return os.getenv(name, default).lower() in {"1", "true", "yes"}
+
+
+def _bootstrap_allowed(request: Optional[Request]) -> bool:
+    """Return True if dev bootstrap should be honored.
+
+    Allows when any of these are true:
+      - DEV_MODE env is enabled
+      - ALLOW_BOOTSTRAP_ALWAYS env is enabled
+      - Request comes from localhost (127.0.0.1/::1)
+    """
+    if _env_true("DEV_MODE") or _env_true("ALLOW_BOOTSTRAP_ALWAYS"):
+        return True
+    try:
+        if request is not None and request.client and request.client.host:
+            host = request.client.host
+            return host in {"127.0.0.1", "::1", "localhost"}
+    except Exception:
+        pass
+    return False
+
+
 async def get_current_user(
+    request: Request,
     authorization: Optional[str] = Header(default=None),
     x_api_key: Optional[str] = Header(default=None, alias="X-API-Key"),
 ) -> Dict[str, Any]:
@@ -108,7 +132,7 @@ async def get_current_user(
     Returns a dict: {"id": str, "traits": List[str], "claims": Dict}
     """
     # DEV bootstrap: accept X-API-Key or Bearer with special value
-    if DEV_MODE:
+    if _bootstrap_allowed(request):
         bootstrap = "bootstrap_admin_only"
         if (x_api_key and x_api_key == bootstrap) or (
             authorization
@@ -147,24 +171,25 @@ async def get_current_user(
 
 def require_auth(
     required_traits: Optional[List[str]] = None,
-) -> Callable[[Dict[str, Any]], Awaitable[None]]:
+) -> Callable[[Dict[str, Any]], Awaitable[Dict[str, Any]]]:
     """Returns a dependency that enforces presence of required traits.
 
     Usage in FastAPI routes:
       @router.get(..., dependencies=[Depends(require_auth(["admin"]))])
     """
 
-    async def _dep(user: Dict[str, Any] = Depends(get_current_user)) -> None:
+    async def _dep(user: Dict[str, Any] = Depends(get_current_user)) -> Dict[str, Any]:
         if not required_traits:
-            return
+            return user
         utraits = set(user.get("traits", []))
         # Admin always allowed
         if "admin" in utraits:
-            return
+            return user
         if not any(trait in utraits for trait in required_traits):
             raise HTTPException(
                 status_code=403, detail="Forbidden: insufficient traits"
             )
+        return user
 
     return _dep
 
@@ -289,13 +314,9 @@ def audit_phi_access(func: Callable) -> Callable:
     return _wrapper
 
 
-# Developer-only helper route support
-DEV_MODE = os.getenv("DEV_MODE", "false").lower() in {"1", "true", "yes"}
-
-
 def dev_issue_admin_token() -> str:
     """Issue a short-lived admin token for local/dev usage."""
-    if not DEV_MODE:
+    if not (_env_true("DEV_MODE") or _env_true("ALLOW_BOOTSTRAP_ALWAYS")):
         raise PermissionError("Dev login disabled")
     traits = ["admin", "config_manager", "plugin_manager", "audit_viewer", "viewer"]
     return get_auth_manager().generate_user_token(

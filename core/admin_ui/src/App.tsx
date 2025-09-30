@@ -334,6 +334,11 @@ function AppContent() {
     { label: 'MCP', icon: <CodeIcon /> },
   ];
 
+  // New top-level groups (lightweight) for better discoverability
+  const [aiTab, setAiTab] = useState(0);
+  const [pluginsTab, setPluginsTab] = useState(0);
+  const [netTab, setNetTab] = useState(0);
+
   // Always include Plugins tab; component will guide when feature disabled
   const toolsItems = [
     { label: 'Terminal', icon: <TerminalIcon />, trait: 'ui.terminal' },
@@ -701,6 +706,10 @@ function AppContent() {
               <Tab icon={tabIcons[5]} iconPosition="start" label="Tools" />
               {/* Promoted: Notifications top-level */}
               <Tab icon={<InboxIcon />} iconPosition="start" label="Notifications" />
+              {/* New top-level shortcuts */}
+              <Tab icon={<ScienceIcon />} iconPosition="start" label="AI" />
+              <Tab icon={<ExtensionIcon />} iconPosition="start" label="Plugins" />
+              <Tab icon={<VpnLockIcon />} iconPosition="start" label="Networking" />
             </Tabs>
           </Box>
         )}
@@ -895,8 +904,9 @@ function AppContent() {
               <Tabs
                 value={toolsTab}
                 onChange={(_, v) => setToolsTab(v)}
-                variant={isMobile ? 'scrollable' : 'standard'}
-                scrollButtons={isMobile ? 'auto' : false}
+                variant="scrollable"
+                scrollButtons="auto"
+                allowScrollButtonsMobile
                 sx={{ px: 2 }}
               >
                 {toolsItems.map((item) => (
@@ -973,6 +983,72 @@ function AppContent() {
               </Typography>
             </Paper>
           )}
+        </TabPanel>
+
+        {/* AI top-level shortcut (Chat + AI Studio) */}
+        <TabPanel value={tabValue} index={7}>
+          <Paper 
+            elevation={0}
+            sx={{ borderRadius: 3, overflow: 'hidden', border: '1px solid', borderColor: 'divider' }}
+          >
+            <Box sx={{ borderBottom: 1, borderColor: 'divider', backgroundColor: muiTheme.palette.action.hover }}>
+              <Tabs value={aiTab} onChange={(_, v) => setAiTab(v)} aria-label="AI tabs" sx={{ px: 2 }}>
+                <Tab icon={<ScienceIcon />} iconPosition="start" label="Chat" />
+                <Tab icon={<ScienceIcon />} iconPosition="start" label="AI Studio" />
+              </Tabs>
+            </Box>
+            <Box sx={{ p: { xs: 2, md: 3 } }}>
+              {aiTab === 0 && <ChatBot client={client!} />}
+              {aiTab === 1 && <AIStudio client={client!} readOnly={!isAdmin} />}
+            </Box>
+          </Paper>
+        </TabPanel>
+
+        {/* Plugins top-level shortcut (Plugins, Marketplace, Manifest, Register) */}
+        <TabPanel value={tabValue} index={8}>
+          <Paper elevation={0} sx={{ borderRadius: 3, overflow: 'hidden', border: '1px solid', borderColor: 'divider' }}>
+            <Box sx={{ borderBottom: 1, borderColor: 'divider', backgroundColor: muiTheme.palette.action.hover }}>
+              <Tabs value={pluginsTab} onChange={(_, v) => setPluginsTab(v)} aria-label="Plugin tabs" sx={{ px: 2 }}>
+                <Tab icon={<ExtensionIcon />} iconPosition="start" label="Plugins" />
+                <Tab icon={<ExtensionIcon />} iconPosition="start" label="Marketplace" />
+                <Tab icon={<CodeIcon />} iconPosition="start" label="Manifest Editor" />
+                <Tab icon={<ExtensionIcon />} iconPosition="start" label="Register" />
+              </Tabs>
+            </Box>
+            <Box sx={{ p: { xs: 2, md: 3 } }}>
+              {pluginsTab === 0 && <Plugins client={client!} readOnly={!hasTrait('role.admin')} />}
+              {pluginsTab === 1 && <PluginMarketplace client={client!} docsBase={uiConfig?.docs_base || adminConfig?.branding?.docs_base} />}
+              {pluginsTab === 2 && <ManifestEditor client={client!} />}
+              {pluginsTab === 3 && <PluginRegister client={client!} />}
+            </Box>
+          </Paper>
+        </TabPanel>
+
+        {/* Networking top-level shortcut (Proxy, Allowlist, Tunnels) */}
+        <TabPanel value={tabValue} index={9}>
+          <Paper elevation={0} sx={{ borderRadius: 3, overflow: 'hidden', border: '1px solid', borderColor: 'divider' }}>
+            <Box sx={{ borderBottom: 1, borderColor: 'divider', backgroundColor: muiTheme.palette.action.hover }}>
+              <Tabs value={netTab} onChange={(_, v) => setNetTab(v)} aria-label="Networking tabs" sx={{ px: 2 }}>
+                <Tab icon={<AssessmentIcon />} iconPosition="start" label="HTTP Proxy" />
+                <Tab icon={<AssessmentIcon />} iconPosition="start" label="Allowlist" />
+                <Tab icon={<VpnLockIcon />} iconPosition="start" label="Tunnels" />
+              </Tabs>
+            </Box>
+            <Box sx={{ p: { xs: 2, md: 3 } }}>
+              {netTab === 0 && <GatewayTester client={client!} />}
+              {netTab === 1 && <GatewayAllowlist client={client!} />}
+              {netTab === 2 && (
+                <TunnelSettings
+                  client={client!}
+                  docsBase={uiConfig?.docs_base || adminConfig?.branding?.docs_base}
+                  hipaaMode={Boolean(adminConfig?.security?.enforce_https)}
+                  inboundBackend={adminConfig?.hybrid?.inbound_backend}
+                  sinchConfigured={Boolean(adminConfig?.backend_configured?.sinch)}
+                  readOnly={!isAdmin}
+                />
+              )}
+            </Box>
+          </Paper>
         </TabPanel>
       </Container>
 

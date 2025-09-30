@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Box, Paper, Typography, Stack, TextField, Button, Divider } from '@mui/material';
+import { useEffect, useState } from 'react';
+import { Box, Paper, Typography, Stack, TextField, Button, Divider, Alert, FormControlLabel, Switch, Tooltip } from '@mui/material';
 import AdminAPIClient from '../api/client';
 
 interface ChatMessage {
@@ -12,15 +12,34 @@ export default function ChatBot({ client }: { client: AdminAPIClient }) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('Hello!');
   const [busy, setBusy] = useState(false);
+  const [configured, setConfigured] = useState<boolean | null>(null);
+  const [cfgMsg, setCfgMsg] = useState<string>('');
+  const [hipaaMode, setHipaaMode] = useState<boolean>(true);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const cfg = await client.getAiConfig();
+        const hasKey = Boolean(cfg?.llm?.api_key_present);
+        setConfigured(hasKey);
+        setCfgMsg(hasKey ? '' : 'LOCAL ONLY: Set Provider + API key in AI Studio → Connectors, then return to Chat.');
+      } catch {
+        setConfigured(false);
+        setCfgMsg('Unable to load AI config.');
+      }
+    })();
+  }, [client]);
 
   const send = async () => {
     if (!input.trim()) return;
     const userMsg: ChatMessage = { role: 'user', content: input.trim() };
-    setMessages((m) => [...m, userMsg]);
+    const conversationHistory = [...messages, userMsg];
+    setMessages(conversationHistory);
     setInput('');
     try {
       setBusy(true);
-      const res = await client.aiAgentRun(userMsg.content);
+      // Send the FULL conversation history, not just the latest message
+      const res = await client.aiAgentRun(conversationHistory, hipaaMode);
       const asst: ChatMessage = {
         role: 'assistant',
         content: (res as any)?.result || '',
@@ -35,7 +54,23 @@ export default function ChatBot({ client }: { client: AdminAPIClient }) {
 
   return (
     <Box>
-      <Typography variant="h4" gutterBottom>Chat</Typography>
+      <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
+        <Typography variant="h4">Chat</Typography>
+        <Tooltip title={hipaaMode ? "HIPAA mode ON: Generated code will include HIPAA compliance fields (hipaa_controls, handles_phi, audit_level). Turn OFF for non-healthcare projects." : "HIPAA mode OFF: Generated code will NOT include healthcare compliance fields. Turn ON if building for healthcare/PHI."}>
+          <FormControlLabel
+            control={<Switch checked={hipaaMode} onChange={(e) => setHipaaMode(e.target.checked)} />}
+            label={<Typography variant="body2">HIPAA Mode</Typography>}
+          />
+        </Tooltip>
+      </Stack>
+      {configured === false && (
+        <Alert severity="warning" sx={{ mb: 2 }}>{cfgMsg}</Alert>
+      )}
+      {!hipaaMode && (
+        <Alert severity="info" sx={{ mb: 2 }}>
+          HIPAA mode is <strong>OFF</strong>. Generated code will exclude healthcare compliance fields (hipaa_controls, handles_phi, data_classification).
+        </Alert>
+      )}
       <Paper sx={{ p: 2, borderRadius: 2, mb: 2, minHeight: 240 }}>
         {(messages.length === 0) && (
           <Typography variant="body2" color="text.secondary">Start the conversation. Tool-calling is used when enabled in AI Studio Connectors.</Typography>

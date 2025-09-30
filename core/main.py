@@ -153,6 +153,8 @@ logging.basicConfig(
     level=os.getenv("LOG_LEVEL", "INFO"),
     format="%(asctime)s - %(name)s - %(levelname)s - trace_id=%(trace_id)s - %(message)s",
 )
+# Add trace_id filter to root logger so all child loggers inherit it
+logging.getLogger().addFilter(AddTraceIdFilter())
 logger = logging.getLogger("vivified.core")
 logger.addFilter(AddTraceIdFilter())
 
@@ -329,17 +331,41 @@ async def startup_event():
     except Exception as e:
         logger.error(f"Failed to start core services: {e}")
 
-    # Optional DB bootstrap for Identity
+    # DB bootstrap: run migrations and initialize services
     if os.getenv("DB_INIT", "false").lower() in {"1", "true", "yes"}:
         try:
             from .database import get_engine, async_session_factory
             from .identity.service import IdentityService
             from .identity.auth import get_auth_manager
+            from .config.service import init_config_service
 
             engine = get_engine()
+            
+            # Run Alembic migrations to create all tables
+            try:
+                from alembic.config import Config
+                from alembic import command
+                from os import path as ospath
+                alembic_cfg = Config(ospath.join(ospath.dirname(__file__), "alembic.ini"))
+                alembic_cfg.set_main_option("script_location", ospath.join(ospath.dirname(__file__), "migrations"))
+                # Get the database URL from environment
+                db_url = os.getenv("DATABASE_URL", "postgresql+asyncpg://vivified:changeme@postgres:5432/vivified")
+                # Alembic needs sync URL
+                sync_url = db_url.replace("+asyncpg", "").replace("+aiosqlite", "")
+                alembic_cfg.set_main_option("sqlalchemy.url", sync_url)
+                command.upgrade(alembic_cfg, "head")
+                logger.info("Database migrations applied successfully")
+            except Exception as e:
+                logger.warning(f"Migration upgrade skipped or failed: {e}")
+            
             async with engine.begin():
                 pass
-            # Create schema and defaults
+                
+            # Initialize ConfigService with database session factory for persistence
+            await init_config_service(async_session_factory)
+            logger.info("ConfigService initialized with database persistence")
+                
+            # Create identity schema and defaults
             async with async_session_factory() as session:
                 ids = IdentityService(session, get_auth_manager())
                 await ids.init_schema(engine)

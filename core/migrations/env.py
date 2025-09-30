@@ -10,8 +10,16 @@ from alembic import context
 # Add the project root to the Python path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
-# Import our models
-from core.identity.models import Base
+# Import our models - combine all Base metadata
+from core.identity.models import Base as IdentityBase
+from core.config.models import Base as ConfigBase
+
+# Merge metadata from all models
+from sqlalchemy import MetaData
+Base = IdentityBase
+# Merge config models into identity base metadata
+for table in ConfigBase.metadata.tables.values():
+    table.tometadata(Base.metadata)
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

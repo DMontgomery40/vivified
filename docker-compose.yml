@@ -77,6 +77,16 @@ services:
       USE_TLS: "false"
       PUBLIC_API_URL: http://vivified-core:8000
       RAG_ROOT: /workspace
+      # AI/LLM API Keys
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      CLAUDE_API_KEY: ${CLAUDE_API_KEY:-}
+      # AI/LLM Config (persists across restarts)
+      AI_LLM_PROVIDER: ${AI_LLM_PROVIDER:-claude}
+      AI_LLM_MODEL: ${AI_LLM_MODEL:-claude-sonnet-4-5-20250929}
+      # RAG Config (bigger chunks for better context)
+      RAG_CHUNK_CHARS: ${RAG_CHUNK_CHARS:-8000}
+      RAG_OVERLAP_CHARS: ${RAG_OVERLAP_CHARS:-800}
     ports:
       - "8000:8000"
       - "8443:8443"

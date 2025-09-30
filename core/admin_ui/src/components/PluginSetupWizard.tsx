@@ -100,7 +100,7 @@ export default function PluginSetupWizard({ client, readOnly = false }: Props) {
         return m;
       };
 
-      const aiPromise = client.aiAgentRun(prompt);
+      const aiPromise = client.aiAgentRun([{ role: "user", content: prompt }], true);
       const timeoutPromise = new Promise<{ result?: string }>((resolve) => setTimeout(() => resolve({ result: '' }), 20000));
       const r = await Promise.race([aiPromise as any, timeoutPromise]);
       const out = (r?.result || '').trim();

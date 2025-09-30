@@ -94,10 +94,28 @@ async def ai_agent_run(
         if _RAG is None:
             _RAG = RAGService(os.getenv("REDIS_URL"))
         _AGENT = AgentService(_RAG)
-    prompt = str(payload.get("prompt") or "").strip()
+    
+    # Support both old API (prompt) and new API (messages array)
+    messages = payload.get("messages")
+    if messages and isinstance(messages, list) and len(messages) > 0:
+        # New API: full conversation history
+        prompt = messages[-1].get("content", "").strip()
+        conversation_history = messages[:-1]  # All messages except the last one
+    else:
+        # Old API: single prompt (backwards compatibility)
+        prompt = str(payload.get("prompt") or "").strip()
+        conversation_history = []
+    
     if not prompt:
-        raise HTTPException(status_code=400, detail="prompt required")
-    out = await _AGENT.run(prompt, user_traits=(user.get("traits") or []))  # type: ignore[union-attr]
+        raise HTTPException(status_code=400, detail="prompt or messages required")
+    
+    hipaa_mode = bool(payload.get("hipaa_mode", True))  # Default to True for safety
+    out = await _AGENT.run(
+        prompt, 
+        user_traits=(user.get("traits") or []), 
+        hipaa_mode=hipaa_mode,
+        conversation_history=conversation_history
+    )  # type: ignore[union-attr]
     return out
 
 
@@ -109,7 +127,21 @@ async def ai_get_config(_: Dict = Depends(require_auth(["admin"]))):
     provider = await cfg.get("ai.llm.provider")
     base_url = await cfg.get("ai.llm.base_url")
     emb_model = await cfg.get("ai.embeddings.model")
-    api_key_present = bool(await cfg.get("secrets.ai.openai.api_key"))
+    # Determine API key presence based on selected provider (supports 'claude' alias)
+    prov = str(provider or os.getenv("AI_LLM_PROVIDER") or "openai").lower()
+    if prov in {"anthropic", "claude"}:
+        api_key_present = bool(
+            (await cfg.get("secrets.ai.anthropic.api_key"))
+            or os.getenv("ANTHROPIC_API_KEY")
+        )
+    elif prov in {"local", "ollama"}:
+        # Local providers typically don't require an API key
+        api_key_present = True
+    else:
+        api_key_present = bool(
+            (await cfg.get("secrets.ai.openai.api_key"))
+            or os.getenv("OPENAI_API_KEY")
+        )
     rag_redis = await cfg.get("ai.rag.redis_url") or os.getenv("REDIS_URL")
     safe = {
         "llm": {
@@ -121,7 +153,7 @@ async def ai_get_config(_: Dict = Depends(require_auth(["admin"]))):
                 or "gpt-5-mini"
             ),
             "base_url": base_url or os.getenv("OPENAI_BASE_URL"),
-            "api_key_present": bool(api_key_present or os.getenv("OPENAI_API_KEY")),
+            "api_key_present": bool(api_key_present),
         },
         "embeddings": {
             "model": emb_model
@@ -729,6 +761,8 @@ async def ai_models(
                 models = []
             else:
                 models = [
+                    "claude-sonnet-4-5-20250929",
+                    "claude-3-5-sonnet-20241022",
                     "claude-3.5-sonnet-20240620",
                     "claude-3-opus-20240229",
                     "claude-3-sonnet-20240229",

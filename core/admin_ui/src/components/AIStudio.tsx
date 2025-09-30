@@ -29,7 +29,6 @@ export default function AIStudio({ client, readOnly = false }: Props) {
   const [rulesMsg, setRulesMsg] = useState<string>('');
   const [connOpenai, setConnOpenai] = useState<{ base_url?: string; default_model?: string; api_key?: string }>({});
   const [connAnth, setConnAnth] = useState<{ base_url?: string; default_model?: string; api_key?: string }>({});
-  const [connDeep, setConnDeep] = useState<{ base_url?: string; default_model?: string; api_key?: string }>({});
   const [toolCalling, setToolCalling] = useState<boolean>(false);
   const [connMsg, setConnMsg] = useState<string>('');
   const [connAllowlist, setConnAllowlist] = useState<string[]>([]);
@@ -42,8 +41,6 @@ export default function AIStudio({ client, readOnly = false }: Props) {
   const [openaiPrices, setOpenaiPrices] = useState<Record<string, any>>({});
   const [anthModels, setAnthModels] = useState<string[]>([]);
   const [anthPrices, setAnthPrices] = useState<Record<string, any>>({});
-  const [deepModels, setDeepModels] = useState<string[]>([]);
-  const [deepPrices, setDeepPrices] = useState<Record<string, any>>({});
 
   const refresh = async () => {
     try {
@@ -68,7 +65,6 @@ export default function AIStudio({ client, readOnly = false }: Props) {
       const cx = await client.aiConnectorsGet();
       setConnOpenai(cx.openai || {});
       setConnAnth(cx.anthropic || {});
-      setConnDeep(cx.deepseek || {});
       setToolCalling(Boolean(cx.agent?.tool_calling));
     } catch {}
     try {
@@ -122,11 +118,7 @@ export default function AIStudio({ client, readOnly = false }: Props) {
         setAnthModels(am?.models || []);
         setAnthPrices(am?.prices || {});
       } catch { setAnthModels([]); setAnthPrices({}); }
-      try {
-        const dm = await client.aiModels('deepseek', 'chat');
-        setDeepModels(dm?.models || []);
-        setDeepPrices(dm?.prices || {});
-      } catch { setDeepModels([]); setDeepPrices({}); }
+      // DeepSeek models omitted for now
     })();
   }, [cfgEditing.provider, cfg?.provider, client]);
 
@@ -164,7 +156,7 @@ export default function AIStudio({ client, readOnly = false }: Props) {
     try {
       setBusy(true);
       setAgentRes('');
-      const r = await client.aiAgentRun(prompt);
+      const r = await client.aiAgentRun([{ role: "user", content: prompt }], true);
       setAgentRes(r?.result || '');
       setToolsUsed(Array.isArray((r as any)?.tools_used) ? (r as any).tools_used : []);
     } catch (e: any) { setAgentRes(e?.message || 'Agent failed'); }
@@ -220,7 +212,7 @@ export default function AIStudio({ client, readOnly = false }: Props) {
     try {
       setBusy(true);
       setConnMsg('');
-      const res = await client.aiConnectorsPut({ openai: connOpenai, anthropic: connAnth, deepseek: connDeep, agent: { tool_calling: toolCalling } });
+      const res = await client.aiConnectorsPut({ openai: connOpenai, anthropic: connAnth, agent: { tool_calling: toolCalling } });
       setConnMsg(res.ok ? 'Saved' : 'Failed');
       // Refresh effective allowlist for ai-core for user feedback
       try {
@@ -242,93 +234,122 @@ export default function AIStudio({ client, readOnly = false }: Props) {
         Train an internal RAG index from local docs and run simple queries. Agent run uses internal context and optional tool-calling.
       </Typography>
 
+      {/* LLM Configuration - Controls which model the chatbot uses */}
       <Paper sx={{ p: 2, borderRadius: 2, mb: 2 }}>
-        <Typography variant="h6" gutterBottom>LLM Configuration</Typography>
-        {cfg?.api_key_present ? (
-          <Chip label="API key present" color="success" size="small" sx={{ mb: 1 }} />
-        ) : (
-          <Alert severity="warning" sx={{ mb: 1 }}>No API key set. The agent will fall back to a local stub.</Alert>
-        )}
-        <Stack spacing={1} direction={{ xs: 'column', sm: 'row' }} sx={{ mb: 1, alignItems: 'center' }}>
-          <TextField label="Provider" size="small" sx={{ flex: 1 }} select
-            value={cfgEditing.provider ?? cfg?.provider ?? 'openai'}
-            onChange={e => setCfgEditing(v => ({ ...v, provider: e.target.value }))}
-            disabled={busy || readOnly}
-          >
-            {providerOptions.map(p => (<MenuItem key={p} value={p}>{p}</MenuItem>))}
-          </TextField>
-          <HelpTip title="Provider" content={
-            `Choose the LLM provider used by the agent and embeddings.\n\n`+
-            `openai: Calls OpenAI's /v1 APIs through the Core gateway (allowlisted).\n`+
-            `claude: Calls Anthropic 'Claude' /v1/messages with tool use. Configure x-api-key and base URL.\n`+
-            `local: Targets a local server (e.g., Ollama) for on-prem models. Use Connectors to apply allowlist.\n\n`+
-            `Security: All egress goes through the Core gateway with an explicit domain allowlist. `+
-            `Keys are stored in ConfigService (encrypted in production).`
-          } />
-          {modelOptions.length > 0 ? (
-            <TextField label="Model" size="small" sx={{ flex: 1 }} select
-              value={cfgEditing.model ?? cfg?.model ?? ''}
-              onChange={e => setCfgEditing(v => ({ ...v, model: e.target.value }))}
+        <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          🤖 LLM Configuration (Chatbot)
+          {cfg?.api_key_present ? (
+            <Chip label="API key detected" color="success" size="small" />
+          ) : (
+            <Chip label="No API key" color="warning" size="small" />
+          )}
+        </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          Configure which AI model powers the chatbot. This is separate from embeddings (below).
+        </Typography>
+        
+        <Stack spacing={2}>
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems="center">
+            <TextField label="Provider" size="small" sx={{ flex: 1 }} select
+              value={cfgEditing.provider ?? cfg?.provider ?? 'openai'}
+              onChange={e => setCfgEditing(v => ({ ...v, provider: e.target.value }))}
               disabled={busy || readOnly}
             >
-              {modelOptions.map(m => (<MenuItem key={m} value={m}>{m}</MenuItem>))}
+              {providerOptions.map(p => (<MenuItem key={p} value={p}>{p === 'openai' ? 'OpenAI' : p === 'claude' ? 'Anthropic (Claude)' : p === 'local' ? 'Local (Ollama)' : p}</MenuItem>))}
             </TextField>
-          ) : (
-            <TextField label="Model" size="small" sx={{ flex: 1 }} placeholder="model name"
-              value={cfgEditing.model ?? cfg?.model ?? ''}
-              onChange={e => setCfgEditing(v => ({ ...v, model: e.target.value }))}
+            <HelpTip title="Provider" content={
+              `Choose which company's AI model to use:\n\n`+
+              `• OpenAI: GPT-4, GPT-4o, etc.\n`+
+              `• Claude: Anthropic's Claude Sonnet, Opus, Haiku\n`+
+              `• Local: Self-hosted models (Ollama)\n\n`+
+              `Note: Embeddings always use OpenAI (Anthropic doesn't provide embeddings).`
+            } />
+          </Stack>
+
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems="center">
+            {modelOptions.length > 0 ? (
+              <TextField label="Model" size="small" sx={{ flex: 1 }} select
+                value={cfgEditing.model ?? cfg?.model ?? ''}
+                onChange={e => setCfgEditing(v => ({ ...v, model: e.target.value }))}
+                disabled={busy || readOnly}
+              >
+                {modelOptions.map(m => (<MenuItem key={m} value={m}>{m}</MenuItem>))}
+              </TextField>
+            ) : (
+              <TextField label="Model" size="small" sx={{ flex: 1 }} placeholder="model name"
+                value={cfgEditing.model ?? cfg?.model ?? ''}
+                onChange={e => setCfgEditing(v => ({ ...v, model: e.target.value }))}
+                disabled={busy || readOnly}
+              />
+            )}
+            <TextField label="Base URL" size="small" sx={{ flex: 1 }}
+              placeholder="https://api.openai.com"
+              value={cfgEditing.base_url ?? cfg?.base_url ?? ''}
+              onChange={e => setCfgEditing(v => ({ ...v, base_url: e.target.value }))}
               disabled={busy || readOnly}
             />
-          )}
-          <HelpTip title="Model" content={
-            `The chat/completions model identifier. When Provider is selected, `+
-            `the Model list auto-loads from the provider via /admin/ai/models.\n\n`+
-            `Tips:\n- OpenAI: e.g., gpt-4o-mini, gpt-4.1-mini\n- Claude: e.g., claude-3.5-sonnet-20240620, claude-3-haiku-20240307\n- Local (Ollama): e.g., llama3.1:8b, mistral:7b\n\n`+
-            `Compliance: Choose models with appropriate data handling and retention policies for PHI/PII.`
-          } />
-          <TextField label="Base URL" size="small" sx={{ flex: 1 }}
-            placeholder="https://api.openai.com"
-            value={cfgEditing.base_url ?? cfg?.base_url ?? ''}
-            onChange={e => setCfgEditing(v => ({ ...v, base_url: e.target.value }))}
-            disabled={busy || readOnly}
-          />
-          <HelpTip title="Base URL" content={
-            `HTTP base URL for the provider's API. Examples:\n`+
-            `- OpenAI: https://api.openai.com\n- Claude: https://api.anthropic.com\n- Local (Ollama): http://localhost:11434\n\n`+
-            `Security: The Core gateway allowlists domains and methods; requests outside allowlist are blocked.`
-          } />
-        </Stack>
-        <Stack spacing={1} direction={{ xs: 'column', sm: 'row' }} sx={{ mb: 1, alignItems: 'center' }}>
-          {embedOptions.length > 0 ? (
-            <TextField label="Embeddings Model" size="small" sx={{ flex: 1 }} select
-              value={cfgEditing.embeddings_model ?? embedModel}
-              onChange={(e) => setCfgEditing(v => ({ ...v, embeddings_model: e.target.value }))}
-              disabled={busy || readOnly}
-            >
-              {embedOptions.map(m => (<MenuItem key={m} value={m}>{m}</MenuItem>))}
-            </TextField>
-          ) : (
-            <TextField label="Embeddings Model" size="small" sx={{ flex: 1 }} placeholder="text-embedding-3-small"
-              value={cfgEditing.embeddings_model ?? embedModel}
-              onChange={(e) => setCfgEditing(v => ({ ...v, embeddings_model: e.target.value }))}
+            <HelpTip title="Model & Base URL" content={
+              `Model: Specific AI model version (e.g., claude-sonnet-4-5-20250929, gpt-4o-mini)\n\n`+
+              `Base URL: API endpoint\n`+
+              `• OpenAI: https://api.openai.com\n`+
+              `• Claude: https://api.anthropic.com\n`+
+              `• Local: http://localhost:11434`
+            } />
+          </Stack>
+
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems="center">
+            <TextField fullWidth type="password" 
+              label={`API Key (${(cfgEditing.provider ?? cfg?.provider ?? 'openai') === 'claude' ? 'Anthropic' : (cfgEditing.provider ?? cfg?.provider ?? 'openai') === 'openai' ? 'OpenAI' : 'Local'})`}
+              placeholder={`${(cfgEditing.provider ?? cfg?.provider ?? 'openai') === 'claude' ? 'sk-ant-...' : (cfgEditing.provider ?? cfg?.provider ?? 'openai') === 'openai' ? 'sk-proj-...' : 'optional'}`}
+              value={cfgEditing.openai_api_key ?? ''}
+              onChange={(e) => setCfgEditing(v => ({ ...v, openai_api_key: e.target.value }))}
               disabled={busy || readOnly}
             />
-          )}
-          <HelpTip title="Embeddings Model" content={
-            `Used for semantic retrieval (RAG). Default: text-embedding-3-small. `+
-            `Larger models (e.g., text-embedding-3-large) produce higher-quality vectors but cost more.\n\n`+
-            `RAG stores vectors in Redis or delegates to a plugin. Only metadata and short previews are stored; `+
-            `TBAC filters results by user traits.`
-          } />
+            <Button variant="contained" onClick={saveConfig} disabled={busy || readOnly} sx={{ borderRadius: 2, minWidth: 100 }}>Save LLM</Button>
+          </Stack>
+          {cfgMsg && <Alert severity="info">{cfgMsg}</Alert>}
         </Stack>
-        <Stack spacing={1} direction={{ xs: 'column', sm: 'row' }} alignItems={{ xs: 'stretch', sm: 'center' }}>
-          <TextField fullWidth type="password" label="OpenAI API Key" placeholder="sk-..."
-            value={cfgEditing.openai_api_key ?? ''}
-            onChange={(e) => setCfgEditing(v => ({ ...v, openai_api_key: e.target.value }))}
-            disabled={busy || readOnly}
-          />
-          <Button variant="contained" onClick={saveConfig} disabled={busy || readOnly} sx={{ borderRadius: 2 }}>Save</Button>
-          {cfgMsg && <Chip label={cfgMsg} color="info" variant="outlined" />}
+      </Paper>
+
+      {/* Embeddings Configuration - Separate from LLM */}
+      <Paper sx={{ p: 2, borderRadius: 2, mb: 2 }}>
+        <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          📊 Embeddings Configuration (RAG/Search)
+        </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          Controls semantic search for code/docs. Always uses OpenAI (Anthropic doesn't provide embeddings).
+        </Typography>
+        
+        <Stack spacing={2}>
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems="center">
+            {embedOptions.length > 0 ? (
+              <TextField label="Embeddings Model" size="small" sx={{ flex: 1 }} select
+                value={cfgEditing.embeddings_model ?? embedModel}
+                onChange={(e) => setCfgEditing(v => ({ ...v, embeddings_model: e.target.value }))}
+                disabled={busy || readOnly}
+              >
+                {embedOptions.map(m => (<MenuItem key={m} value={m}>{m}</MenuItem>))}
+              </TextField>
+            ) : (
+              <TextField label="Embeddings Model" size="small" sx={{ flex: 1 }} placeholder="text-embedding-3-small"
+                value={cfgEditing.embeddings_model ?? embedModel}
+                onChange={(e) => setCfgEditing(v => ({ ...v, embeddings_model: e.target.value }))}
+                disabled={busy || readOnly}
+              />
+            )}
+            <HelpTip title="Embeddings Model" content={
+              `OpenAI embeddings model for semantic search:\n\n`+
+              `• text-embedding-3-small: Fast, cheap, good quality\n`+
+              `• text-embedding-3-large: Slower, more expensive, best quality\n`+
+              `• text-embedding-ada-002: Legacy model\n\n`+
+              `Used when indexing code/docs for RAG search.`
+            } />
+          </Stack>
+          
+          <Alert severity="info" sx={{ mt: 1 }}>
+            <strong>Note:</strong> Embeddings use the same OpenAI API key as configured above (if provider is OpenAI), 
+            or you can set a separate OpenAI key in the Connectors section below.
+          </Alert>
         </Stack>
       </Paper>
 
@@ -474,36 +495,6 @@ export default function AIStudio({ client, readOnly = false }: Props) {
             disabled={busy || readOnly}
           />
         </Stack>
-        <Typography variant="subtitle2" sx={{ mt: 2 }}>DeepSeek</Typography>
-        <Stack spacing={1} direction={{ xs: 'column', sm: 'row' }} sx={{ mb: 1 }}>
-          <TextField label="Base URL" size="small" sx={{ flex: 1 }} placeholder="https://api.deepseek.com"
-            value={connDeep.base_url || ''}
-            onChange={e => setConnDeep(v => ({ ...v, base_url: e.target.value }))}
-            disabled={busy || readOnly}
-          />
-          {deepModels.length ? (
-            <TextField label="Default Model" size="small" sx={{ flex: 1 }} select
-              value={connDeep.default_model || ''}
-              onChange={e => setConnDeep(v => ({ ...v, default_model: e.target.value }))}
-              disabled={busy || readOnly}
-            >
-              {deepModels.map(m => (
-                <MenuItem key={m} value={m}>{m}{deepPrices?.[m] ? ` — $${deepPrices[m]?.input || '?'} in / $${deepPrices[m]?.output || '?'} out per 1K` : ''}</MenuItem>
-              ))}
-            </TextField>
-          ) : (
-            <TextField label="Default Model" size="small" sx={{ flex: 1 }} placeholder="deepseek-chat"
-              value={connDeep.default_model || ''}
-              onChange={e => setConnDeep(v => ({ ...v, default_model: e.target.value }))}
-              disabled={busy || readOnly}
-            />
-          )}
-          <TextField label="API Key" type="password" size="small" sx={{ flex: 1 }} placeholder="sk-deep-..."
-            value={connDeep.api_key || ''}
-            onChange={e => setConnDeep(v => ({ ...v, api_key: e.target.value }))}
-            disabled={busy || readOnly}
-          />
-        </Stack>
         <Typography variant="subtitle2" sx={{ mt: 2 }}>Local</Typography>
         <Stack spacing={1} direction={{ xs: 'column', sm: 'row' }} sx={{ mb: 1 }}>
           <TextField label="Base URL" size="small" sx={{ flex: 1 }} placeholder="http://localhost:11434" disabled value={'http://localhost:11434'} />
@@ -556,6 +547,9 @@ export default function AIStudio({ client, readOnly = false }: Props) {
           <Chip label={`Docs indexed: ${status?.docs_indexed ?? 0}`} />
           {status?.last_trained_ts ? <Chip variant="outlined" label={`Last trained: ${new Date((status.last_trained_ts || 0) * 1000).toLocaleString()}`} /> : null}
           {status?.backend ? <Chip color="secondary" variant="outlined" label={`Backend: ${status.backend}`} /> : null}
+          <Button variant="outlined" color="error" onClick={async()=>{ setBusy(true); setNote(''); try { await client.aiClear(); await refresh(); setNote('Index cleared'); } catch(e:any){ setNote(e?.message||'Clear failed'); } finally { setBusy(false); } }} disabled={busy || readOnly} sx={{ borderRadius: 2 }}>
+            Clear Index
+          </Button>
           <Button variant="contained" onClick={train} disabled={busy || readOnly} sx={{ borderRadius: 2 }}>
             {busy ? 'Training…' : 'Train from Docs'}
           </Button>

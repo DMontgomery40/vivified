@@ -36,9 +36,11 @@ class ConfigService:
     def __init__(
         self,
         db_session: Optional[AsyncSession] = None,
+        db_session_factory: Optional[Any] = None,
         encryption_key: Optional[str] = None,
     ):
         self.db = db_session
+        self.db_factory = db_session_factory
         self._store: Dict[str, ConfigItem] = {}  # Fallback in-memory store
         self._cipher: Optional[Fernet] = (
             Fernet(encryption_key.encode()) if encryption_key else None
@@ -96,7 +98,7 @@ class ConfigService:
         environment: str = "default",
     ) -> None:
         """Set configuration value with database persistence and audit trail."""
-        if self.db:
+        if self.db or self.db_factory:
             await self._set_db(
                 key, value, is_sensitive, updated_by, reason, plugin_id, environment
             )
@@ -119,7 +121,7 @@ class ConfigService:
         environment: str = "default",
     ) -> Optional[Any]:
         """Get configuration value with hierarchical override."""
-        if self.db:
+        if self.db or self.db_factory:
             return await self._get_db(key, reveal, plugin_id, environment)
         else:
             # Fallback to in-memory storage
@@ -134,7 +136,7 @@ class ConfigService:
         self, reveal: bool = True, plugin_id: Optional[str] = None
     ) -> Dict[str, Any]:
         """Get all configuration values."""
-        if self.db:
+        if self.db or self.db_factory:
             return await self._get_all_db(reveal, plugin_id)
         else:
             # Fallback to in-memory storage
@@ -157,8 +159,32 @@ class ConfigService:
         plugin_id: Optional[str],
         environment: str,
     ) -> None:
+        # Use factory if available, otherwise use direct session
+        if self.db_factory:
+            async with self.db_factory() as session:
+                await self._set_db_with_session(
+                    session, key, value, is_sensitive, updated_by, reason, plugin_id, environment
+                )
+                await session.commit()
+            return
+        # Fallback to direct session (no commit, caller responsible)
+        await self._set_db_with_session(
+            self.db, key, value, is_sensitive, updated_by, reason, plugin_id, environment
+        )
+    
+    async def _set_db_with_session(
+        self,
+        session: AsyncSession,
+        key: str,
+        value: Any,
+        is_sensitive: bool,
+        updated_by: Optional[str],
+        reason: Optional[str],
+        plugin_id: Optional[str],
+        environment: str,
+    ) -> None:
         """Set configuration value in database with audit trail."""
-        db = self.db
+        db = session
         assert db is not None
         # Get current value for history
         current = await db.scalar(
@@ -223,7 +249,8 @@ class ConfigService:
             )
             db.add(history_entry)
 
-        await db.commit()
+        # Note: commit is handled by the wrapper function (_set_db)
+        await db.flush()
 
         logger.info(
             f"Configuration updated: {key}",
@@ -239,8 +266,19 @@ class ConfigService:
         self, key: str, reveal: bool, plugin_id: Optional[str], environment: str
     ) -> Optional[Any]:
         """Get configuration value from database with hierarchical override."""
+        # Use factory if available
+        if self.db_factory:
+            async with self.db_factory() as session:
+                return await self._get_db_with_session(session, key, reveal, plugin_id, environment)
+        # Fallback to direct session
+        return await self._get_db_with_session(self.db, key, reveal, plugin_id, environment)
+    
+    async def _get_db_with_session(
+        self, session: AsyncSession, key: str, reveal: bool, plugin_id: Optional[str], environment: str
+    ) -> Optional[Any]:
+        """Get configuration value from database with hierarchical override."""
         # Check database
-        db = self.db
+        db = session
         assert db is not None
         result = await db.scalar(
             select(Configuration).where(
@@ -270,7 +308,18 @@ class ConfigService:
         self, reveal: bool, plugin_id: Optional[str]
     ) -> Dict[str, Any]:
         """Get all configuration values from database."""
-        db = self.db
+        # Use factory if available
+        if self.db_factory:
+            async with self.db_factory() as session:
+                return await self._get_all_db_with_session(session, reveal, plugin_id)
+        # Fallback to direct session
+        return await self._get_all_db_with_session(self.db, reveal, plugin_id)
+    
+    async def _get_all_db_with_session(
+        self, session: AsyncSession, reveal: bool, plugin_id: Optional[str]
+    ) -> Dict[str, Any]:
+        """Get all configuration values from database."""
+        db = session
         assert db is not None
         query = select(Configuration)
         if plugin_id:
@@ -304,8 +353,27 @@ _CONFIG_SERVICE: Optional[ConfigService] = None
 
 
 def get_config_service() -> ConfigService:
+    """Get or create the global ConfigService instance.
+    
+    WARNING: This returns a ConfigService without DB session (in-memory only).
+    Use init_config_service() during startup to initialize with database persistence.
+    """
     global _CONFIG_SERVICE
     if _CONFIG_SERVICE is None:
         enc = os.getenv("CONFIG_ENC_KEY")
         _CONFIG_SERVICE = ConfigService(encryption_key=enc)
+    return _CONFIG_SERVICE
+
+
+async def init_config_service(db_session_factory: Any) -> ConfigService:
+    """Initialize ConfigService with database persistence.
+    
+    Call this during application startup to enable persistent configuration storage.
+    
+    Args:
+        db_session_factory: AsyncSession factory (e.g., async_session_factory from database.py)
+    """
+    global _CONFIG_SERVICE
+    enc = os.getenv("CONFIG_ENC_KEY")
+    _CONFIG_SERVICE = ConfigService(db_session_factory=db_session_factory, encryption_key=enc)
     return _CONFIG_SERVICE

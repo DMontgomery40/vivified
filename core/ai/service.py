@@ -175,7 +175,11 @@ class RAGService:
             pass
 
         for root in sources:
-            root = os.path.abspath(root)
+            # Resolve sources relative to RAG_ROOT, not cwd
+            if os.path.isabs(root):
+                root = os.path.abspath(root)
+            else:
+                root = os.path.abspath(os.path.join(root_base, root))
             if not os.path.exists(root):
                 continue
             for dirpath, dirnames, filenames in os.walk(root):
@@ -331,9 +335,16 @@ class RAGService:
             test_pat = core if not anchored else "/" + core
             # Directory pattern: match prefix
             if is_dir and is_dir_pat:
-                if target.startswith(test_pat):
-                    return True
-                continue
+                # If anchored, require absolute prefix; otherwise match any path segment
+                if anchored:
+                    if target.startswith(test_pat):
+                        return True
+                else:
+                    # Match by segment name anywhere in the path or by loose prefix
+                    segs = target.strip("/").split("/")
+                    if core in segs or target.startswith(test_pat):
+                        return True
+                # Do not `continue` here so that fnmatch(base, core) can still apply
             # File pattern: fnmatch path and basename
             if fnmatch.fnmatch(target, test_pat) or fnmatch.fnmatch(base, core):
                 return True
@@ -372,14 +383,18 @@ class RAGService:
         return chunks
 
     async def _embed_text(self, text: str) -> Optional[List[float]]:
-        """Compute embedding via configured provider (OpenAI by default).
+        """Compute embedding via OpenAI (required for embeddings).
 
         Returns None if embedding fails; query falls back to sparse token search.
+        
+        Note: Only OpenAI provides embeddings API. Anthropic/Claude does not.
+        If no OpenAI key is available, returns None immediately (uses token-based search).
         """
         text = text.strip()
         if not text:
             return None
-        # Resolve connectors/config
+        
+        # ALWAYS use OpenAI for embeddings (Anthropic doesn't have embeddings API)
         base_url = None
         api_key = None
         model = (
@@ -392,9 +407,9 @@ class RAGService:
 
             cfg = get_config_service()
             openai_cfg = await cfg.get("ai.connectors.openai") or {}
+            # FORCE OpenAI base URL for embeddings (never use Anthropic)
             base_url = (
                 openai_cfg.get("base_url")
-                or await cfg.get("ai.llm.base_url")
                 or os.getenv("OPENAI_BASE_URL")
                 or "https://api.openai.com"
             )
@@ -406,9 +421,14 @@ class RAGService:
         except Exception:
             base_url = os.getenv("OPENAI_BASE_URL") or "https://api.openai.com"
             api_key = os.getenv("OPENAI_API_KEY")
+        
+        # Skip embeddings if no OpenAI key (fallback to token search)
+        if not api_key:
+            return None
+        
         # Construct request
         payload = {"model": model, "input": text}
-        headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
+        headers = {"Authorization": f"Bearer {api_key}"}
         url = f"{str(base_url).rstrip('/')}/v1/embeddings"
 
         # Prefer proxy via core gateway for egress control
@@ -416,25 +436,31 @@ class RAGService:
             import httpx  # type: ignore
 
             core_base = os.getenv("PUBLIC_API_URL", "http://localhost:8000").rstrip("/")
-            if api_key and base_url:
-                r = await httpx.AsyncClient(timeout=30).post(
-                    f"{core_base}/gateway/proxy",
-                    json={
-                        "plugin_id": "ai-core",
-                        "method": "POST",
-                        "url": url,
-                        "headers": {**headers, "Content-Type": "application/json"},
-                        "json": payload,
-                        "timeout": 30,
-                    },
-                )
-                if r.status_code < 300:
-                    data = r.json() or {}
-                    emb = ((data.get("data") or [{}])[0] or {}).get("embedding")
-                    if isinstance(emb, list) and all(
-                        isinstance(x, (float, int)) for x in emb
-                    ):
-                        return [float(x) for x in emb]
+            r = await httpx.AsyncClient(timeout=30).post(
+                f"{core_base}/gateway/proxy",
+                json={
+                    "plugin_id": "ai-core",
+                    "method": "POST",
+                    "url": url,
+                    "headers": {**headers, "Content-Type": "application/json"},
+                    "json": payload,
+                    "timeout": 30,
+                },
+            )
+            if r.status_code < 300:
+                data = r.json() or {}
+                # Parse proxy response
+                body_text = data.get("text") or data.get("body") or ""
+                if isinstance(body_text, str):
+                    try:
+                        parsed = json.loads(body_text)
+                        emb = ((parsed.get("data") or [{}])[0] or {}).get("embedding")
+                        if isinstance(emb, list) and all(
+                            isinstance(x, (float, int)) for x in emb
+                        ):
+                            return [float(x) for x in emb]
+                    except Exception:
+                        pass
         except Exception:
             logger.debug("proxy embedding failed", exc_info=True)
 
@@ -630,6 +656,7 @@ class RAGService:
                 for did, _sc in ranked:
                     title = await rd.get(f"ai:rag:doc:{did}:title")
                     path = await rd.get(f"ai:rag:doc:{did}:path")
+                    content = await rd.get(f"ai:rag:doc:{did}:content")
                     out.append(
                         {
                             "id": str(did),
@@ -643,6 +670,11 @@ class RAGService:
                                 if isinstance(path, (bytes, bytearray))
                                 else str(path or "")
                             ),
+                            "content": (
+                                content.decode()
+                                if isinstance(content, (bytes, bytearray))
+                                else str(content or "")
+                            )[:6000],  # Limit to first 6000 chars to avoid token overflow
                         }
                     )
                 return out
@@ -736,6 +768,81 @@ class RAGService:
 class AgentService:
     def __init__(self, rag: RAGService) -> None:
         self.rag = rag
+        # Baseline identity/context so answers are useful when RAG is sparse
+        self._baseline_context: str = (
+            "Vivified is a secure, HIPAA‑oriented integration platform with a Zero‑Trust core. "
+            "It provides: a policy‑gated API gateway (Operator/Proxy lanes), a canonical model engine, "
+            "identity/auth with traits, storage with encryption + audit, a plugin manager, and an Admin Console.\n"
+            "The embedded assistant is repo‑aware: it can run internal RAG search over code/docs, "
+            "summarize results, point to files, and suggest admin console flows. It does not execute code, "
+            "and it never outputs secrets. Use trait‑aware RAG results as context; answer concisely."
+        )
+
+    def _clean_answer_text(self, text: str) -> str:
+        """Strip reflection/diagnostic blocks and normalize whitespace."""
+        try:
+            import re as _re
+            cleaned = text or ""
+            for pat in (
+                r"<\s*search_quality_reflection\s*>[\s\S]*?<\s*/\s*search_quality_reflection\s*>",
+                r"<\s*search_quality_score\s*>[\s\S]*?<\s*/\s*search_quality_score\s*>",
+            ):
+                cleaned = _re.sub(pat, "", cleaned, flags=_re.IGNORECASE)
+            cleaned = _re.sub(r"\n{3,}", "\n\n", cleaned)
+            return cleaned.strip()
+        except Exception:
+            return (text or "").strip()
+
+    def _system_prompt(self, hipaa_mode: bool = True) -> str:
+        # Using actual Claude system prompt for best results
+        hipaa_note = ""
+        if not hipaa_mode:
+            hipaa_note = "HIPAA MODE DISABLED: Remove compliance.hipaa_controls, handles_phi/handles_pii traits, data_classification PHI/PII from generated code unless specifically needed.\n\n"
+        
+        with open("/app/core/ai/claude_prompt.txt", "r") as f:
+            base_prompt = f.read()
+        
+        rag_context = (
+            "VIVIFIED CODEBASE CONTEXT:\n"
+            "You have a rag_search tool that searches the Vivified repository's source code. "
+            "Results include a 'content' field with actual code (hundreds/thousands of chars). "
+            "For ANY code question, call rag_search first. QUOTE the actual code from 'content', then adapt it.\n\n"
+            f"{hipaa_note}"
+        )
+        
+        return rag_context + base_prompt
+
+    def _is_capability_or_identity_query(self, prompt: str) -> bool:
+        # Only match VERY specific about/capability queries
+        p = (prompt or "").strip().lower()
+        if not p:
+            return False
+        # Match patterns that are JUST about the bot itself
+        if p in ["what can you do", "capabilities", "what are your capabilities", 
+                 "who are you", "what are you", "help"]:
+            return True
+        # Match "what is vivified" style queries (ONLY about the platform itself)
+        if "what is vivified" in p and "plugin" not in p and "build" not in p:
+            return True
+        if "tell me about vivified" in p and "plugin" not in p and "build" not in p:
+            return True
+        return False
+
+    def _is_greeting(self, prompt: str) -> bool:
+        # Only treat VERY simple greetings as greetings (not "hello, how do I...")
+        p = (prompt or "").strip().lower()
+        return bool(re.match(r"^(hi|hello|hey|yo|hola|howdy)[\s\!\?\.]*$", p))
+
+    def _capabilities_answer(self) -> str:
+        return "Hi. Ask me about Vivified's code, architecture, or how to build something."
+
+    def _about_vivified_answer(self) -> str:
+        return (
+            "Vivified is a secure, HIPAA‑minded integration platform with a Zero‑Trust core. "
+            "It mediates all communication through three supervised lanes (Canonical events, Operator RPC, Proxy HTTP), "
+            "enforces trait‑based access and policy, provides encrypted storage with audit, and manages plugins via the Admin Console.\n"
+            "See README.md and docs/ for architecture and getting started."
+        )
 
     async def run(
         self,
@@ -743,13 +850,23 @@ class AgentService:
         *,
         user_traits: Optional[Iterable[str]] = None,
         opts: Optional[Dict[str, str]] = None,
+        hipaa_mode: bool = True,
+        conversation_history: Optional[List[Dict[str, str]]] = None,
     ) -> Dict[str, Any]:
+        # Identity/capability queries often perform poorly with generic retrieval.
+        if self._is_capability_or_identity_query(prompt) or self._is_greeting(prompt):
+            if "vivified" in (prompt or "").lower():
+                return {"result": self._clean_answer_text(self._about_vivified_answer())}
+            return {"result": self._clean_answer_text(self._capabilities_answer())}
+
         # Attempt tool-calling pipeline if enabled, else simple RAG-informed completion.
         hits = await self.rag.query(prompt, top_k=3, user_traits=user_traits)
-        context = "\n".join([f"- {h.get('title')}" for h in hits])
+        src_lines = "\n".join([f"- {h.get('title')}" for h in hits])
+        context = f"{self._baseline_context}\n\nSources:\n{src_lines}".strip()
         tools_log: List[Dict[str, Any]] = []
 
         # Try OpenAI via core proxy first (if configured), else direct
+        error_detail = None
         try:
             import httpx  # type: ignore
 
@@ -766,21 +883,30 @@ class AgentService:
                     or os.getenv("AI_LLM_PROVIDER")
                     or "openai"
                 )
-            except Exception:
+            except Exception as e:
+                logger.warning(f"Failed to load config service: {e}")
                 cfgsvc = None
                 openai_cfg = {}
                 anthropic_cfg = {}
                 llm_provider = os.getenv("AI_LLM_PROVIDER") or "openai"
-            # Determine provider and connection details
-            provider = (opts or {}).get("provider") or llm_provider
-            if provider.lower() == "anthropic":
+            # Determine provider and connection details (support alias 'claude')
+            raw_provider = (opts or {}).get("provider") or llm_provider
+            provider = str(raw_provider or "").lower()
+            is_anthropic = provider in {"anthropic", "claude"}
+            if is_anthropic:
                 model = (opts or {}).get("model") or str(
                     (anthropic_cfg or {}).get("default_model")
                     or "claude-3-haiku-20240307"
                 )
+                # Prefer secret from ConfigService; fall back to connector field/env
+                try:
+                    secret_from_cfg = await cfgsvc.get("secrets.ai.anthropic.api_key")  # type: ignore[union-attr]
+                except Exception:
+                    secret_from_cfg = None
                 api_key = (
                     (opts or {}).get("api_key")
                     or str((anthropic_cfg or {}).get("api_key") or "")
+                    or str(secret_from_cfg or "")
                     or os.getenv("ANTHROPIC_API_KEY")
                 )
                 base_url = (opts or {}).get("base_url") or str(
@@ -794,9 +920,15 @@ class AgentService:
                     or os.getenv("OPENAI_DEFAULT_MODEL")
                     or "gpt-5-mini"
                 )
+                # Prefer secret from ConfigService; fall back to connector field/env
+                try:
+                    secret_from_cfg = await cfgsvc.get("secrets.ai.openai.api_key")  # type: ignore[union-attr]
+                except Exception:
+                    secret_from_cfg = None
                 api_key = (
                     (opts or {}).get("api_key")
                     or str((openai_cfg or {}).get("api_key") or "")
+                    or str(secret_from_cfg or "")
                     or os.getenv("OPENAI_API_KEY")
                     or os.getenv("AI_OPENAI_API_KEY")
                 )
@@ -820,8 +952,12 @@ class AgentService:
             except Exception:
                 pass
 
+            if not api_key:
+                error_detail = f"No API key found for provider '{provider}'. Please configure in AI Studio → Connectors."
+                logger.warning(f"Agent run failed: {error_detail}")
+            
             if api_key:
-                if provider.lower() == "anthropic":
+                if is_anthropic:
                     # Anthropic messages with optional tools; two-step tool_use → tool_result loop
                     try:
                         url = f"{(base_url or 'https://api.anthropic.com').rstrip('/')}/v1/messages"
@@ -832,26 +968,31 @@ class AgentService:
                             ),
                             "Content-Type": "application/json",
                         }
-                        messages_a = [
-                            {
-                                "role": "user",
-                                "content": [
-                                    {
-                                        "type": "text",
-                                        "text": f"Context sources (internal):\n{context}\n\nQuestion: {prompt}",
-                                    }
-                                ],
-                            }
-                        ]
+                        # Build messages array with conversation history
+                        messages_a = []
+                        # Add conversation history if provided
+                        if conversation_history:
+                            for msg in conversation_history:
+                                role = msg.get("role", "user")
+                                content = msg.get("content", "")
+                                if role in ["user", "assistant"] and content:
+                                    messages_a.append({"role": role, "content": content})
+                        
+                        # Add current user message
+                        messages_a.append({
+                            "role": "user",
+                            "content": f"Context sources (internal):\n{context}\n\nQuestion: {prompt}",
+                        })
+                        
                         tools_a = None
                         if use_tools:
                             tools_a = [
                                 {
                                     "name": "rag_search",
-                                    "description": "Search internal docs and return top matches.",
+                                    "description": "Search internal Vivified docs/code and return top matches. ALWAYS use this first for code questions.",
                                     "input_schema": {
                                         "type": "object",
-                                        "properties": {"q": {"type": "string"}},
+                                        "properties": {"q": {"type": "string", "description": "Search query"}},
                                         "required": ["q"],
                                     },
                                 },
@@ -867,7 +1008,8 @@ class AgentService:
                             ]
                         body = {
                             "model": model,
-                            "max_tokens": int(os.getenv("ANTHROPIC_MAX_TOKENS", "512")),
+                            "max_tokens": int(os.getenv("ANTHROPIC_MAX_TOKENS", "4096")),
+                            "system": self._system_prompt(hipaa_mode),
                             "messages": messages_a,
                         }
                         if tools_a:
@@ -1003,7 +1145,7 @@ class AgentService:
                                         ]
                                         text3 = "\n".join([t for t in texts if t])
                                     if text3:
-                                        out1: Dict[str, Any] = {"result": text3}
+                                        out1: Dict[str, Any] = {"result": self._clean_answer_text(text3)}
                                         if tools_log:
                                             out1["tools_used"] = tools_log
                                         return out1
@@ -1020,10 +1162,11 @@ class AgentService:
                                 ]
                                 text = "\n".join([t for t in texts if t])
                             if text:
-                                out2: Dict[str, Any] = {"result": text}
+                                out2: Dict[str, Any] = {"result": self._clean_answer_text(text)}
                                 return out2
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        error_detail = f"Anthropic API error: {str(e)}"
+                        logger.error(f"Agent Anthropic call failed: {e}", exc_info=True)
                 if use_tools:
                     tools_payload: List[Dict[str, Any]] = [
                         {
@@ -1051,37 +1194,46 @@ class AgentService:
                             },
                         },
                     ]
+                    # Build messages array with conversation history
                     messages: List[Dict[str, Any]] = [
                         {
                             "role": "system",
-                            "content": "You are a concise assistant. Use tools when helpful.",
-                        },
-                        {
-                            "role": "user",
-                            "content": f"Context sources (internal):\n{context}\n\nQuestion: {prompt}",
+                            "content": self._system_prompt(hipaa_mode),
                         },
                     ]
+                    # Add conversation history before the current prompt
+                    if conversation_history:
+                        messages.extend(conversation_history)
+                    # Add current user message
+                    messages.append({
+                        "role": "user",
+                        "content": f"Context sources (internal):\n{context}\n\nQuestion: {prompt}",
+                    })
                     # First call with tools available
                     payload = {
                         "model": model,
                         "messages": messages,
                         "tools": tools_payload,
-                        "tool_choice": "required",
+                        "tool_choice": "auto",
                         "temperature": 0.2,
                     }
                 else:
+                    # Build messages array with conversation history (non-tool path)
+                    no_tool_messages: List[Dict[str, Any]] = [
+                        {
+                            "role": "system",
+                            "content": self._system_prompt(hipaa_mode),
+                        },
+                    ]
+                    if conversation_history:
+                        no_tool_messages.extend(conversation_history)
+                    no_tool_messages.append({
+                        "role": "user",
+                        "content": f"Context sources (internal):\n{context}\n\nQuestion: {prompt}",
+                    })
                     payload = {
                         "model": model,
-                        "messages": [
-                            {
-                                "role": "system",
-                                "content": "You are a concise assistant.",
-                            },
-                            {
-                                "role": "user",
-                                "content": f"Context sources (internal):\n{context}\n\nQuestion: {prompt}",
-                            },
-                        ],
+                        "messages": no_tool_messages,
                         "temperature": 0.3,
                     }
                 # Prefer gateway proxy to enforce allowlists
@@ -1242,20 +1394,21 @@ class AgentService:
                                         "content"
                                     ) or ""
                                     if msg3:
-                                        out3: Dict[str, Any] = {"result": msg3}
+                                        out3: Dict[str, Any] = {"result": self._clean_answer_text(msg3)}
                                         if tools_log:
                                             out3["tools_used"] = tools_log
                                         return out3
                             # Non-tool flow
                             msg = (message or {}).get("content") or ""
                             if msg:
-                                out: Dict[str, Any] = {"result": msg}
+                                out: Dict[str, Any] = {"result": self._clean_answer_text(msg)}
                                 if tools_log:
                                     out["tools_used"] = tools_log
                                 return out
-                except Exception:
+                except Exception as e:
                     # Fall back to direct call
-                    pass
+                    error_detail = f"Gateway proxy error: {str(e)}"
+                    logger.warning(f"Agent proxy call failed, trying direct: {e}")
                 # Direct call fallback
                 safe_base = (base_url or "https://api.openai.com").rstrip("/")
                 url = f"{safe_base}/v1/chat/completions"
@@ -1349,18 +1502,22 @@ class AgentService:
                             ch3 = ((data3 or {}).get("choices") or [{}])[0]
                             msg3 = (ch3.get("message") or {}).get("content") or ""
                             if msg3:
-                                return {"result": msg3}
+                                return {"result": self._clean_answer_text(msg3)}
                     # Non-tool flow
                     msg = (resp_message or {}).get("content") or ""
                     if msg:
-                        out4: Dict[str, Any] = {"result": msg}
+                        out4: Dict[str, Any] = {"result": self._clean_answer_text(msg)}
                         if tools_log:
                             out4["tools_used"] = tools_log
                         return out4
                 # Fallback to stub if non-2xx or empty
-        except Exception:
-            # Ignore; fall back to stub
-            pass
+                if not error_detail:
+                    error_detail = f"API returned non-2xx status or empty response for model '{model}'"
+                    logger.warning(f"Agent direct call failed: {error_detail}")
+        except Exception as e:
+            # Capture exception detail for user feedback
+            error_detail = f"Unexpected error: {str(e)}"
+            logger.error(f"Agent run exception: {e}", exc_info=True)
 
         # Deterministic tool-calling fallback using internal RAG when enabled
         if locals().get("use_tools", False):
@@ -1381,6 +1538,10 @@ class AgentService:
             }
             return out
 
+        # Return error detail if we have it, otherwise generic stub
+        error_msg = error_detail or "LLM API call failed - check logs for details"
         return {
-            "result": f"Stubbed agent response. Context sources:\n{context}".strip()
+            "result": self._clean_answer_text(
+                f"⚠️ Chatbot Error: {error_msg}\n\nPlease verify:\n1. API keys are set in AI Studio → Connectors\n2. Provider is configured correctly\n3. Check server logs for detailed error messages\n\nContext sources (fallback):\n{context}"
+            )
         }

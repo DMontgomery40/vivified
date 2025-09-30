@@ -365,13 +365,18 @@ export class AdminAPIClient {
     return res.json();
   }
 
+  async aiClear(): Promise<{ ok: boolean }>{
+    const res = await this.fetch('/admin/ai/clear', { method: 'POST' });
+    return res.json();
+  }
+
   async aiQuery(query: string): Promise<{ items: Array<{ id: string; title: string; path?: string }> }>{
     const res = await this.fetch('/admin/ai/query', { method: 'POST', body: JSON.stringify({ q: query }) });
     return res.json();
   }
 
-  async aiAgentRun(prompt: string): Promise<{ result: string; tools_used?: Array<{ name?: string; args?: any; content?: string }> }>{
-    const res = await this.fetch('/admin/ai/agent/run', { method: 'POST', body: JSON.stringify({ prompt }) });
+  async aiAgentRun(messages: Array<{ role: string; content: string }>, hipaa_mode: boolean = true): Promise<{ result: string; tools_used?: Array<{ name?: string; args?: any; content?: string }> }>{
+    const res = await this.fetch('/admin/ai/agent/run', { method: 'POST', body: JSON.stringify({ messages, hipaa_mode }) });
     return res.json();
   }
 
