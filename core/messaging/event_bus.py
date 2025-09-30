@@ -214,12 +214,16 @@ class EventBus:
                     if not str(k).startswith("messaging.pending."):
                         continue
                     try:
-                        obj = json.loads(json.dumps(v)) if not isinstance(v, dict) else v
+                        obj = (
+                            json.loads(json.dumps(v)) if not isinstance(v, dict) else v
+                        )
                         msg_data = obj.get("message") or obj
                         src = obj.get("source_plugin") or msg_data.get("source_plugin")
                         message = Message(**msg_data)
                         # Do not republish to broker here; only enqueue local delivery
-                        await self.message_queue.put(("message", message, str(src or "unknown")))
+                        await self.message_queue.put(
+                            ("message", message, str(src or "unknown"))
+                        )
                     except Exception:
                         continue
         except Exception:
@@ -231,6 +235,7 @@ class EventBus:
         except Exception:
             self._durable = None  # type: ignore[assignment]
         if getattr(self, "_durable", None) is not None:
+
             async def _cb(msg_obj, src):
                 try:
                     # msg_obj is a raw dict; construct Message model
@@ -355,7 +360,10 @@ class EventBus:
             # If durable backend active, enqueue there; otherwise use broker + local queue
             if getattr(self, "_durable", None) is not None:
                 try:
-                    await self._durable.enqueue(message.model_dump(mode="json"), source_plugin)  # type: ignore[union-attr]
+                    await self._durable.enqueue(  # type: ignore[union-attr]
+                        message.model_dump(mode="json"),
+                        source_plugin,
+                    )
                 except Exception:
                     logger.debug("durable enqueue failed", exc_info=True)
                     raise
@@ -505,7 +513,9 @@ class EventBus:
 
         # Track and audit
         self.delivery_tracking[message.id] = (
-            MessageDeliveryStatus.DELIVERED if delivered else MessageDeliveryStatus.FAILED
+            MessageDeliveryStatus.DELIVERED
+            if delivered
+            else MessageDeliveryStatus.FAILED
         )
         # Clear pending on success
         try:

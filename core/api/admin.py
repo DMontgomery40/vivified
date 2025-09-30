@@ -164,9 +164,17 @@ async def scaffold_plugin(
     }
 
     if template == "llm-oss":
-        manifest["endpoints"] = {"health": "/health", "chat": "/chat", "embeddings": "/embeddings"}
+        manifest["endpoints"] = {
+            "health": "/health",
+            "chat": "/chat",
+            "embeddings": "/embeddings",
+        }
     if template in {"rag-db", "rag-db-pgvector"}:
-        manifest["endpoints"] = {"health": "/health", "rag_index": "/rag/index", "rag_query": "/rag/query"}
+        manifest["endpoints"] = {
+            "health": "/health",
+            "rag_index": "/rag/index",
+            "rag_query": "/rag/query",
+        }
 
     if language == "node":
         main_path = f"{plugin_id}/index.js"
@@ -200,9 +208,10 @@ async def scaffold_plugin(
             manifest, indent=2
         )
         files[f"{plugin_id}/Dockerfile"] = (
-            'FROM python:3.11-slim\nWORKDIR /app\nCOPY . .\nCMD ["python", "-m", "'
-            + plugin_id
-            + '"]\n'
+            "FROM python:3.11-slim\n"
+            "WORKDIR /app\n"
+            "COPY . .\n"
+            'CMD ["python", "-m", "' + plugin_id + '"]\n'
         )
 
         # Optional: template-specific server stub
@@ -215,25 +224,57 @@ async def scaffold_plugin(
             ]
             if template == "llm-oss":
                 server += [
-                    "class Chat(BaseModel): messages: list; tools: list|None=None; model: str|None=None\n",
-                    "class Embeddings(BaseModel): input: str|list; model: str|None=None\n",
-                    "@app.post('/chat')\nasync def chat(req: Chat): return {'text':'hello from llm-oss','tool_calls':[]}\n",
-                    "@app.post('/embeddings')\nasync def emb(req: Embeddings): return {'data':[{'embedding':[0.0]*8}]}\n",
+                    (
+                        "class Chat(BaseModel): messages: list; tools: list|None=None; "
+                        "model: str|None=None\n"
+                    ),
+                    (
+                        "class Embeddings(BaseModel): input: str|list; "
+                        "model: str|None=None\n"
+                    ),
+                    (
+                        "@app.post('/chat')\n"
+                        "async def chat(req: Chat): return "
+                        "{'text':'hello from llm-oss','tool_calls':[]}\n"
+                    ),
+                    (
+                        "@app.post('/embeddings')\n"
+                        "async def emb(req: Embeddings): return "
+                        "{'data':[{'embedding':[0.0]*8}]}\n"
+                    ),
                 ]
             else:
                 server += [
-                    "class RagIndex(BaseModel): id:str; title:str; path:str; content:str; required_traits:list[str]|None=None; classification:list[str]|None=None; vector:list[float]|None=None\n",
-                    "class RagQuery(BaseModel): q:str; top_k:int=5; user_traits:list[str]|None=None\n",
-                    "@app.post('/rag/index')\nasync def rindex(req: RagIndex): return {'ok':True}\n",
-                    "@app.post('/rag/query')\nasync def rquery(req: RagQuery): return {'items':[]}\n",
+                    (
+                        "class RagIndex(BaseModel): id:str; title:str; path:str; content:str; "
+                        "required_traits:list[str]|None=None; classification:list[str]|None=None; "
+                        "vector:list[float]|None=None\n"
+                    ),
+                    (
+                        "class RagQuery(BaseModel): q:str; top_k:int=5; "
+                        "user_traits:list[str]|None=None\n"
+                    ),
+                    (
+                        "@app.post('/rag/index')\n"
+                        "async def rindex(req: RagIndex): return {'ok':True}\n"
+                    ),
+                    (
+                        "@app.post('/rag/query')\n"
+                        "async def rquery(req: RagQuery): return {'items':[]}\n"
+                    ),
                 ]
                 if template == "rag-db-pgvector":
                     readme = (
                         "# RAG DB (pgvector)\n\n"
                         "1) Enable extension in Postgres: `CREATE EXTENSION IF NOT EXISTS vector;`\n\n"
                         "2) Create tables:\n\n"
-                        "```sql\nCREATE TABLE documents (id text primary key, title text, path text, required_traits jsonb, classification jsonb);\nCREATE TABLE chunks (id text primary key, doc_id text references documents(id), chunk_no int, content text, vector vector(1536));\nCREATE INDEX ON chunks USING hnsw (vector vector_l2_ops);\n```\n\n"
-                        "3) Implement /rag/index to upsert docs and chunks, /rag/query to compute embedding and ANN search (`ORDER BY vector <-> $qvec LIMIT $k`).\n\n"
+                        "```sql\nCREATE TABLE documents (id text primary key, title text, path text, "
+                        "required_traits jsonb, classification jsonb);\n"
+                        "CREATE TABLE chunks (id text primary key, doc_id text references documents(id), "
+                        "chunk_no int, content text, vector vector(1536));\n"
+                        "CREATE INDEX ON chunks USING hnsw (vector vector_l2_ops);\n```\n\n"
+                        "3) Implement /rag/index to upsert docs and chunks, /rag/query to compute embedding and "
+                        "ANN search (`ORDER BY vector <-> $qvec LIMIT $k`).\n\n"
                         "4) Set PG_DSN env, add psycopg/async driver to requirements, and wire your DB client.\n"
                     )
                     files[f"{plugin_id}/README.md"] = readme
@@ -476,11 +517,19 @@ async def operator_allowlist_autogen(
             cur = []
         merged = sorted(list({*(str(x) for x in cur), *operations}))
         await _CONFIG_SVC.set(
-            key, merged, is_sensitive=False, updated_by="admin", reason="operator_allowlist_autogen"
+            key,
+            merged,
+            is_sensitive=False,
+            updated_by="admin",
+            reason="operator_allowlist_autogen",
         )
     else:
         await _CONFIG_SVC.set(
-            key, operations, is_sensitive=False, updated_by="admin", reason="operator_allowlist_autogen"
+            key,
+            operations,
+            is_sensitive=False,
+            updated_by="admin",
+            reason="operator_allowlist_autogen",
         )
 
     return {"ok": True, "caller": caller, "target": target, "operations": operations}

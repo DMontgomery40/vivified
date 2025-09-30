@@ -153,7 +153,6 @@ class SchemaRegistry:
             if len(parts) == 5 and parts[3] == "active":
                 name = parts[2]
                 try:
-                    major = int(parts[4])
                     ver_str = str(value or "")
                     vx = tuple(int(p) for p in ver_str.split("."))
                     if len(vx) == 3 and self._schemas.get(name, {}).get(vx):

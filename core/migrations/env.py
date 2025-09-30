@@ -15,7 +15,8 @@ from core.identity.models import Base as IdentityBase
 from core.config.models import Base as ConfigBase
 
 # Merge metadata from all models
-from sqlalchemy import MetaData
+# Note: avoid unused imports to satisfy lint
+
 Base = IdentityBase
 # Merge config models into identity base metadata
 for table in ConfigBase.metadata.tables.values():

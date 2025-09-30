@@ -5,13 +5,18 @@ Database utilities: async SQLAlchemy engine and session factory.
 from __future__ import annotations
 
 import os
-from typing import AsyncGenerator
+from typing import AsyncGenerator, Optional
 
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
+    AsyncEngine,
     create_async_engine,
     async_sessionmaker,
 )
+
+
+_engine: Optional[AsyncEngine] = None
+_session_maker: Optional[async_sessionmaker[AsyncSession]] = None
 
 
 def _default_db_url() -> str:
@@ -30,21 +35,37 @@ def _default_db_url() -> str:
     )
 
 
-def get_engine():
-    url = os.getenv("DATABASE_URL", _default_db_url())
-    # Disallow SQLite for non-test, non-dev runs to avoid PHI/PII risk and concurrency limits
-    if not os.getenv("PYTEST_CURRENT_TEST"):
-        if url.strip().lower().startswith("sqlite"):
-            if os.getenv("DEV_MODE", "false").lower() not in {"1", "true", "yes"}:
-                raise RuntimeError(
-                    "SQLite is not allowed for core data outside DEV_MODE. Set DATABASE_URL to a "
-                    "PostgreSQL DSN (e.g., postgresql+asyncpg://user:pass@host:5432/db)."
-                )
-    return create_async_engine(url, future=True, echo=False)
+def get_engine() -> AsyncEngine:
+    global _engine
+    if _engine is None:
+        url = os.getenv("DATABASE_URL", _default_db_url())
+        # Disallow SQLite for non-test, non-dev runs to avoid PHI/PII risk and concurrency limits
+        if not os.getenv("PYTEST_CURRENT_TEST"):
+            if url.strip().lower().startswith("sqlite"):
+                if os.getenv("DEV_MODE", "false").lower() not in {"1", "true", "yes"}:
+                    raise RuntimeError(
+                        "SQLite is not allowed for core data outside DEV_MODE. Set DATABASE_URL to a "
+                        "PostgreSQL DSN (e.g., postgresql+asyncpg://user:pass@host:5432/db).",
+                    )
+        _engine = create_async_engine(url, future=True, echo=False)
+    return _engine
 
 
-# Use SQLAlchemy 2.0 async_sessionmaker for accurate typing with mypy
-async_session_factory = async_sessionmaker(get_engine(), expire_on_commit=False)
+def _get_session_maker() -> async_sessionmaker[AsyncSession]:
+    global _session_maker
+    if _session_maker is None:
+        _session_maker = async_sessionmaker(get_engine(), expire_on_commit=False)
+    return _session_maker
+
+
+def async_session_factory() -> AsyncSession:
+    """Factory that returns a new AsyncSession when called.
+
+    Kept as a callable to match existing usage patterns:
+    - `async with async_session_factory() as session:`
+    - passed into services that expect a callable returning an AsyncSession.
+    """
+    return _get_session_maker()()
 
 
 async def get_session() -> AsyncGenerator[AsyncSession, None]:

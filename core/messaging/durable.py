@@ -26,19 +26,25 @@ logger = logging.getLogger(__name__)
 
 
 class DurableBackend:
-    async def start(self, deliver_cb: Callable[[Any, str], Awaitable[None]]) -> None:  # pragma: no cover - interface
+    async def start(
+        self, deliver_cb: Callable[[Any, str], Awaitable[None]]
+    ) -> None:  # pragma: no cover - interface
         raise NotImplementedError
 
     async def stop(self) -> None:  # pragma: no cover - interface
         raise NotImplementedError
 
-    async def enqueue(self, message: Any, source_plugin: str) -> None:  # pragma: no cover - interface
+    async def enqueue(
+        self, message: Any, source_plugin: str
+    ) -> None:  # pragma: no cover - interface
         raise NotImplementedError
 
 
 class RedisStreamsDurable(DurableBackend):
     def __init__(self) -> None:
-        self._url = os.getenv("MESSAGE_REDIS_URL") or os.getenv("REDIS_URL", "redis://127.0.0.1:6379/0")
+        self._url = os.getenv("MESSAGE_REDIS_URL") or os.getenv(
+            "REDIS_URL", "redis://127.0.0.1:6379/0"
+        )
         self._stream = os.getenv("MESSAGE_STREAM_KEY", "msg:direct")
         self._group = os.getenv("MESSAGE_GROUP", "core")
         self._consumer = os.getenv("MESSAGE_CONSUMER_ID", "core-1")
@@ -55,7 +61,12 @@ class RedisStreamsDurable(DurableBackend):
         self._redis = redis.from_url(self._url)
         try:
             # Create consumer group if not exists
-            await self._redis.xgroup_create(name=self._stream, groupname=self._group, id="$", mkstream=True)  # type: ignore[attr-defined]
+            await self._redis.xgroup_create(  # type: ignore[attr-defined]
+                name=self._stream,
+                groupname=self._group,
+                id="$",
+                mkstream=True,
+            )
         except Exception:
             # Group probably exists
             pass
@@ -107,7 +118,13 @@ class RedisStreamsDurable(DurableBackend):
         assert self._redis is not None, "durable backend not started"
         try:
             # XADD with approximate maxlen to bound memory
-            await self._redis.xadd(name=self._stream, id="*", fields={"d": data}, maxlen=self._maxlen, approximate=True)  # type: ignore[attr-defined]
+            await self._redis.xadd(  # type: ignore[attr-defined]
+                name=self._stream,
+                id="*",
+                fields={"d": data},
+                maxlen=self._maxlen,
+                approximate=True,
+            )
         except Exception:
             logger.debug("redis enqueue failed", exc_info=True)
             raise
@@ -180,4 +197,3 @@ def select_durable_from_env() -> Optional[DurableBackend]:
             return None
     # Future: nats_jetstream
     return None
-

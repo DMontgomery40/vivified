@@ -386,14 +386,14 @@ class RAGService:
         """Compute embedding via OpenAI (required for embeddings).
 
         Returns None if embedding fails; query falls back to sparse token search.
-        
+
         Note: Only OpenAI provides embeddings API. Anthropic/Claude does not.
         If no OpenAI key is available, returns None immediately (uses token-based search).
         """
         text = text.strip()
         if not text:
             return None
-        
+
         # ALWAYS use OpenAI for embeddings (Anthropic doesn't have embeddings API)
         base_url = None
         api_key = None
@@ -421,11 +421,11 @@ class RAGService:
         except Exception:
             base_url = os.getenv("OPENAI_BASE_URL") or "https://api.openai.com"
             api_key = os.getenv("OPENAI_API_KEY")
-        
+
         # Skip embeddings if no OpenAI key (fallback to token search)
         if not api_key:
             return None
-        
+
         # Construct request
         payload = {"model": model, "input": text}
         headers = {"Authorization": f"Bearer {api_key}"}
@@ -674,7 +674,9 @@ class RAGService:
                                 content.decode()
                                 if isinstance(content, (bytes, bytearray))
                                 else str(content or "")
-                            )[:6000],  # Limit to first 6000 chars to avoid token overflow
+                            )[
+                                :6000
+                            ],  # Limit to first 6000 chars to avoid token overflow
                         }
                     )
                 return out
@@ -782,6 +784,7 @@ class AgentService:
         """Strip reflection/diagnostic blocks and normalize whitespace."""
         try:
             import re as _re
+
             cleaned = text or ""
             for pat in (
                 r"<\s*search_quality_reflection\s*>[\s\S]*?<\s*/\s*search_quality_reflection\s*>",
@@ -797,11 +800,15 @@ class AgentService:
         # Using actual Claude system prompt for best results
         hipaa_note = ""
         if not hipaa_mode:
-            hipaa_note = "HIPAA MODE DISABLED: Remove compliance.hipaa_controls, handles_phi/handles_pii traits, data_classification PHI/PII from generated code unless specifically needed.\n\n"
-        
+            hipaa_note = (
+                "HIPAA MODE DISABLED: Remove compliance.hipaa_controls, "
+                "handles_phi/handles_pii traits, data_classification PHI/PII from "
+                "generated code unless specifically needed.\n\n"
+            )
+
         with open("/app/core/ai/claude_prompt.txt", "r") as f:
             base_prompt = f.read()
-        
+
         rag_context = (
             "VIVIFIED CODEBASE CONTEXT:\n"
             "You have a rag_search tool that searches the Vivified repository's source code. "
@@ -809,7 +816,7 @@ class AgentService:
             "For ANY code question, call rag_search first. QUOTE the actual code from 'content', then adapt it.\n\n"
             f"{hipaa_note}"
         )
-        
+
         return rag_context + base_prompt
 
     def _is_capability_or_identity_query(self, prompt: str) -> bool:
@@ -818,8 +825,14 @@ class AgentService:
         if not p:
             return False
         # Match patterns that are JUST about the bot itself
-        if p in ["what can you do", "capabilities", "what are your capabilities", 
-                 "who are you", "what are you", "help"]:
+        if p in [
+            "what can you do",
+            "capabilities",
+            "what are your capabilities",
+            "who are you",
+            "what are you",
+            "help",
+        ]:
             return True
         # Match "what is vivified" style queries (ONLY about the platform itself)
         if "what is vivified" in p and "plugin" not in p and "build" not in p:
@@ -834,13 +847,17 @@ class AgentService:
         return bool(re.match(r"^(hi|hello|hey|yo|hola|howdy)[\s\!\?\.]*$", p))
 
     def _capabilities_answer(self) -> str:
-        return "Hi. Ask me about Vivified's code, architecture, or how to build something."
+        return (
+            "Hi. Ask me about Vivified's code, architecture, or how to build something."
+        )
 
     def _about_vivified_answer(self) -> str:
         return (
             "Vivified is a secure, HIPAA‑minded integration platform with a Zero‑Trust core. "
-            "It mediates all communication through three supervised lanes (Canonical events, Operator RPC, Proxy HTTP), "
-            "enforces trait‑based access and policy, provides encrypted storage with audit, and manages plugins via the Admin Console.\n"
+            "It mediates all communication through three supervised lanes "
+            "(Canonical events, Operator RPC, Proxy HTTP), "
+            "enforces trait‑based access and policy, provides encrypted storage with audit, "
+            "and manages plugins via the Admin Console.\n"
             "See README.md and docs/ for architecture and getting started."
         )
 
@@ -856,7 +873,9 @@ class AgentService:
         # Identity/capability queries often perform poorly with generic retrieval.
         if self._is_capability_or_identity_query(prompt) or self._is_greeting(prompt):
             if "vivified" in (prompt or "").lower():
-                return {"result": self._clean_answer_text(self._about_vivified_answer())}
+                return {
+                    "result": self._clean_answer_text(self._about_vivified_answer())
+                }
             return {"result": self._clean_answer_text(self._capabilities_answer())}
 
         # Attempt tool-calling pipeline if enabled, else simple RAG-informed completion.
@@ -953,9 +972,12 @@ class AgentService:
                 pass
 
             if not api_key:
-                error_detail = f"No API key found for provider '{provider}'. Please configure in AI Studio → Connectors."
+                error_detail = (
+                    f"No API key found for provider '{provider}'. "
+                    "Please configure in AI Studio → Connectors."
+                )
                 logger.warning(f"Agent run failed: {error_detail}")
-            
+
             if api_key:
                 if is_anthropic:
                     # Anthropic messages with optional tools; two-step tool_use → tool_result loop
@@ -969,30 +991,44 @@ class AgentService:
                             "Content-Type": "application/json",
                         }
                         # Build messages array with conversation history
-                        messages_a = []
+                        from typing import Any as _Any, Dict as _Dict, List as _List
+
+                        messages_a: _List[_Dict[str, _Any]] = []
                         # Add conversation history if provided
                         if conversation_history:
                             for msg in conversation_history:
                                 role = msg.get("role", "user")
-                                content = msg.get("content", "")
-                                if role in ["user", "assistant"] and content:
-                                    messages_a.append({"role": role, "content": content})
-                        
+                                msg_content = msg.get("content", "")
+                                if role in ["user", "assistant"] and msg_content:
+                                    messages_a.append(
+                                        {"role": role, "content": msg_content}
+                                    )
+
                         # Add current user message
-                        messages_a.append({
-                            "role": "user",
-                            "content": f"Context sources (internal):\n{context}\n\nQuestion: {prompt}",
-                        })
-                        
+                        messages_a.append(
+                            {
+                                "role": "user",
+                                "content": f"Context sources (internal):\n{context}\n\nQuestion: {prompt}",
+                            }
+                        )
+
                         tools_a = None
                         if use_tools:
                             tools_a = [
                                 {
                                     "name": "rag_search",
-                                    "description": "Search internal Vivified docs/code and return top matches. ALWAYS use this first for code questions.",
+                                    "description": (
+                                        "Search internal Vivified docs/code and return top matches. "
+                                        "ALWAYS use this first for code questions."
+                                    ),
                                     "input_schema": {
                                         "type": "object",
-                                        "properties": {"q": {"type": "string", "description": "Search query"}},
+                                        "properties": {
+                                            "q": {
+                                                "type": "string",
+                                                "description": "Search query",
+                                            }
+                                        },
                                         "required": ["q"],
                                     },
                                 },
@@ -1008,26 +1044,28 @@ class AgentService:
                             ]
                         body = {
                             "model": model,
-                            "max_tokens": int(os.getenv("ANTHROPIC_MAX_TOKENS", "4096")),
+                            "max_tokens": int(
+                                os.getenv("ANTHROPIC_MAX_TOKENS", "4096")
+                            ),
                             "system": self._system_prompt(hipaa_mode),
                             "messages": messages_a,
                         }
                         if tools_a:
                             body["tools"] = tools_a
-                        tools_log = []  # type: ignore[var-annotated]
+                        # use outer-scope tools_log list for aggregating tool usage
                         async with httpx.AsyncClient(timeout=30) as client:
                             resp = await client.post(url, json=body, headers=headers)
                         if resp.status_code < 300:
                             data = resp.json() or {}
-                            content = data.get("content") or []
+                            content_blocks = data.get("content") or []
                             tool_uses = (
                                 [
                                     c
-                                    for c in content
+                                    for c in content_blocks
                                     if isinstance(c, dict)
                                     and c.get("type") == "tool_use"
                                 ]
-                                if isinstance(content, list)
+                                if isinstance(content_blocks, list)
                                 else []
                             )
                             if use_tools and tool_uses:
@@ -1116,7 +1154,7 @@ class AgentService:
                                         )
                                 # Second call with tool results
                                 messages_a.append(
-                                    {"role": "assistant", "content": content}
+                                    {"role": "assistant", "content": content_blocks}
                                 )
                                 messages_a.append(
                                     {"role": "user", "content": tool_results}
@@ -1145,13 +1183,17 @@ class AgentService:
                                         ]
                                         text3 = "\n".join([t for t in texts if t])
                                     if text3:
-                                        out1: Dict[str, Any] = {"result": self._clean_answer_text(text3)}
+                                        out1: Dict[str, Any] = {
+                                            "result": self._clean_answer_text(text3)
+                                        }
                                         if tools_log:
                                             out1["tools_used"] = tools_log
                                         return out1
                             # No tools or no tool_use: extract text
                             alt_parts: List[Dict[str, Any]] = (
-                                content if isinstance(content, list) else []
+                                content_blocks
+                                if isinstance(content_blocks, list)
+                                else []
                             )
                             text = ""
                             if alt_parts:
@@ -1162,7 +1204,9 @@ class AgentService:
                                 ]
                                 text = "\n".join([t for t in texts if t])
                             if text:
-                                out2: Dict[str, Any] = {"result": self._clean_answer_text(text)}
+                                out2: Dict[str, Any] = {
+                                    "result": self._clean_answer_text(text)
+                                }
                                 return out2
                     except Exception as e:
                         error_detail = f"Anthropic API error: {str(e)}"
@@ -1205,10 +1249,12 @@ class AgentService:
                     if conversation_history:
                         messages.extend(conversation_history)
                     # Add current user message
-                    messages.append({
-                        "role": "user",
-                        "content": f"Context sources (internal):\n{context}\n\nQuestion: {prompt}",
-                    })
+                    messages.append(
+                        {
+                            "role": "user",
+                            "content": f"Context sources (internal):\n{context}\n\nQuestion: {prompt}",
+                        }
+                    )
                     # First call with tools available
                     payload = {
                         "model": model,
@@ -1227,10 +1273,12 @@ class AgentService:
                     ]
                     if conversation_history:
                         no_tool_messages.extend(conversation_history)
-                    no_tool_messages.append({
-                        "role": "user",
-                        "content": f"Context sources (internal):\n{context}\n\nQuestion: {prompt}",
-                    })
+                    no_tool_messages.append(
+                        {
+                            "role": "user",
+                            "content": f"Context sources (internal):\n{context}\n\nQuestion: {prompt}",
+                        }
+                    )
                     payload = {
                         "model": model,
                         "messages": no_tool_messages,
@@ -1394,14 +1442,18 @@ class AgentService:
                                         "content"
                                     ) or ""
                                     if msg3:
-                                        out3: Dict[str, Any] = {"result": self._clean_answer_text(msg3)}
+                                        out3: Dict[str, Any] = {
+                                            "result": self._clean_answer_text(msg3)
+                                        }
                                         if tools_log:
                                             out3["tools_used"] = tools_log
                                         return out3
                             # Non-tool flow
-                            msg = (message or {}).get("content") or ""
-                            if msg:
-                                out: Dict[str, Any] = {"result": self._clean_answer_text(msg)}
+                            msg_text: str = (message or {}).get("content") or ""
+                            if msg_text:
+                                out: Dict[str, Any] = {
+                                    "result": self._clean_answer_text(msg_text)
+                                }
                                 if tools_log:
                                     out["tools_used"] = tools_log
                                 return out
@@ -1504,9 +1556,11 @@ class AgentService:
                             if msg3:
                                 return {"result": self._clean_answer_text(msg3)}
                     # Non-tool flow
-                    msg = (resp_message or {}).get("content") or ""
-                    if msg:
-                        out4: Dict[str, Any] = {"result": self._clean_answer_text(msg)}
+                    msg_text2: str = (resp_message or {}).get("content") or ""
+                    if msg_text2:
+                        out4: Dict[str, Any] = {
+                            "result": self._clean_answer_text(msg_text2)
+                        }
                         if tools_log:
                             out4["tools_used"] = tools_log
                         return out4
@@ -1542,6 +1596,13 @@ class AgentService:
         error_msg = error_detail or "LLM API call failed - check logs for details"
         return {
             "result": self._clean_answer_text(
-                f"⚠️ Chatbot Error: {error_msg}\n\nPlease verify:\n1. API keys are set in AI Studio → Connectors\n2. Provider is configured correctly\n3. Check server logs for detailed error messages\n\nContext sources (fallback):\n{context}"
+                (
+                    f"⚠️ Chatbot Error: {error_msg}\n\nPlease verify:\n"
+                    "1. API keys are set in AI Studio → Connectors\n"
+                    "2. Provider is configured correctly\n"
+                    "3. Check server logs for detailed error messages\n\n"
+                    "Context sources (fallback):\n"
+                    f"{context}"
+                )
             )
         }
