@@ -1,4 +1,8 @@
-![Vivified Platform](images/vivified_logo_dark_mode.png)
+<div class="logo-banner">
+  <img class="only-dark" src="images/vivified_logo_dark_mode.png" alt="Vivified Platform" />
+  <img class="only-light" src="images/vivified_logo_light_stencil.png" alt="Vivified Platform" />
+</div>
+
 
 # Vivified Platform
 

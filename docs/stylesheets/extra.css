@@ -187,3 +187,23 @@
     max-width: 100%;
   }
 }
+
+/* Theme-aware logo swapping for home banner */
+.logo-banner { text-align: center; }
+.logo-banner img { max-width: 640px; width: 90%; height: auto; }
+.only-dark { display: none; }
+.only-light { display: none; }
+/* Material theme toggles data-md-color-scheme between default (light) and slate (dark) */
+html[data-md-color-scheme="slate"] .only-dark { display: inline; }
+html[data-md-color-scheme="slate"] .only-light { display: none; }
+html[data-md-color-scheme="default"] .only-dark { display: none; }
+html[data-md-color-scheme="default"] .only-light { display: inline; }
+/* Fallback to OS preference if attribute not present */
+@media (prefers-color-scheme: dark) {
+  .only-dark { display: inline; }
+  .only-light { display: none; }
+}
+@media (prefers-color-scheme: light) {
+  .only-dark { display: none; }
+  .only-light { display: inline; }
+}
