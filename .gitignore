@@ -103,3 +103,7 @@ alembic.ini.local
 
 # CI/CD
 .github/workflows/*.local.yml
+# Backup files with secrets
+*.bak
+.env.bak
+
