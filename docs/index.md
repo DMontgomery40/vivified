@@ -1,3 +1,5 @@
+![Vivified Platform](images/vivified_logo_dark_mode.png)
+
 # Vivified Platform
 
 ## Enterprise application kernel with plugin architecture
