@@ -227,7 +227,6 @@ app.post('/oauth_cb/:provider', async (req, res) => {
         );
         
       } catch (apiError) {
-        console.error('HubSpot API error:', apiError);
         return handleError(res, { code: 'oauth.exchange_failed', message: 'Failed to complete OAuth flow' });
       }
     }

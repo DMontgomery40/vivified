@@ -13,6 +13,7 @@ help:
 	@echo "  make api-docs - Build static API docs (Swagger + Redoc) to site/api"
 	@echo "  make ui-ci-local - Build React UIs (admin/ui) like CI"
 	@echo "  make smoke-ai - Run local AI/RAG smoke test"
+	@echo "  make frigg-test - Run integrations service in test mode"
 	@echo "  make clean   - Clean build artifacts"
 
 build:
@@ -90,6 +91,14 @@ api-docs-deploy:
 	@echo "[netlify] Deploying static API docs via Netlify build (using netlify.toml)"
 	@set -a; [ -f .env ] && . .env || true; set +a; \
 	  NETLIFY_AUTH_TOKEN=$${NETLIFY_AUTH_TOKEN:-$$NETLIFY_TOKEN} npx -y netlify-cli@17 deploy --build --prod $${NETLIFY_SITE_ID:+--site=$$NETLIFY_SITE_ID}
+
+frigg-test:
+	@echo "Starting integrations service in test mode..."
+	docker-compose up -d mongo
+	@echo "Waiting for MongoDB to be ready..."
+	@timeout 30 bash -c 'until docker-compose exec -T mongo mongosh --eval "db.adminCommand(\"ping\")" >/dev/null 2>&1; do sleep 1; done'
+	@echo "Starting frigg in test mode (NODE_ENV=test)..."
+	NODE_ENV=test docker-compose up frigg
 
 clean:
 	find . -type d -name __pycache__ -exec rm -rf {} +
