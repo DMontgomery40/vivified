@@ -136,12 +136,14 @@ nav:
   - Admin UI: core/admin_ui.md
   - Config: core/config.md
   - API: core/api.md
+      - Integrations: docs/api/integrations.md
   - Plugin Manager: core/plugin_manager.md
   - Monitoring: core/monitoring.md
   - Security: core/security.md
 - Architecture:
   - Diagrams: architecture/diagrams.md
 - Admin Console:
+      - Providers: docs/admin-console/providers.md
   - Overview: admin-console.md
   - Dashboard: admin-console/dashboard.md
   - User Management: admin-console/users.md
@@ -157,7 +159,9 @@ nav:
   - RAG DB Plugin: plugins/rag-db-plugin.md
 - API Reference:
   - REST API: api-reference.md
+      - Integrations: docs/api/integrations.md
   - WebSocket API: api/websocket.md
+      - Integrations: docs/api/integrations.md
   - GraphQL: api/graphql.md
 - Security & Compliance:
   - Overview: security.md
