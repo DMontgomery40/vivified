@@ -564,81 +564,84 @@ Remember: Plain markdown without Material features is UNACCEPTABLE. Every sectio
         return '\n'.join(prompt_parts)
     
     def _call_openai_api(self, system_prompt: str, user_prompt: str) -> str:
-        """Call OpenAI API with the prompts"""
-        
+        """Call OpenAI API with the prompts, with basic 429 backoff and CI-safe soft-fail."""
+
+        import time
+        from requests import HTTPError
+
         url = "https://api.openai.com/v1/chat/completions"
         headers = {
             "Authorization": f"Bearer {self.openai_api_key}",
             "Content-Type": "application/json",
         }
-        
-        # Use GPT-5 Mini for cost-effective, high-quality documentation
-        # Available GPT-5 models (September 2025):
-        # - gpt-5-chat-latest: Latest GPT-5 for chat (highest quality)
-        # - gpt-5-mini-2025-08-07: Cost-effective, fast (recommended)
-        # - gpt-5-nano-2025-08-07: Most economical for simpler tasks
-        # 
-        # Fallback options:
-        # - gpt-4o: Previous generation, still excellent
-        # - gpt-4o-mini: Budget-friendly GPT-4 variant
-        
-        model = os.getenv("OPENAI_MODEL", "gpt-5-mini-2025-08-07")  # Allow override via environment
-        
-        # Build request data - GPT-5 models have different parameter support
-        data = {
-            "model": model,
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
-        }
-        
-        # GPT-5 models have strict parameter requirements:
-        # - Only support default temperature (1)
-        # - Don't support max_tokens, response_format, etc.
-        if model.startswith("gpt-5"):
-            # GPT-5 models - minimal parameters only
-            pass  # Using defaults
-        else:
-            # GPT-4 and other models - full parameter set
-            data["temperature"] = 0.7  # Balance between creativity and consistency
-            data["top_p"] = 0.95  # Nucleus sampling for quality
-            data["frequency_penalty"] = 0.3  # Reduce repetition
-            data["presence_penalty"] = 0.3  # Encourage covering all topics
-            data["max_tokens"] = 16000  # Maximum response length
-            data["response_format"] = {"type": "json_object"}  # Ensure structured output
-        
-        print(f"Using OpenAI model: {model}")
-        
-        try:
-            response = requests.post(url, headers=headers, json=data, timeout=180)
-            response.raise_for_status()
-            result = response.json()
-            return result["choices"][0]["message"]["content"]
-        except Exception as e:
-            print(f"Error calling OpenAI API with {model}: {e}")
-            # Try with fallback model
-            fallback_model = "gpt-4o"  # Reliable fallback with full parameter support
-            print(f"Attempting fallback with {fallback_model}...")
-            
-            # Rebuild data for fallback with appropriate parameters
-            data = {
-                "model": fallback_model,
-                "messages": data["messages"],
-                "temperature": 0.7,
-                "top_p": 0.95,
-                "frequency_penalty": 0.3,
-                "presence_penalty": 0.3,
-                "max_tokens": 16000,
+
+        # Primary and fallback models
+        primary_model = os.getenv("OPENAI_MODEL", "gpt-5-mini-2025-08-07")
+        fallback_model = "gpt-4o"
+
+        def build_payload(model: str) -> Dict[str, Any]:
+            base = {
+                "model": model,
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
             }
-            try:
-                response = requests.post(url, headers=headers, json=data, timeout=180)
-                response.raise_for_status()
-                result = response.json()
-                return result["choices"][0]["message"]["content"]
-            except Exception as e2:
-                print(f"Fallback also failed: {e2}")
-                raise
+            if not model.startswith("gpt-5"):
+                base.update(
+                    {
+                        "temperature": 0.7,
+                        "top_p": 0.95,
+                        "frequency_penalty": 0.3,
+                        "presence_penalty": 0.3,
+                        "max_tokens": 16000,
+                    }
+                )
+            return base
+
+        def post_with_retries(model: str, attempts: int = 4, base_delay: float = 5.0) -> Optional[str]:
+            print(f"Using OpenAI model: {model}")
+            payload = build_payload(model)
+            for i in range(attempts):
+                try:
+                    resp = requests.post(url, headers=headers, json=payload, timeout=180)
+                    if resp.status_code == 429:
+                        raise HTTPError("429 Too Many Requests", response=resp)
+                    resp.raise_for_status()
+                    result = resp.json()
+                    return result["choices"][0]["message"]["content"]
+                except HTTPError as he:
+                    status = he.response.status_code if he.response is not None else None
+                    if status == 429:
+                        wait = base_delay * (2**i)
+                        print(f"Rate limited (429). Retrying in {wait:.1f}s... [{i+1}/{attempts}]")
+                        time.sleep(wait)
+                        continue
+                    # Non-429 HTTP error; do not retry
+                    print(f"HTTP error from OpenAI: {he}")
+                    return None
+                except Exception as e:
+                    # Network or parse error; retry with backoff
+                    wait = base_delay * (2**i)
+                    print(f"Error calling OpenAI ({type(e).__name__}): {e}. Retrying in {wait:.1f}s...")
+                    time.sleep(wait)
+            return None
+
+        # Try primary, then fallback
+        resp_text = post_with_retries(primary_model)
+        if resp_text is None:
+            print(f"Attempting fallback with {fallback_model}...")
+            resp_text = post_with_retries(fallback_model)
+
+        # If still failing in CI, soft-fail with empty updates
+        if resp_text is None:
+            if os.getenv("GITHUB_ACTIONS") == "true" or os.getenv("CI"):
+                print("OpenAI API unavailable or rate-limited; skipping documentation generation in CI.")
+                return "{}"  # Return empty JSON to indicate no updates
+            # Outside CI, raise to signal interactive failure
+            raise RuntimeError("Failed to generate documentation via OpenAI API after retries")
+
+        return resp_text
     
     def _parse_llm_response(self, response: str) -> Dict[str, str]:
         """Parse the LLM response to extract documentation updates"""
