@@ -25,7 +25,7 @@ export class AdminAPIClient {
     }
   }
 
-export default AdminAPIClient;
+
 
   // Security: MFA (TOTP)
   async mfaSetup(): Promise<{ secret?: string; qr?: string; qr_png?: string; qr_code?: string; backup_codes?: string[] }>{
