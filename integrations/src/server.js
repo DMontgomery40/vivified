@@ -2,7 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const mongoose = require('mongoose');
-const { HubSpotApi } = require('@friggframework/api-module-hubspot');
+const { Api: HubSpotApi } = require('@friggframework/api-module-hubspot');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -12,19 +12,20 @@ app.use(cors());
 app.use(express.json());
 
 // Internal token middleware - required for all routes except health
+// Accept both legacy 'X-Internal-Token' and 'X-Internal-Auth'
 const requireInternalToken = (req, res, next) => {
-  const token = req.headers['x-internal-token'];
-  
+  if (req.path === '/health') return next();
+  const headerToken = req.header('X-Internal-Auth') || req.header('X-Internal-Token');
+  const token = headerToken && String(headerToken);
   if (!token || token !== process.env.INTERNAL_TOKEN) {
     return res.status(401).json({
       error: {
-        code: 'auth.invalid_token',
-        message: 'Invalid or missing internal token'
+        code: 'internal.unauthorized',
+        message: 'Unauthorized internal call'
       }
     });
   }
-  
-  next();
+  return next();
 };
 
 // MongoDB connection
@@ -76,12 +77,13 @@ const PROVIDERS = {
 };
 
 // Helper functions
-const getHubSpotApi = () => {
+const getHubSpotApi = (state) => {
   return new HubSpotApi({
     client_id: process.env.HUBSPOT_CLIENT_ID,
     client_secret: process.env.HUBSPOT_CLIENT_SECRET,
     redirect_uri: `${process.env.REDIRECT_URI}/hubspot/callback`,
-    scope: PROVIDERS.hubspot.scopes
+    scope: PROVIDERS.hubspot.scopes,
+    state: state || undefined,
   });
 };
 
@@ -140,9 +142,9 @@ app.get('/oauth_url/:provider', async (req, res) => {
     let authUrl;
     
     if (provider === 'hubspot') {
-      const hubspotApi = getHubSpotApi();
-      // Use state provided by Vivified (if any) - Vivified generates and validates state
-      authUrl = hubspotApi.getAuthorizationUrl(state);
+      const hubspotApi = getHubSpotApi(state);
+      // Build authorization URL using provided state (Vivified validates)
+      authUrl = hubspotApi.getAuthUri();
     }
     
     res.json({ url: authUrl });
@@ -195,7 +197,7 @@ app.post('/oauth_cb/:provider', async (req, res) => {
     let entity = { provider };
     
     if (provider === 'hubspot') {
-      const hubspotApi = getHubSpotApi();
+      const hubspotApi = getHubSpotApi(state);
       
       try {
         const tokenResponse = await hubspotApi.getTokenFromCode(code);
@@ -205,10 +207,10 @@ app.post('/oauth_cb/:provider', async (req, res) => {
         }
         
         // Get account info
-        const accountInfo = await hubspotApi.getAccount(tokenResponse.access_token);
-        
-        entity.account_name = accountInfo?.portalId ? `Portal ${accountInfo.portalId}` : 'HubSpot Account';
-        entity.external_id = accountInfo?.portalId?.toString();
+        // Fetch minimal user/account details (portalId, hub_domain)
+        const userDetails = await hubspotApi.getUserDetails();
+        entity.account_name = userDetails?.hub_domain || (userDetails?.portalId ? `Portal ${userDetails.portalId}` : 'HubSpot Account');
+        entity.external_id = (userDetails?.portalId && String(userDetails.portalId)) || undefined;
         
         // Save credential
         await Credential.findOneAndUpdate(

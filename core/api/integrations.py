@@ -164,7 +164,9 @@ async def _audit(
 def _client_headers() -> Dict[str, str]:
     headers = {"Accept": "application/json"}
     if INTEGRATIONS_INTERNAL_TOKEN:
+        # Send both headers to remain compatible with older and newer sidecar checks
         headers["X-Internal-Token"] = INTEGRATIONS_INTERNAL_TOKEN
+        headers["X-Internal-Auth"] = INTEGRATIONS_INTERNAL_TOKEN
     return headers
 
 
