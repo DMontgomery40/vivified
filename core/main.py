@@ -192,14 +192,14 @@ _rag_update_task = None  # Background updater task
 
 # Wire admin API dependencies
 configure_admin_api(config_service=get_config_service(), registry=registry)
-    app.include_router(admin_router)
-    app.include_router(auth_router)
-    app.include_router(metrics_router)
-    app.include_router(notifications_router)
-    app.include_router(automation_router)
-    app.include_router(admin_ai_router)
-    app.include_router(integrations_router)
-    app.include_router(integration_plugins_router)
+app.include_router(admin_router)
+app.include_router(auth_router)
+app.include_router(metrics_router)
+app.include_router(notifications_router)
+app.include_router(automation_router)
+app.include_router(admin_ai_router)
+app.include_router(integrations_router)
+app.include_router(integration_plugins_router)
 
 
 class ManifestModel(BaseModel):
@@ -349,7 +349,12 @@ async def startup_event():
                 "allowed_domains": ["api.hubapi.com", "app.hubspot.com"],
                 "host": "frigg",
                 "port": 3001,
-                "endpoints": {"connect": "/rpc/hubspot/connect", "callback": "/rpc/hubspot/callback", "status": "/rpc/hubspot/status", "revoke": "/rpc/hubspot/revoke"},
+                "endpoints": {
+                    "connect": "/rpc/hubspot/connect",
+                    "callback": "/rpc/hubspot/callback",
+                    "status": "/rpc/hubspot/status",
+                    "revoke": "/rpc/hubspot/revoke",
+                },
                 "security": {"scopes": ["oauth2"]},
                 "compliance": {"hipaa_controls": [], "audit_level": "standard"},
             },
@@ -368,7 +373,12 @@ async def startup_event():
                 ],
                 "host": "frigg",
                 "port": 3001,
-                "endpoints": {"connect": "/rpc/gmail/connect", "callback": "/rpc/gmail/callback", "status": "/rpc/gmail/status", "revoke": "/rpc/gmail/revoke"},
+                "endpoints": {
+                    "connect": "/rpc/gmail/connect",
+                    "callback": "/rpc/gmail/callback",
+                    "status": "/rpc/gmail/status",
+                    "revoke": "/rpc/gmail/revoke",
+                },
                 "security": {"scopes": ["oauth2"]},
                 "compliance": {"hipaa_controls": [], "audit_level": "standard"},
             },
@@ -381,7 +391,12 @@ async def startup_event():
                 "allowed_domains": ["discord.com"],
                 "host": "frigg",
                 "port": 3001,
-                "endpoints": {"connect": "/rpc/discord/connect", "callback": "/rpc/discord/callback", "status": "/rpc/discord/status", "revoke": "/rpc/discord/revoke"},
+                "endpoints": {
+                    "connect": "/rpc/discord/connect",
+                    "callback": "/rpc/discord/callback",
+                    "status": "/rpc/discord/status",
+                    "revoke": "/rpc/discord/revoke",
+                },
                 "security": {"scopes": ["oauth2"]},
                 "compliance": {"hipaa_controls": [], "audit_level": "standard"},
             },
@@ -403,7 +418,9 @@ async def startup_event():
                                 allowed_paths=[],
                             )
                         except Exception:
-                            logger.debug("seed allowlist failed for %s", domain, exc_info=True)
+                            logger.debug(
+                                "seed allowlist failed for %s", domain, exc_info=True
+                            )
             except Exception:
                 logger.debug("plugin seed failed", exc_info=True)
     except Exception:
