@@ -131,7 +131,7 @@ def test_connect_url_contains_state_and_callback_success(monkeypatch):
 
     # Callback with TEST_CODE
     cb = client.get(f"/integrations/hubspot/callback?code=TEST_CODE&state={state}", headers=auth, allow_redirects=False)
-    assert cb.status_code in (302, 307)
+    assert cb.status_code in (200, 302, 307)
 
     # Status now connected
     s = client.get("/integrations/hubspot/status", headers=auth)

@@ -53,9 +53,29 @@ export default function Providers({ client, canManage }: { client: AdminAPIClien
 
   useEffect(() => { refresh(); }, [refresh]);
 
+  useEffect(() => {
+    const handler = (e: MessageEvent) => {
+      if (typeof e.data === 'string' && e.data.startsWith('integrations:') && e.data.endsWith(':connected')) {
+        refresh();
+      }
+    };
+    window.addEventListener('message', handler);
+    return () => window.removeEventListener('message', handler);
+  }, [refresh]);
+
+  useEffect(() => {
+    const onMessage = (ev: MessageEvent) => {
+      if (typeof ev.data === 'string' && ev.data === 'integrations:hubspot:connected') {
+        refresh();
+      }
+    };
+    window.addEventListener('message', onMessage);
+    return () => window.removeEventListener('message', onMessage);
+  }, [refresh]);
+
   const handleConnect = async (provider: string) => {
     try {
-      const { url } = await client.connectIntegration(provider);
+      const { url } = await client.connectIntegration(provider, true);
       if (url) {
         window.open(url, '_blank', 'noopener');
       }
