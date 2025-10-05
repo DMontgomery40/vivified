@@ -81,13 +81,17 @@ class StorageService:
         """Check if user has access to perform action on object."""
         # Create policy request
         request = PolicyRequest(
-            user_id=user_id,
+            user_id=str(user_id),
             resource_type="storage_object",
             resource_id=str(metadata.id),
             action=action,
             traits=metadata.traits,
             context={
-                "data_classification": metadata.data_classification.value,
+                "data_classification": (
+                    metadata.data_classification.value
+                    if hasattr(metadata.data_classification, "value")
+                    else str(metadata.data_classification)
+                ),
                 "object_key": metadata.object_key,
                 "content_type": metadata.content_type,
                 "size_bytes": metadata.size_bytes,
@@ -228,11 +232,18 @@ class StorageService:
                 details={
                     "action": "store",
                     "object_key": object_id,
-                    "data_classification": data_classification.value,
+                    "data_classification": (
+                        data_classification.value
+                        if hasattr(data_classification, "value")
+                        else str(data_classification)
+                    ),
                     "reason": "policy_denied",
                 },
             )
             raise PermissionError("Access denied by policy engine")
+
+        # Calculate checksum on plaintext for integrity
+        plaintext_checksum = self.encryption.calculate_checksum(content)
 
         # Encrypt content if required
         if self.config.encryption_enabled or metadata.is_sensitive:
@@ -240,8 +251,8 @@ class StorageService:
             metadata.is_encrypted = True
             metadata.encryption_key_id = key_id
 
-        # Calculate checksum
-        metadata.checksum = self.encryption.calculate_checksum(content)
+        # Store checksum of plaintext to verify after decrypt
+        metadata.checksum = plaintext_checksum
 
         # Create storage object
         storage_object = StorageObject(metadata=metadata, content=content)
@@ -265,12 +276,20 @@ class StorageService:
             user_id=str(user_id),
             level=audit_level,
             phi_involved=(
-                stored_metadata.data_classification.value
+                (
+                    stored_metadata.data_classification.value
+                    if hasattr(stored_metadata.data_classification, "value")
+                    else str(stored_metadata.data_classification)
+                ).lower()
                 == DataClassification.PHI.value
             ),
             details={
                 "object_key": stored_metadata.object_key,
-                "data_classification": stored_metadata.data_classification.value,
+                "data_classification": (
+                    stored_metadata.data_classification.value
+                    if hasattr(stored_metadata.data_classification, "value")
+                    else str(stored_metadata.data_classification)
+                ),
                 "size_bytes": stored_metadata.size_bytes,
                 "provider": stored_metadata.provider.value,
                 "encrypted": stored_metadata.is_encrypted,
@@ -375,11 +394,20 @@ class StorageService:
             user_id=str(user_id),
             level=audit_level,
             phi_involved=(
-                metadata.data_classification.value == DataClassification.PHI.value
+                (
+                    metadata.data_classification.value
+                    if hasattr(metadata.data_classification, "value")
+                    else str(metadata.data_classification)
+                ).lower()
+                == DataClassification.PHI.value
             ),
             details={
                 "object_key": object_key,
-                "data_classification": metadata.data_classification.value,
+                "data_classification": (
+                    metadata.data_classification.value
+                    if hasattr(metadata.data_classification, "value")
+                    else str(metadata.data_classification)
+                ),
                 "size_bytes": metadata.size_bytes,
                 "access_count": storage_object.metadata.access_count,
             },
@@ -418,12 +446,21 @@ class StorageService:
                 user_id=str(user_id),
                 level=AuditLevel.DETAILED,
                 phi_involved=(
-                    metadata.data_classification.value == DataClassification.PHI.value
+                    (
+                        metadata.data_classification.value
+                        if hasattr(metadata.data_classification, "value")
+                        else str(metadata.data_classification)
+                    ).lower()
+                    == DataClassification.PHI.value
                 ),
                 details={
                     "action": "delete",
                     "object_key": object_key,
-                    "data_classification": metadata.data_classification.value,
+                    "data_classification": (
+                        metadata.data_classification.value
+                        if hasattr(metadata.data_classification, "value")
+                        else str(metadata.data_classification)
+                    ),
                     "reason": "policy_denied",
                 },
             )
@@ -449,11 +486,20 @@ class StorageService:
                 user_id=str(user_id),
                 level=audit_level,
                 phi_involved=(
-                    metadata.data_classification.value == DataClassification.PHI.value
+                    (
+                        metadata.data_classification.value
+                        if hasattr(metadata.data_classification, "value")
+                        else str(metadata.data_classification)
+                    ).lower()
+                    == DataClassification.PHI.value
                 ),
                 details={
                     "object_key": object_key,
-                    "data_classification": metadata.data_classification.value,
+                    "data_classification": (
+                        metadata.data_classification.value
+                        if hasattr(metadata.data_classification, "value")
+                        else str(metadata.data_classification)
+                    ),
                     "size_bytes": metadata.size_bytes,
                     "provider": metadata.provider.value,
                 },
@@ -566,12 +612,20 @@ class StorageService:
                             user_id=None,  # System operation
                             level=AuditLevel.STANDARD,
                             phi_involved=(
-                                metadata.data_classification.value
+                                (
+                                    metadata.data_classification.value
+                                    if hasattr(metadata.data_classification, "value")
+                                    else str(metadata.data_classification)
+                                ).lower()
                                 == DataClassification.PHI.value
                             ),
                             details={
                                 "object_key": metadata.object_key,
-                                "data_classification": metadata.data_classification.value,
+                                "data_classification": (
+                                    metadata.data_classification.value
+                                    if hasattr(metadata.data_classification, "value")
+                                    else str(metadata.data_classification)
+                                ),
                                 "expired_at": metadata.expires_at.isoformat(),
                                 "retention_policy": metadata.retention_policy.value,
                             },

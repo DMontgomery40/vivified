@@ -125,20 +125,29 @@ class IdentityService:
             )
             return None
 
-        # Verify MFA if enabled
-        if user.mfa_enabled:
-            if not mfa_token or not self._verify_mfa(user.mfa_secret, mfa_token):
+        # Determine traits for role-aware MFA enforcement (pre-token)
+        traits = await self.get_user_traits(user.id)
+
+        # Enforce MFA for sensitive roles (admin/phi_handler) even if user has not enabled yet
+        sensitive_role = any(
+            t in {"admin", "handles_phi", "phi_handler"} for t in traits
+        )
+
+        # If MFA is enabled or required by role, verify provided token
+        if user.mfa_enabled or sensitive_role:
+            if not mfa_token or not (
+                user.mfa_secret and self._verify_mfa(user.mfa_secret, mfa_token)
+            ):
                 await self._audit_log(
                     user.id,
                     "failed_login",
                     False,
-                    {"reason": "invalid_mfa"},
+                    {"reason": "mfa_required" if sensitive_role else "invalid_mfa"},
                     ip_address,
                 )
                 return None
 
         # Generate JWT token
-        traits = await self.get_user_traits(user.id)
         token = self.auth.generate_user_token(user.id, traits)
 
         # Update login info and reset failed attempts

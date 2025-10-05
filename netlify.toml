@@ -1,0 +1,16 @@
+[build]
+  command = "make api-docs"
+  publish = "site"
+
+[build.environment]
+  PYTHON_VERSION = "3.11"
+
+[[redirects]]
+  from = "/api"
+  to = "/api/v1/"
+  status = 301
+
+[[redirects]]
+  from = "/api/"
+  to = "/api/v1/"
+  status = 301

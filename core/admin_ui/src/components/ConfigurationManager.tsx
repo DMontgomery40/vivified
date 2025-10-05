@@ -49,6 +49,7 @@ import {
   Public as PublicIcon,
 } from '@mui/icons-material';
 import AdminAPIClient from '../api/client';
+import HelpTip from './common/HelpTip';
 
 interface ConfigurationManagerProps {
   client: AdminAPIClient;

@@ -23,6 +23,7 @@ import {
   Terminal as TerminalIcon,
   WifiOff as DisconnectedIcon,
 } from '@mui/icons-material';
+import HelpTip from './common/HelpTip';
 import { Terminal as XTerm } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
@@ -381,7 +382,8 @@ const Terminal: React.FC<TerminalProps> = ({ apiKey }) => {
           </Typography>
         </Box>
         
-        <Box>
+        <Box display="flex" alignItems="center" gap={1}>
+          <HelpTip topic="terminal" />
           {isSmallMobile ? (
             <Stack direction="row" spacing={1}>
               {!connected && (

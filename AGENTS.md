@@ -1,6 +1,106 @@
 # AGENTS.md - Vivified Platform Development Guidelines
 
+# **ALL PYTHON CODE MUST BE BACK CONFORMANT - your code will not pass CI unless it is**
+
+## Workspace Branch Safety — READ FIRST (Multi‑Agent)
+
+Multiple agents (and humans) share this workspace. Do not switch branches in the workspace. Ever.
+
+- Never run `git checkout <branch>` or change HEAD waiin this repo.
+- When you need to work on a different branch, use a dedicated worktree path for that branch and operate there via its full filesystem path.
+  - Example (docs): use the mkdocs worktree at `/private/tmp/vivified-mkdocs-check` (HEAD=mkdocs) instead of switching this repo to `mkdocs`.
+- Always reference the full path of the correct worktree in commands and scripts (do not assume the current directory’s branch).
+- If a required worktree does not exist, do not create or switch branches on your own—ask the maintainer to create the proper worktree.
+
+Hard rules (enforced expectations):
+- No branch switching inside this workspace.
+- No global `git add -A` at the workspace root; scope your staging to the intended paths only.
+- Prefer read/patch by absolute or project‑relative paths, not by moving HEAD.
+
+## Documentation Workflow — CRITICAL FOR AGENTS
+
+**NEVER change branches when updating documentation. Use full paths with branch names.**
+
+### How Documentation Works
+
+1. **Source**: Markdown files are in the `mkdocs` branch
+2. **Build**: HTML is generated from mkdocs branch using `mike deploy`  
+3. **Deploy**: HTML is served from `gh-pages` branch (what users see)
+4. **Worktree**: Use `/private/tmp/vivified-mkdocs-check/` (mkdocs branch checkout)
+
+### Documentation Update Process
+
+```bash
+# 1. Work in the mkdocs branch worktree (DO NOT change branches)
+cd /private/tmp/vivified-mkdocs-check
+
+# 2. Make changes to markdown files in docs/
+# Edit files like docs/getting-started.md, docs/plugins/overview.md, etc.
+
+# 3. Update mkdocs.yml if needed (add CSS, JS, nav changes)
+
+# 4. Commit changes to mkdocs branch
+git add -A
+git commit -m "Fix documentation issues"
+git push origin mkdocs
+
+# 5. Build and deploy to gh-pages
+mike deploy latest -u -p
+```
+
+Docs Safe Mode (must follow exactly):
+
+- Verify you are in the mkdocs worktree and HEAD is `mkdocs`:
+  - `git rev-parse --abbrev-ref HEAD` must output `mkdocs`. If not, STOP and ask for help.
+- Scope staging to docs only:
+  - `git add docs/ mkdocs.yml` (never use `git add -A` here)
+- Ignore local artifacts:
+  - Ensure `.venv-docs/` and `site/` are not tracked (use local exclude or remove from index if necessary)
+- Build check before deploy:
+  - `mkdocs build --strict` must pass with zero errors/warnings before running `mike deploy`
+- Deploy only from the mkdocs worktree:
+  - `mike deploy latest -u -p`
+
+### Common Documentation Issues & Fixes
+
+**Grid Cards Not Rendering:**
+- Add proper CSS classes in `docs/stylesheets/extra.css`
+- Use correct Material for MkDocs syntax: `<div class='grid cards' markdown>`
+
+**Mermaid Diagrams Not Rendering:**
+- Add mermaid init script to `docs/javascripts/mermaid-init.js`
+- Configure in `mkdocs.yml`: `extra_javascript: - javascripts/mermaid-init.js`
+
+**Table of Contents Issues:**
+- Remove manual TOC sections from markdown
+- Use built-in `toc.integrate` feature (configured in mkdocs.yml)
+
+**Build Artifacts in Wrong Branch:**
+- Add `site/` to `.gitignore` in main branches
+- Only `gh-pages` should contain HTML files
+- Remove with: `git rm -r --cached site/`
+
+### File Locations
+
+- **Markdown Source**: `/private/tmp/vivified-mkdocs-check/docs/`
+- **Configuration**: `/private/tmp/vivified-mkdocs-check/mkdocs.yml`
+- **CSS**: `/private/tmp/vivified-mkdocs-check/docs/stylesheets/extra.css`
+- **JavaScript**: `/private/tmp/vivified-mkdocs-check/docs/javascripts/`
+
+### NEVER DO THIS
+
+- ❌ Change to mkdocs branch in main repo
+- ❌ Switch branches in the shared workspace for any reason (use worktrees)
+- ❌ Edit docs in claude-test or other branches  
+- ❌ Commit HTML files to source branches
+- ❌ Skip the worktree - always use `/private/tmp/vivified-mkdocs-check/`
+
+If you accidentally staged the wrong files in the mkdocs worktree:
+- Roll back locally (e.g., `git restore --staged <file>`), keep scope to `docs/` and `mkdocs.yml`, then proceed.
+
 ## Local CI Parity — Commit Gate (Read This First)
+
+Status: DONE
 
 Stop the flood of CI errors by running exactly what CI runs before every push. Use Python 3.11 and these pinned tool versions.
 
@@ -12,7 +112,7 @@ python3.11 -m venv .venv && . .venv/bin/activate
 
 # Install runtime + dev tools exactly like CI
 pip install -r core/requirements.txt \
-  black==25.9.0 flake8==7.3.0 mypy==1.18.2 sqlalchemy==2.0.43 \
+  black==25.9.0 flake8==7.3.0 mypy==1.18.2 sqlalchemy==2.0.23 \
   pytest pytest-cov pytest-asyncio
 
 # Lint/type/test — all must pass locally before pushing
@@ -38,7 +138,7 @@ repos:
     rev: v1.18.2
     hooks:
       - id: mypy
-        additional_dependencies: ["sqlalchemy==2.0.43"]
+        additional_dependencies: ["sqlalchemy==2.0.23"]
   - repo: local
     hooks:
       - id: pytest
@@ -50,6 +150,58 @@ repos:
 YAML
 pre-commit install -t pre-commit -t pre-push
 ```
+
+Optional but recommended UI parity checks (mirrors CI’s UI jobs):
+
+```bash
+# Build React Admin UIs locally (skips if node/npm not installed)
+make ui-ci-local
+
+# Or via pre-push hook automatically (already added):
+#   - ui build (pre-push)
+```
+
+Agent gating (block automation until green + merged):
+
+```bash
+# Runs local parity first, then polls GitHub for PR merge (requires env)
+REPO=owner/repo PR_NUMBER=123 GITHUB_TOKEN=ghp_xxx \
+  python tools/scripts/agent_gate.py --wait-merge
+```
+
+- Align local preflight with CI (enforce before push)
+      - Use existing pre-commit with pre-push pytest. Run:
+          - pre-commit install -t pre-commit -t pre-push
+      - Use make ci-local before every push. It mirrors CI jobs for Python (lint/
+  type/test).
+  - Add UI build smoke locally (optional but recommended)
+      - Add a Makefile target that, if node is available, runs:
+          - npm ci && npm run build in core/ui and core/admin_ui.
+      - Example: make ui-ci-local that exits non-zero on any UI build failure.
+  - Branch protection + required checks
+      - In GitHub settings for development (and your long-lived branches like claude-
+  test):
+          - Require status checks: Lint, Test, UI Build, Admin UI Build, Docker Core
+  Image.
+          - Require branches to be up to date before merging.
+          - Enable Merge Queue (so only the queue head is validated and merged).
+          - Dismiss stale approvals on new commits.
+  - Agent gating (don’t let agents move on until merge)
+      - Gate the agent runner to wait for PR merge before assigning the next task:
+          - Poll GitHub’s Checks/PR status; only continue when the commit is merged to
+  the integration branch.
+          - Alternatively: require the agent to call make ci-local and block on
+      - Use durable version selectors:
+          - Node: 20.x or lts/* instead of micro versions.
+  - Catch missing files in UI
+      - Turn on tsc --noEmit (already part of admin UI build) and ensure we never
+  reference components not committed.
+      - Consider a CI step to run git ls-files compared to rg import in admin UI for
+  basic missing import detection.
+
+  ''''
+  
+
 
 Common pitfalls that cause “THIS MANY ERRORS”:
 - Optional defaults: if a parameter default is `None`, type it as `T | None` (or `Optional[T]`). mypy rejects implicit Optional.
@@ -63,6 +215,8 @@ Common pitfalls that cause “THIS MANY ERRORS”:
 CI mirrors these exact tools and expectations. If any of the above fails locally, fix it before pushing.
 
 ## Admin Console First — Accessibility/Dyslexia Mandate
+
+Status: DONE
 
 Absolutely everything must be operable from the Admin Console. No exceptions.
 
@@ -79,6 +233,11 @@ UI structure conventions (must follow):
 - Tools → Tunnels/Audit/Logs/Gateway/Messaging/Canonical/Policy/Register/Storage: each feature is trait‑gated and operates only within its tab.
 - Settings: Setup wizard, core settings, configuration editor, keys, users, and MCP.
 
+Notifications UI wiring
+- New Admin Console Notifications Rules tab: configure event→channel→audience (trait-based) rules.
+- Admin API endpoints for notifications rules (list/upsert/delete) with `notification_manager` trait.
+- Notifications service evaluates rules on events (e.g., FaxReceived), emits NotificationRequest with `audience` metadata (mode=traits, scope=tenant), enabling plugins like Pushover to fan-out to all users with trait (e.g., ‘sales’).
+
 ## Critical Notice
 **THIS PLATFORM HANDLES PHI/PII AND MUST BE HIPAA-COMPLIANT**
 Every decision, implementation, and review must consider security and compliance implications.
@@ -86,6 +245,11 @@ Every decision, implementation, and review must consider security and compliance
 ## Core Principles
 
 ### 1. Security-First Architecture
+
+Status: Policy & Traits — DONE
+
+- Enhanced policy engine tested for PHI/PII/confidential, plugin/config management, and UI feature gating.
+- UI trait mapping exposed via `/admin/user/traits`; Admin UI consumes these traits to gate surfaces.
 - **ZERO TRUST MODEL**: No component trusts any other by default
 - **ALL COMMUNICATION MEDIATED**: Core intercepts and validates every cross-plugin interaction
 - **AUDIT EVERYTHING**: Every action, decision, and data movement is logged
@@ -93,12 +257,25 @@ Every decision, implementation, and review must consider security and compliance
 - **DATA CLASSIFICATION**: All data must be tagged with sensitivity traits (PHI, PII, confidential)
 
 ### 2. Three-Lane Communication Model
+
+Status: DONE
+
+- Canonical Lane: `core/canonical/*` with audit + policy checks
+- Operator Lane: `/gateway/{target_plugin}/{operation}` with policy + allowlist
+- Proxy Lane: Gateway allowlist + rate limiting + audit; default-deny by domain
 All plugin interactions use exactly one of three supervised lanes:
 - **Canonical Lane**: Event-driven messaging via normalized data models
 - **Operator Lane**: Synchronous RPC calls through core gateway
 - **Proxy Lane**: Controlled external API access with domain allowlists
 
 ### 3. Plugin Sandboxing Requirements
+
+Status: DONE
+
+- Enforced proxy-only egress: Gateway allowlist now rejects unsafe domains and localhost even if misconfigured; proxy blocks IP literals and unallowlisted domains/paths.
+- Operator lane SSRF guard: Core only allows internal-style service hosts (alphanum, dash, underscore); endpoint paths must be absolute and scheme-less.
+- Config-driven allowlist load skips unsafe entries; all actions audited.
+- Smoke tests added: `tests/test_security_hardening.py` for redaction, proxy/IP blocking, event bus PHI denial, operator host/path sanitization.
 - Plugins run as isolated containers with no direct network access
 - All external communication must go through core proxy with explicit allowlists
 - No plugin can access core database or filesystem directly
@@ -217,6 +394,17 @@ stages:
    - Access control testing
 
 ### Security Requirements
+
+Status: IN PROGRESS
+
+- Authentication & Authorization
+  - Rate limiting: /auth/dev-login (existing) and /auth/login (DONE)
+  - JWT expiry 15 minutes (existing)
+- Data Protection
+  - Redact PHI/PII in audit logs (DONE)
+  - Encryption at rest via StorageService (existing)
+  - No PHI/PII in logs enforced by sanitizer (DONE)
+  - Storage compliance smoke (PHI classification, encryption, checksum, audit flags) — DONE (tests)
 
 #### Authentication & Authorization
 - JWT tokens with 15-minute expiry

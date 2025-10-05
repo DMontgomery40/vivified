@@ -48,6 +48,7 @@ import { useTraits } from '../hooks/useTraits';
 import { ResponsiveFormSection } from './common/ResponsiveFormFields';
 import EventStream from './EventStream';
 import ProviderHealthStatus from './ProviderHealthStatus';
+import HelpTip from './common/HelpTip';
 
 interface DiagnosticsProps {
   client: AdminAPIClient;
@@ -329,7 +330,7 @@ function Diagnostics({ client, onNavigate, docsBase }: DiagnosticsProps) {
       }
       else if (key === 'database_connected') {
         docs.push({ text: 'Database stores job records and API keys.' });
-        docs.push({ text: 'Default: SQLite at ./vivified.db' });
+        docs.push({ text: 'Default: PostgreSQL via asyncpg (localhost:5432)' });
         docs.push({ text: 'Production: Use PostgreSQL with DATABASE_URL' });
         if (docsBase) docs.push({ text: 'Database Setup', href: `${docsBase}/deployment/#database-configuration` });
       }
@@ -765,7 +766,8 @@ function Diagnostics({ client, onNavigate, docsBase }: DiagnosticsProps) {
           <Typography variant="h4" component="h1">
             System Diagnostics
           </Typography>
-          <Box display="flex" gap={1}>
+          <Box display="flex" gap={1} alignItems="center">
+            <HelpTip topic="diagnostics" />
             <Button
               variant="contained"
               startIcon={loading ? <CircularProgress size={20} color="inherit" /> : <DiagnosticIcon />}
