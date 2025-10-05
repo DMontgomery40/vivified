@@ -87,6 +87,11 @@ services:
       # RAG Config (bigger chunks for better context)
       RAG_CHUNK_CHARS: ${RAG_CHUNK_CHARS:-8000}
       RAG_OVERLAP_CHARS: ${RAG_OVERLAP_CHARS:-800}
+      # Integrations Service Config
+      INTEGRATIONS_BASE_URL: ${INTEGRATIONS_BASE_URL:-http://frigg:3001}
+      INTEGRATIONS_INTERNAL_TOKEN: ${INTEGRATIONS_INTERNAL_TOKEN:-change-this-internal-token}
+      INTEGRATIONS_HIPAA_MODE: ${INTEGRATIONS_HIPAA_MODE:-false}
+      INTEGRATIONS_HIPAA_ALLOWED: ${INTEGRATIONS_HIPAA_ALLOWED:-hubspot}
     ports:
       - "8000:8000"
       - "8443:8443"
@@ -191,6 +196,45 @@ services:
       - vivified-net
     restart: unless-stopped
 
+  mongo:
+    image: mongo:7.0-jammy
+    environment:
+      MONGO_INITDB_DATABASE: frigg
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - vivified-net
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  frigg:
+    build: ./integrations
+    environment:
+      MONGO_URI: mongodb://mongo:27017/frigg
+      INTERNAL_TOKEN: ${INTEGRATIONS_INTERNAL_TOKEN:-change-this-internal-token}
+      REDIRECT_URI: http://vivified-core:8000/integrations
+      HUBSPOT_CLIENT_ID: ${HUBSPOT_CLIENT_ID:-}
+      HUBSPOT_CLIENT_SECRET: ${HUBSPOT_CLIENT_SECRET:-}
+      HUBSPOT_SCOPE: ${HUBSPOT_SCOPE:-contacts}
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: 3001
+    depends_on:
+      mongo:
+        condition: service_healthy
+    networks:
+      - vivified-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
 volumes:
   postgres_data:
   admin_ui_node_modules:
+  mongo_data:
