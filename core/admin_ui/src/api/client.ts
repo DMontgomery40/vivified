@@ -25,6 +25,8 @@ export class AdminAPIClient {
     }
   }
 
+export default AdminAPIClient;
+
   // Security: MFA (TOTP)
   async mfaSetup(): Promise<{ secret?: string; qr?: string; qr_png?: string; qr_code?: string; backup_codes?: string[] }>{
     const res = await this.fetch('/admin/security/mfa/setup', { method: 'POST' });
@@ -630,6 +632,27 @@ export class AdminAPIClient {
   // User traits (admin-only)
   async getUserTraits(): Promise<{ schema_version: number; user: { id: string }; traits: string[]; backend_traits?: string[] }>{
     const res = await this.fetch('/admin/user/traits');
+    return res.json();
+  }
+
+  // Integrations — public endpoints
+  async listIntegrations(): Promise<{ items: Array<{ provider: string; name: string; connected: boolean; details?: Record<string, any> }> }>{
+    const res = await this.fetch('/integrations');
+    return res.json();
+  }
+
+  async connectIntegration(provider: string): Promise<{ url: string }>{
+    const res = await this.fetch(`/integrations/${encodeURIComponent(provider)}/connect`, { method: 'POST' });
+    return res.json();
+  }
+
+  async statusIntegration(provider: string): Promise<{ connected: boolean; details?: Record<string, any> }>{
+    const res = await this.fetch(`/integrations/${encodeURIComponent(provider)}/status`);
+    return res.json();
+  }
+
+  async revokeIntegration(provider: string): Promise<{ ok: boolean }>{
+    const res = await this.fetch(`/integrations/${encodeURIComponent(provider)}/revoke`, { method: 'POST' });
     return res.json();
   }
 
