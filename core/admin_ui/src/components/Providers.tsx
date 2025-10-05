@@ -120,6 +120,15 @@ export default function Providers({ client, canManage }: { client: AdminAPIClien
         </Box>
       ) : (
         <Grid container spacing={2}>
+          {/* Env keys reference */}
+          <Grid item xs={12}>
+            <Paper sx={{ p: 2 }}>
+              <Typography variant="subtitle1" gutterBottom>Required Env Keys (.env)</Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: 'pre-wrap', fontFamily: 'monospace', fontSize: 12 }}>
+                {`INTEGRATIONS_BASE_URL=http://frigg:3001\nINTEGRATIONS_INTERNAL_TOKEN=<random-long-string> (must match INTERNAL_TOKEN)\nINTEGRATIONS_HIPAA_MODE=false\nINTEGRATIONS_HIPAA_ALLOWED=hubspot (optional when HIPAA=true)\nINTERNAL_TOKEN=\${INTEGRATIONS_INTERNAL_TOKEN}\nREDIRECT_URI=http://vivified-core:8000/integrations\nHUBSPOT_CLIENT_ID=<your client id>\nHUBSPOT_CLIENT_SECRET=<your client secret>\nHUBSPOT_SCOPE=contacts\nENFORCE_EGRESS=false\nHUBSPOT_ALLOWED_HOSTS=api.hubapi.com,app.hubspot.com`}
+              </Typography>
+            </Paper>
+          </Grid>
           {items.map((it) => (
             <Grid item xs={12} md={6} key={it.provider}>
               <Paper sx={{ p: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
