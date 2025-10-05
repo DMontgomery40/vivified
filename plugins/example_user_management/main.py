@@ -9,7 +9,6 @@ This plugin shows how to:
 - Implement proper security and audit logging
 """
 
-import asyncio
 import logging
 from typing import Dict, Any, Optional
 from datetime import datetime
@@ -43,16 +42,16 @@ MANIFEST = {
     "endpoints": {
         "health": "/health",
         "user_info": "/api/users/{user_id}",
-        "create_user": "/api/users"
+        "create_user": "/api/users",
     },
     "security": {
         "authentication_required": True,
-        "data_classification": ["pii", "internal"]
+        "data_classification": ["pii", "internal"],
     },
     "compliance": {
         "hipaa_controls": ["164.312(a)", "164.312(d)"],
-        "audit_level": "detailed"
-    }
+        "audit_level": "detailed",
+    },
 }
 
 
@@ -76,28 +75,28 @@ class UserInfo(BaseModel):
 async def startup():
     """Initialize plugin and register with core."""
     global PLUGIN_TOKEN
-    
+
     try:
         # Register with core
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                f"{CORE_URL}/plugins/register",
-                json=MANIFEST,
-                timeout=10.0
+                f"{CORE_URL}/plugins/register", json=MANIFEST, timeout=10.0
             )
-            
+
             if response.status_code == 200:
                 data = response.json()
                 PLUGIN_TOKEN = data["token"]
                 logger.info(f"Successfully registered with core: {data}")
-                
+
                 # Subscribe to user events
                 await subscribe_to_events()
-                
+
             else:
-                logger.error(f"Registration failed: {response.status_code} - {response.text}")
+                logger.error(
+                    f"Registration failed: {response.status_code} - {response.text}"
+                )
                 raise RuntimeError("Failed to register with core")
-                
+
     except Exception as e:
         logger.error(f"Startup failed: {e}")
         raise
@@ -119,21 +118,18 @@ async def health_check():
     return {
         "status": "healthy",
         "plugin": PLUGIN_ID,
-        "timestamp": datetime.utcnow().isoformat()
+        "timestamp": datetime.utcnow().isoformat(),
     }
 
 
 @app.get("/api/users/{user_id}")
-async def get_user_info(
-    user_id: str,
-    authorization: str = Header(None)
-):
+async def get_user_info(user_id: str, authorization: str = Header(None)):
     """Get extended user information."""
     try:
         # Verify authorization (in real implementation, would validate JWT)
         if not authorization:
             raise HTTPException(status_code=401, detail="Authorization required")
-        
+
         # Simulate user data
         user_data = {
             "id": user_id,
@@ -141,55 +137,55 @@ async def get_user_info(
             "email": f"user_{user_id}@example.com",
             "department": "Engineering",
             "manager": "manager-123",
-            "traits": ["handles_pii"]
+            "traits": ["handles_pii"],
         }
-        
+
         # In a real implementation, would use canonical service to normalize data
         logger.info(f"Retrieved user info for {user_id}")
-        
+
         # Publish event via messaging service (simulated)
         await publish_user_event("user_accessed", {"user_id": user_id})
-        
+
         return UserInfo(**user_data)
-        
+
     except Exception as e:
         logger.error(f"Failed to get user info: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/api/users")
-async def create_user(
-    user_data: UserCreateRequest,
-    authorization: str = Header(None)
-):
+async def create_user(user_data: UserCreateRequest, authorization: str = Header(None)):
     """Create a new user with extended attributes."""
     try:
         # Verify authorization
         if not authorization:
             raise HTTPException(status_code=401, detail="Authorization required")
-        
+
         # Simulate user creation
         new_user_id = f"user_{int(datetime.utcnow().timestamp())}"
-        
+
         user_info = UserInfo(
             user_id=new_user_id,
             username=user_data.username,
             email=user_data.email,
             department=user_data.department,
             manager=user_data.manager,
-            traits=["handles_pii"]
+            traits=["handles_pii"],
         )
-        
+
         # Publish event via messaging service (simulated)
-        await publish_user_event("user_created", {
-            "user_id": new_user_id,
-            "username": user_data.username,
-            "department": user_data.department
-        })
-        
+        await publish_user_event(
+            "user_created",
+            {
+                "user_id": new_user_id,
+                "username": user_data.username,
+                "department": user_data.department,
+            },
+        )
+
         logger.info(f"Created user {new_user_id}")
         return user_info
-        
+
     except Exception as e:
         logger.error(f"Failed to create user: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -202,37 +198,36 @@ async def external_api_demo(authorization: str = Header(None)):
         # Verify authorization
         if not authorization:
             raise HTTPException(status_code=401, detail="Authorization required")
-        
+
         # In a real implementation, would use gateway service
         # For now, simulate external API call
         async with httpx.AsyncClient() as client:
             response = await client.get(
-                "https://jsonplaceholder.typicode.com/users/1",
-                timeout=10.0
+                "https://jsonplaceholder.typicode.com/users/1", timeout=10.0
             )
-            
+
             if response.status_code == 200:
                 external_data = response.json()
-                
+
                 # In a real implementation, would use canonical service to normalize
                 normalized_data = {
                     "id": external_data["id"],
                     "username": external_data["username"],
                     "email": external_data["email"],
                     "name": external_data["name"],
-                    "company": external_data["company"]["name"]
+                    "company": external_data["company"]["name"],
                 }
-                
+
                 # Publish event
-                await publish_user_event("external_data_retrieved", {
-                    "source": "jsonplaceholder",
-                    "user_id": external_data["id"]
-                })
-                
+                await publish_user_event(
+                    "external_data_retrieved",
+                    {"source": "jsonplaceholder", "user_id": external_data["id"]},
+                )
+
                 return normalized_data
             else:
                 raise HTTPException(status_code=500, detail="External API failed")
-                
+
     except Exception as e:
         logger.error(f"External API demo failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -244,7 +239,7 @@ async def publish_user_event(event_type: str, payload: Dict[str, Any]):
         # In a real implementation, would use the messaging service
         # For now, just log the event
         logger.info(f"Event: {event_type} - {payload}")
-        
+
         # Simulate publishing to core
         async with httpx.AsyncClient() as client:
             await client.post(
@@ -253,12 +248,14 @@ async def publish_user_event(event_type: str, payload: Dict[str, Any]):
                     "event_type": event_type,
                     "payload": payload,
                     "source_plugin": PLUGIN_ID,
-                    "data_traits": ["pii"]
+                    "data_traits": ["pii"],
                 },
-                headers={"Authorization": f"Bearer {PLUGIN_TOKEN}"} if PLUGIN_TOKEN else {},
-                timeout=5.0
+                headers=(
+                    {"Authorization": f"Bearer {PLUGIN_TOKEN}"} if PLUGIN_TOKEN else {}
+                ),
+                timeout=5.0,
             )
-            
+
     except Exception as e:
         logger.error(f"Failed to publish event {event_type}: {e}")
 
@@ -271,4 +268,5 @@ async def shutdown():
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(app, host="0.0.0.0", port=8080)

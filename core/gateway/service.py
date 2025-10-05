@@ -6,7 +6,13 @@ import logging
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 
-from .models import ProxyRequest, ProxyResponse, DomainAllowlist, ProxyStats
+from .models import (
+    ProxyRequest,
+    ProxyResponse,
+    DomainAllowlist,
+    ProxyStats,
+    ProxyMethod,
+)
 from .proxy import ProxyHandler
 from ..audit.service import AuditService, AuditLevel
 from ..policy.engine import PolicyEngine, PolicyRequest, PolicyDecision
@@ -17,13 +23,20 @@ logger = logging.getLogger(__name__)
 class GatewayService:
     """Service for external API access with security and rate limiting."""
 
-    def __init__(self, audit_service: AuditService, policy_engine: PolicyEngine):
+    def __init__(
+        self,
+        audit_service: AuditService,
+        policy_engine: PolicyEngine,
+        config_service: Optional[Any] = None,
+    ):
         self.audit_service = audit_service
         self.policy_engine = policy_engine
-        self.proxy_handler = ProxyHandler(audit_service)
+        self.proxy_handler = ProxyHandler(audit_service, config_service)
+        # Map of domain -> DomainAllowlist
         self.domain_allowlists: Dict[str, DomainAllowlist] = {}
         self.stats = ProxyStats()
         self._running = False
+        self._config_service = config_service
 
     async def start(self):
         """Start the gateway service."""
@@ -58,6 +71,10 @@ class GatewayService:
                 raise PermissionError(
                     f"Plugin {plugin_id} not authorized to manage allowlists"
                 )
+
+            # Fail-safe: block unsafe domains regardless of request
+            if not self._is_safe_domain(domain):
+                raise ValueError("unsafe domain not allowed")
 
             allowlist_entry = DomainAllowlist(
                 plugin_id=plugin_id,
@@ -155,6 +172,9 @@ class GatewayService:
     ) -> ProxyResponse:
         """Proxy a request to an external API."""
         try:
+            # Ensure allowlist for this plugin is present (lazy refresh)
+            await self._ensure_allowlist_loaded(plugin_id)
+
             # Check if plugin can make proxy requests
             if not await self._can_proxy_request(plugin_id):
                 raise PermissionError(
@@ -211,6 +231,81 @@ class GatewayService:
         """Get gateway statistics."""
         return self.stats
 
+    async def preload_allowlists(self, plugin_ids: Optional[List[str]] = None) -> int:
+        """Preload allowlists for plugins from ConfigService. Returns count loaded.
+
+        If plugin_ids is None, attempts to load for all known plugins referenced
+        in existing allowlists (idempotent) and returns number of domains loaded.
+        """
+        if self._config_service is None:
+            return 0
+        total_before = len(self.domain_allowlists)
+        try:
+            if plugin_ids is None:
+                # Try to infer plugins from current state (no-op if empty)
+                plugin_ids = list(
+                    {e.plugin_id for e in self.domain_allowlists.values()}
+                )
+        except Exception:
+            plugin_ids = []
+
+        for pid in plugin_ids or []:
+            try:
+                await self._ensure_allowlist_loaded(pid)
+            except Exception:  # noqa: BLE001
+                logger.exception("allowlist preload failed for %s", pid)
+        return len(self.domain_allowlists) - total_before
+
+    async def _ensure_allowlist_loaded(self, plugin_id: str) -> None:
+        """(Re)load allowlist for a plugin from ConfigService.
+
+        Config structure is expected at key `gateway.allowlist.{plugin_id}`:
+          { "example.com": { "allowed_methods": ["GET", "POST"], "allowed_paths": ["/v1/"] } }
+        """
+        if self._config_service is None:
+            return
+        key = f"gateway.allowlist.{plugin_id}"
+        try:
+            data = await self._config_service.get(key)
+        except Exception:
+            data = None
+        if not isinstance(data, dict):
+            return
+        # Remove existing entries for this plugin
+        for domain in list(self.domain_allowlists.keys()):
+            try:
+                if self.domain_allowlists[domain].plugin_id == plugin_id:  # type: ignore[attr-defined]
+                    self.domain_allowlists.pop(domain, None)
+            except Exception:
+                # If structure differs, be conservative and leave it
+                pass
+
+        # Normalize and materialize DomainAllowlist entries
+        for domain, rules in data.items():
+            if not isinstance(rules, dict):
+                continue
+            # Skip unsafe domains from config for fail-safe posture
+            if not self._is_safe_domain(str(domain)):
+                logger.warning("Skipping unsafe domain in allowlist: %s", domain)
+                continue
+            raw_methods = rules.get("allowed_methods") or []
+            raw_paths = rules.get("allowed_paths") or []
+            # Coerce methods to ProxyMethod enums where possible
+            methods: List[ProxyMethod] = []
+            for m in raw_methods:
+                try:
+                    methods.append(ProxyMethod(str(m).upper()))
+                except Exception:
+                    # Ignore unknown method values
+                    continue
+            allow = DomainAllowlist(
+                plugin_id=plugin_id,
+                domain=str(domain),
+                allowed_methods=methods,
+                allowed_paths=[str(p) for p in raw_paths],
+            )
+            self.domain_allowlists[str(domain)] = allow
+
     async def get_active_requests(self) -> Dict[str, ProxyRequest]:
         """Get currently active requests."""
         return await self.proxy_handler.get_active_requests()
@@ -243,6 +338,20 @@ class GatewayService:
             context={},
         )
         result = await self.policy_engine.evaluate_request(request)
+        try:
+            await self.audit_service.log_event(
+                event_type="policy_decision",
+                category="policy",
+                action="manage_allowlist",
+                result=result.decision.value,
+                description=result.reason,
+                resource_type="gateway",
+                resource_id="allowlist",
+                plugin_id=plugin_id,
+                details={"sanitize_fields": result.sanitize_fields},
+            )
+        except Exception:  # noqa: BLE001
+            logger.debug("policy audit emit failed", exc_info=True)
         return result.decision == PolicyDecision.ALLOW
 
     async def _can_proxy_request(self, plugin_id: str) -> bool:
@@ -256,6 +365,20 @@ class GatewayService:
             context={},
         )
         result = await self.policy_engine.evaluate_request(request)
+        try:
+            await self.audit_service.log_event(
+                event_type="policy_decision",
+                category="policy",
+                action="proxy_request",
+                result=result.decision.value,
+                description=result.reason,
+                resource_type="gateway",
+                resource_id="proxy",
+                plugin_id=plugin_id,
+                details={"sanitize_fields": result.sanitize_fields},
+            )
+        except Exception:  # noqa: BLE001
+            logger.debug("policy audit emit failed", exc_info=True)
         return result.decision == PolicyDecision.ALLOW
 
     def _update_stats(self, response: ProxyResponse):

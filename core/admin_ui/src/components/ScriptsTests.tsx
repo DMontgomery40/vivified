@@ -31,6 +31,7 @@ import {
 import AdminAPIClient from '../api/client';
 import { useTraits } from '../hooks/useTraits';
 import { ResponsiveFormSection, ResponsiveTextField } from './common/ResponsiveFormFields';
+import HelpTip from './common/HelpTip';
 import InboundWebhookTester from './InboundWebhookTester';
 
 interface Props {
@@ -152,6 +153,9 @@ const ScriptsTests: React.FC<Props> = ({ client, docsBase, readOnly = false, can
   const [authLines, setAuthLines] = useState<string[]>([]);
   const [inboundLines, setInboundLines] = useState<string[]>([]);
   const [infoLines, setInfoLines] = useState<string[]>([]);
+  const [qaLines, setQaLines] = useState<string[]>([]);
+  const [qaBusy, setQaBusy] = useState<boolean>(false);
+  const [qaSuites, setQaSuites] = useState<Array<{ id: string; label: string }>>([]);
   const [toNumber, setToNumber] = useState<string>('+15551234567');
   const [backend, setBackend] = useState<string>('');
   const [inboundEnabled, setInboundEnabled] = useState<boolean>(false);
@@ -176,6 +180,7 @@ const ScriptsTests: React.FC<Props> = ({ client, docsBase, readOnly = false, can
   const clearInbound = () => setInboundLines([]);
   const pushInfo = (line: string) => setInfoLines((prev) => [...prev, line]);
   const clearInfo = () => setInfoLines([]);
+  const clearQa = () => setQaLines([]);
 
   React.useEffect(() => {
     (async () => {
@@ -195,6 +200,11 @@ const ScriptsTests: React.FC<Props> = ({ client, docsBase, readOnly = false, can
             setActions(filtered);
             if (filtered.length > 0) setActiveActionTab(filtered[0].id);
           }
+        } catch {}
+        // Load QA suites from backend
+        try {
+          const q = await (client as any).listTestSuites?.();
+          setQaSuites(q?.suites || []);
         } catch {}
       } catch (e: any) {
         setError(e?.message || 'Failed to load settings');
@@ -255,6 +265,22 @@ const ScriptsTests: React.FC<Props> = ({ client, docsBase, readOnly = false, can
     } catch (e: any) {
       setError(e?.message || 'Failed to fetch callbacks');
     } finally { setBusyInfo(false); }
+  };
+
+  const runQaSuite = async (suite: string) => {
+    setError(''); clearQa(); setQaBusy(true);
+    try {
+      setQaLines(prev => [...prev, `[i] Running suite: ${suite}`]);
+      const res = await (client as any).runTestSuite?.(suite);
+      const logs: Array<{ level?: string; message?: string }> = (res?.logs || []) as any;
+      logs.forEach(l => {
+        const pfx = l?.level === 'pass' ? '[✓]' : l?.level === 'fail' ? '[!]' : l?.level === 'error' ? '[error]' : '[i]';
+        setQaLines(prev => [...prev, `${pfx} ${l?.message || ''}`]);
+      });
+      setQaLines(prev => [...prev, res?.ok ? '[✓] Suite passed' : '[!] Suite failed']);
+    } catch (e: any) {
+      setError(e?.message || 'QA suite failed');
+    } finally { setQaBusy(false); }
   };
 
   const runPurgeInbound = async () => {
@@ -380,6 +406,10 @@ const ScriptsTests: React.FC<Props> = ({ client, docsBase, readOnly = false, can
             Run fax tests and backend-specific scripts
           </Typography>
         </Box>
+        <Box>
+          {/* Inline help (question icon) per platform convention */}
+          <HelpTip topic="qa-tests" />
+        </Box>
       </Box>
 
       <Alert 
@@ -406,6 +436,63 @@ const ScriptsTests: React.FC<Props> = ({ client, docsBase, readOnly = false, can
       )}
 
       <Grid container spacing={3}>
+        {/* QA Test Suites (Phase 8) */}
+        <Grid item xs={12}>
+          <ResponsiveFormSection
+            title="QA Test Suites"
+            subtitle="Run lightweight platform checks (Policy, Security, Compliance)"
+            icon={<SecurityIcon />}
+          >
+            <Stack spacing={2}>
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+                {qaSuites.map(s => (
+                  <Button key={s.id} variant="contained" size="small" startIcon={<RunIcon />} disabled={qaBusy} onClick={() => runQaSuite(s.id)}>
+                    {s.label}
+                  </Button>
+                ))}
+                {qaSuites.length === 0 && (
+                  <Chip label="No suites available" size="small" />
+                )}
+                <Button variant="text" size="small" startIcon={<ClearIcon />} onClick={clearQa} disabled={qaBusy}>Clear</Button>
+              </Stack>
+              <ConsoleBox lines={qaLines} loading={qaBusy} title="QA Output" />
+            </Stack>
+          </ResponsiveFormSection>
+        </Grid>
+
+        {/* QA Environment (Docker) Controls */}
+        <Grid item xs={12}>
+          <ResponsiveFormSection
+            title="QA Environment"
+            subtitle="Start/Stop containerized E2E environment (Docker required)"
+            icon={<SettingsIcon />}
+          >
+            <Stack spacing={2}>
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'center' }}>
+                <Button variant="outlined" size="small" onClick={async ()=>{
+                  try {
+                    const res = await (client as any).qaEnvStatus?.();
+                    setInfoLines(prev=>[...prev, `[i] QA env status: ${JSON.stringify(res)}`]);
+                  } catch(e:any){ setError(e?.message || 'Status failed'); }
+                }}>Status</Button>
+                <Button variant="contained" size="small" onClick={async ()=>{
+                  try {
+                    const res = await (client as any).qaEnvStart?.({});
+                    setInfoLines(prev=>[...prev, `[i] QA env start: ${JSON.stringify(res)}`]);
+                  } catch(e:any){ setError(e?.message || 'Start failed'); }
+                }}>Start</Button>
+                <Button variant="text" size="small" onClick={async ()=>{
+                  try {
+                    const res = await (client as any).qaEnvStop?.({});
+                    setInfoLines(prev=>[...prev, `[i] QA env stop: ${JSON.stringify(res)}`]);
+                  } catch(e:any){ setError(e?.message || 'Stop failed'); }
+                }}>Stop</Button>
+                <HelpTip topic="qa-env" />
+              </Stack>
+              <ConsoleBox lines={infoLines} title="QA Env Output" />
+            </Stack>
+          </ResponsiveFormSection>
+        </Grid>
         {/* Outbound Smoke Tests */}
         <Grid item xs={12} lg={6}>
           <ResponsiveFormSection

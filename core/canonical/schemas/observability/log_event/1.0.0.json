@@ -1,0 +1,29 @@
+{
+  "$id": "canonical.observability.LogEvent@1.0.0",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Observability LogEvent",
+  "description": "Canonical logging event with severity, timestamp, and fields.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "id": { "type": "string" },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "severity": { "type": "string", "enum": ["DEBUG","INFO","WARN","ERROR","FATAL"] },
+    "host": { "type": "string" },
+    "source": { "type": "string" },
+    "sourcetype": { "type": "string" },
+    "message": { "type": "string" },
+    "fields": { "type": "object", "additionalProperties": { "type": ["string","number","boolean","null"] } }
+  },
+  "required": ["timestamp","severity","message"],
+  "examples": [
+    {
+      "timestamp": "2024-01-01T12:00:00Z",
+      "severity": "INFO",
+      "message": "Service started",
+      "host": "api-1",
+      "fields": { "trace_id": "abc123" }
+    }
+  ]
+}
+

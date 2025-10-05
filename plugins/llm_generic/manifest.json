@@ -1,0 +1,31 @@
+{
+  "id": "llm-generic",
+  "name": "Generic LLM Plugin",
+  "version": "1.0.0",
+  "description": "Generic Large Language Model integration using Core Proxy (secure allowlist)",
+  "contracts": ["CommunicationPlugin"],
+  "traits": [
+    "communication_plugin",
+    "external_service",
+    "requires_config",
+    "handles_pii"
+  ],
+  "dependencies": [],
+  "allowed_domains": [
+    "api.openai.com",
+    "api.anthropic.com"
+  ],
+  "endpoints": {
+    "generate": "/generate",
+    "health": "/health"
+  },
+  "security": {
+    "authentication": "api_key",
+    "header": "Authorization",
+    "scheme": "Bearer"
+  },
+  "compliance": {
+    "hipaa_controls": ["164.312(a)", "164.312(e)"],
+    "audit_level": "detailed"
+  }
+}

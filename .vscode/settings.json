@@ -1,5 +1,9 @@
 {
-  "files.exclude": {
+  "search.exclude": {
     "internal-plans": true
+  },
+  "explorer.excludeGitIgnore": false,
+  "files.exclude": {
+    "**/.env": false
   }
 }

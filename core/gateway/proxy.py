@@ -10,6 +10,8 @@ import time
 
 from .models import ProxyRequest, ProxyResponse, RateLimit
 from ..audit.service import AuditService, AuditLevel
+from ..config.service import ConfigService
+import ipaddress
 
 logger = logging.getLogger(__name__)
 
@@ -17,8 +19,13 @@ logger = logging.getLogger(__name__)
 class ProxyHandler:
     """Handles external API proxy requests with security and rate limiting."""
 
-    def __init__(self, audit_service: AuditService):
+    def __init__(
+        self,
+        audit_service: AuditService,
+        config_service: Optional[ConfigService] = None,
+    ):
         self.audit_service = audit_service
+        self.config_service = config_service
         self.rate_limits: Dict[str, RateLimit] = {}
         self.active_requests: Dict[str, ProxyRequest] = {}
         self._http_client: Optional[httpx.AsyncClient] = None
@@ -120,8 +127,24 @@ class ProxyHandler:
     async def _is_request_allowed(
         self, request: ProxyRequest, domain_allowlist: Dict[str, Any]
     ) -> bool:
-        """Check if request is allowed based on domain allowlist."""
+        """Check if request is allowed based on domain allowlist.
+
+        domain_allowlist is a mapping of domain -> DomainAllowlist model.
+        """
         domain = str(request.url.host)
+
+        # Block localhost-style hostnames even if allowlisted (fail-safe)
+        if domain.lower() in {"localhost"}:
+            return False
+
+        # Block literal IPs (private, loopback, etc.) and unsafe domains
+        try:
+            # Block any literal IP host
+            ipaddress.ip_address(domain)
+            return False
+        except ValueError:
+            # Not an IP literal; proceed
+            pass
 
         # Check if domain is in allowlist
         if domain not in domain_allowlist:
@@ -129,16 +152,31 @@ class ProxyHandler:
 
         allowlist_entry = domain_allowlist[domain]
 
+        # Support both dict-like and Pydantic model accessors
+        try:
+            allowed_methods = set(
+                [str(m) for m in (allowlist_entry.get("allowed_methods", []))]
+                if isinstance(allowlist_entry, dict)
+                else [str(m) for m in (allowlist_entry.allowed_methods or [])]
+            )
+            allowed_paths = (
+                allowlist_entry.get("allowed_paths", [])
+                if isinstance(allowlist_entry, dict)
+                else list(allowlist_entry.allowed_paths or [])
+            )
+        except Exception:
+            # Fallback hard deny on malformed entry
+            return False
+
         # Check if method is allowed
-        if request.method not in allowlist_entry.get("allowed_methods", []):
+        if allowed_methods and str(request.method) not in allowed_methods:
             return False
 
         # Check if path is allowed
-        allowed_paths = allowlist_entry.get("allowed_paths", [])
-        if allowed_paths and not any(
-            httpx.URL(str(request.url)).path.startswith(path) for path in allowed_paths
-        ):
-            return False
+        if allowed_paths:
+            req_path = httpx.URL(str(request.url)).path
+            if not any(req_path.startswith(path) for path in allowed_paths):
+                return False
 
         return True
 
@@ -152,11 +190,36 @@ class ProxyHandler:
 
         # Get or create rate limit entry
         if rate_key not in self.rate_limits:
+            rpm = 60
+            burst = 100
+            # Load plugin-specific or global defaults
+            if self.config_service is not None:
+                try:
+                    rpm_p = await self.config_service.get(
+                        f"gateway.rate.{plugin_id}.requests_per_minute"
+                    )
+                    burst_p = await self.config_service.get(
+                        f"gateway.rate.{plugin_id}.burst_limit"
+                    )
+                    rpm_g = await self.config_service.get(
+                        "gateway.rate.requests_per_minute"
+                    )
+                    burst_g = await self.config_service.get("gateway.rate.burst_limit")
+                    if isinstance(rpm_p, int):
+                        rpm = rpm_p
+                    elif isinstance(rpm_g, int):
+                        rpm = rpm_g
+                    if isinstance(burst_p, int):
+                        burst = burst_p
+                    elif isinstance(burst_g, int):
+                        burst = burst_g
+                except Exception:
+                    pass
             self.rate_limits[rate_key] = RateLimit(
                 plugin_id=plugin_id,
                 domain=domain,
-                requests_per_minute=60,  # Default limit
-                burst_limit=100,
+                requests_per_minute=rpm,
+                burst_limit=burst,
             )
 
         rate_limit = self.rate_limits[rate_key]
@@ -177,13 +240,15 @@ class ProxyHandler:
 
     async def _make_http_request(self, request: ProxyRequest) -> httpx.Response:
         """Make the actual HTTP request."""
-        if not self._http_client:
-            raise RuntimeError("HTTP client not initialized")
+        if self._http_client is None:
+            # Lazy init to be robust if start() wasn't called yet
+            await self.start()
 
         # Prepare headers
         headers = dict(request.headers)
 
         # Make request
+        assert self._http_client is not None
         response = await self._http_client.request(
             method=request.method,
             url=str(request.url),

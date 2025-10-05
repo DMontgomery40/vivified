@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Box, Paper, Typography, TextField, Button, Alert } from '@mui/material';
+import HelpTip from './common/HelpTip';
 import AdminAPIClient from '../api/client';
 
 interface Props { client: AdminAPIClient; }
@@ -29,7 +30,10 @@ export default function PluginRegister({ client }: Props) {
 
   return (
     <Paper elevation={0} sx={{ p: 2 }}>
-      <Typography variant="h6" sx={{ mb: 2 }}>Register Plugin</Typography>
+      <Box display="flex" alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
+        <Typography variant="h6">Register Plugin</Typography>
+        <HelpTip topic="register" />
+      </Box>
       <TextField fullWidth label="Manifest (JSON)" value={manifest} onChange={e=>setManifest(e.target.value)} multiline minRows={8} />
       <Box sx={{ mt: 2 }}>
         <Button variant="contained" onClick={submit}>Register</Button>
@@ -44,4 +48,3 @@ export default function PluginRegister({ client }: Props) {
     </Paper>
   );
 }
-

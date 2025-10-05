@@ -26,7 +26,8 @@ interface ThemeProviderProps {
 export function ThemeProvider({ children }: ThemeProviderProps) {
   const [mode, setMode] = useState<ThemeMode>(() => {
     const saved = localStorage.getItem('theme-mode');
-    return (saved as ThemeMode) || 'dark';
+    // Default to system preference when not set, then dark
+    return (saved as ThemeMode) || 'system';
   });
 
   const [systemPreference, setSystemPreference] = useState<'dark' | 'light'>(() => 

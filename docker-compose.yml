@@ -3,6 +3,31 @@ networks:
     driver: bridge
 
 services:
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    networks:
+      - vivified-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Optional: Redis Stack for native vector search (RediSearch)
+  redis-stack:
+    image: redis/redis-stack-server:7.2.0-v10
+    ports:
+      - "6380:6379"
+    networks:
+      - vivified-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
   postgres:
     image: postgres:15-alpine
     environment:
@@ -37,17 +62,36 @@ services:
     build: ./core
     environment:
       DATABASE_URL: postgresql+asyncpg://vivified:${DB_PASSWORD:-changeme}@postgres:5432/vivified
+      REDIS_URL: redis://redis:6379/0
       NATS_URL: nats://nats:4222
       JWT_SECRET: ${JWT_SECRET:-change-this-secret}
       # When UI is served from the same origin (/admin/ui), CORS is not needed.
       # Keep dev Vite origin allowed if using the dev server.
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:5173}
       DEV_MODE: "true"
+      AI_AGENT_TOOL_CALLING: "true"
       DB_INIT: "true"
       ADMIN_USERNAME: admin
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin-pass-change-me}
       LOG_LEVEL: INFO
-      USE_TLS: "true"
+      USE_TLS: "false"
+      PUBLIC_API_URL: http://vivified-core:8000
+      RAG_ROOT: /workspace
+      # AI/LLM API Keys
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      CLAUDE_API_KEY: ${CLAUDE_API_KEY:-}
+      # AI/LLM Config (persists across restarts)
+      AI_LLM_PROVIDER: ${AI_LLM_PROVIDER:-claude}
+      AI_LLM_MODEL: ${AI_LLM_MODEL:-claude-sonnet-4-5-20250929}
+      # RAG Config (bigger chunks for better context)
+      RAG_CHUNK_CHARS: ${RAG_CHUNK_CHARS:-8000}
+      RAG_OVERLAP_CHARS: ${RAG_OVERLAP_CHARS:-800}
+      # Integrations Service Config
+      INTEGRATIONS_BASE_URL: ${INTEGRATIONS_BASE_URL:-http://frigg:3001}
+      INTEGRATIONS_INTERNAL_TOKEN: ${INTEGRATIONS_INTERNAL_TOKEN:-change-this-internal-token}
+      INTEGRATIONS_HIPAA_MODE: ${INTEGRATIONS_HIPAA_MODE:-false}
+      INTEGRATIONS_HIPAA_ALLOWED: ${INTEGRATIONS_HIPAA_ALLOWED:-hubspot}
     ports:
       - "8000:8000"
       - "8443:8443"
@@ -56,10 +100,13 @@ services:
         condition: service_healthy
       nats:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     networks:
       - vivified-net
     volumes:
       - ./tls:/certs:ro
+      - .:/workspace:ro
     healthcheck:
       test: ["CMD", "curl", "-fk", "https://localhost:8443/health"]
       interval: 30s
@@ -117,6 +164,77 @@ services:
       - vivified-net
     restart: unless-stopped
 
+  apprise-notifier-plugin:
+    build: ./plugins/apprise_notifier
+    environment:
+      CORE_URL: http://vivified-core:8000
+      LOG_LEVEL: INFO
+      # Comma-separated Apprise target URLs (e.g., mailto://you@example.com)
+      APPRISE_TARGET_URLS: ${APPRISE_TARGET_URLS:-}
+      # Default to dry-run unless explicitly disabled
+      APPRISE_DRY_RUN: ${APPRISE_DRY_RUN:-true}
+    depends_on:
+      vivified-core:
+        condition: service_healthy
+    networks:
+      - vivified-net
+    restart: unless-stopped
+
+  pushover-notifier-plugin:
+    build: ./plugins/pushover_notifier
+    environment:
+      CORE_URL: http://vivified-core:8000
+      LOG_LEVEL: INFO
+      PUSHOVER_API_TOKEN: ${PUSHOVER_API_TOKEN:-}
+      PUSHOVER_USER_KEY: ${PUSHOVER_USER_KEY:-}
+      # Set to true to allow request.user_key override
+      ALLOW_USER_OVERRIDE: ${ALLOW_USER_OVERRIDE:-false}
+    depends_on:
+      vivified-core:
+        condition: service_healthy
+    networks:
+      - vivified-net
+    restart: unless-stopped
+
+  mongo:
+    image: mongo:7.0-jammy
+    environment:
+      MONGO_INITDB_DATABASE: frigg
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - vivified-net
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  frigg:
+    build: ./integrations
+    environment:
+      MONGO_URI: mongodb://mongo:27017/frigg
+      INTERNAL_TOKEN: ${INTEGRATIONS_INTERNAL_TOKEN:-change-this-internal-token}
+      REDIRECT_URI: http://vivified-core:8000/integrations
+      HUBSPOT_CLIENT_ID: ${HUBSPOT_CLIENT_ID:-}
+      HUBSPOT_CLIENT_SECRET: ${HUBSPOT_CLIENT_SECRET:-}
+      HUBSPOT_SCOPE: ${HUBSPOT_SCOPE:-contacts}
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: 3001
+    depends_on:
+      mongo:
+        condition: service_healthy
+    networks:
+      - vivified-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
 volumes:
   postgres_data:
   admin_ui_node_modules:
+  mongo_data:

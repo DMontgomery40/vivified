@@ -60,6 +60,8 @@ class PluginInfo(BaseModel):
     last_heartbeat: Optional[datetime] = None
     last_error: Optional[str] = None
     consecutive_failures: int = 0
+    # Reason for being disabled, when status == DISABLED
+    disabled_reason: Optional[str] = None
     metadata: Dict[str, Any] = Field(default_factory=dict)
     token: Optional[str] = None
 
