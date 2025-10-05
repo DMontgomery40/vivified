@@ -12,6 +12,7 @@ from starlette.responses import FileResponse
 from .plugin_manager.registry import PluginRegistry
 from .api import admin_router, auth_router
 from .api.integrations import router as integrations_router
+from .api.integration_plugins import router as integration_plugins_router
 from .api.dependencies import require_auth, get_current_user
 from .identity.auth import rate_limit
 from .api.admin import configure_admin_api
@@ -191,13 +192,14 @@ _rag_update_task = None  # Background updater task
 
 # Wire admin API dependencies
 configure_admin_api(config_service=get_config_service(), registry=registry)
-app.include_router(admin_router)
-app.include_router(auth_router)
-app.include_router(metrics_router)
-app.include_router(notifications_router)
-app.include_router(automation_router)
-app.include_router(admin_ai_router)
-app.include_router(integrations_router)
+    app.include_router(admin_router)
+    app.include_router(auth_router)
+    app.include_router(metrics_router)
+    app.include_router(notifications_router)
+    app.include_router(automation_router)
+    app.include_router(admin_ai_router)
+    app.include_router(integrations_router)
+    app.include_router(integration_plugins_router)
 
 
 class ManifestModel(BaseModel):
@@ -520,7 +522,28 @@ async def register_plugin(manifest: ManifestModel):
 
 
 @app.get("/plugins")
-async def list_plugins():
+async def list_plugins(type: str | None = None):
+    # Support discovery of integration plugins via query param
+    if (type or "").lower() == "integration":
+        try:
+            from core.plugins.manager import IntegrationPluginRegistry
+
+            reg = IntegrationPluginRegistry()
+            items = [
+                {
+                    "key": e.key,
+                    "name": e.manifest.name,
+                    "icon": e.manifest.icon,
+                    "category": e.manifest.category,
+                    "hipaa_eligible": e.manifest.hipaa_eligible,
+                    "allowed_hosts": e.manifest.allowed_hosts,
+                    "scopes": e.manifest.scopes,
+                }
+                for e in reg.list()
+            ]
+            return {"items": items}
+        except Exception as e:  # noqa: BLE001
+            raise HTTPException(status_code=500, detail=str(e))
     return {"plugins": list(registry.plugins.values())}
 
 

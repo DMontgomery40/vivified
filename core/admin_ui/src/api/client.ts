@@ -641,23 +641,40 @@ export class AdminAPIClient {
     return res.json();
   }
 
-  async getIntegrationProviders(): Promise<{ providers: Array<{ key: string; name: string; icon?: string; category?: string; hipaa_allowed: boolean; outbound_domains: string[]; env_vars: string[] }> }>{
+  async getIntegrationProviders(): Promise<{ providers: Array<{ key: string; name: string; icon?: string; category?: string; hipaa_allowed?: boolean; outbound_domains?: string[]; env_vars?: string[]; allowed?: boolean }> }>{
+    try {
+      const res = await this.fetch('/plugins/integration/providers');
+      const data = await res.json();
+      if (data && Array.isArray(data.providers)) return data;
+    } catch {}
     const res = await this.fetch('/integrations/providers');
     return res.json();
   }
 
   async connectIntegration(provider: string, popup: boolean = true): Promise<{ url: string }>{
     const q = popup ? '?popup=1' : '';
+    try {
+      const res = await this.fetch(`/plugins/integration/${encodeURIComponent(provider)}/connect${q}`, { method: 'POST' });
+      return res.json();
+    } catch {}
     const res = await this.fetch(`/integrations/${encodeURIComponent(provider)}/connect${q}`, { method: 'POST' });
     return res.json();
   }
 
   async statusIntegration(provider: string): Promise<{ connected: boolean; details?: Record<string, any> }>{
+    try {
+      const res = await this.fetch(`/plugins/integration/${encodeURIComponent(provider)}/status`);
+      return res.json();
+    } catch {}
     const res = await this.fetch(`/integrations/${encodeURIComponent(provider)}/status`);
     return res.json();
   }
 
   async revokeIntegration(provider: string): Promise<{ ok: boolean }>{
+    try {
+      const res = await this.fetch(`/plugins/integration/${encodeURIComponent(provider)}/revoke`, { method: 'POST' });
+      return res.json();
+    } catch {}
     const res = await this.fetch(`/integrations/${encodeURIComponent(provider)}/revoke`, { method: 'POST' });
     return res.json();
   }

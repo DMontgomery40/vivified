@@ -20,8 +20,13 @@ Vivified Core ←→ Integrations Service ←→ Third-party APIs (HubSpot, etc.
 ```
 
 - **Internal Network Only**: Service runs on Docker internal network, not exposed to host
-- **Token-based Security**: All requests require `X-Internal-Token` header
+- **Token-based Security**: All requests require `X-Internal-Token` (or `X-Internal-Auth`) header
 - **MongoDB Persistence**: Credentials and entities stored in dedicated MongoDB instance
+
+### Access paths during migration
+
+- Preferred (plugin-backed): Core exposes `/plugins/integration/{key}/...` routes that delegate to this service using internal auth headers and correlation IDs. Admin UI uses these routes by default.
+- Legacy (compatibility): Core keeps `/integrations/*` endpoints temporarily and forwards to this service. These responses now include a `Deprecation: true` header. UI will migrate off these paths.
 
 ## Quick Start
 
@@ -42,7 +47,7 @@ MONGO_URI=mongodb://mongo:27017/frigg
 # Internal Security Token (must match Vivified Core)
 INTERNAL_TOKEN=your-secure-internal-token-here
 
-# OAuth Redirect Configuration  
+# OAuth Redirect Configuration
 REDIRECT_URI=http://vivified-core:8000/integrations
 
 # HubSpot OAuth Configuration
@@ -53,6 +58,12 @@ HUBSPOT_SCOPE=contacts
 # Environment
 NODE_ENV=production
 PORT=3001
+
+# HIPAA mode (Core)
+# When true, Core blocks non‑eligible providers unless explicitly allowed via INTEGRATIONS_HIPAA_ALLOWED
+# For this step, hubspot/gmail/discord are not HIPAA‑eligible and will be blocked when HIPAA mode is enabled.
+# INTEGRATIONS_HIPAA_MODE=true
+# INTEGRATIONS_HIPAA_ALLOWED=hubspot
 ```
 
 ### 2. HubSpot App Registration

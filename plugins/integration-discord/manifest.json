@@ -1,0 +1,10 @@
+{
+  "type": "integration",
+  "key": "discord",
+  "name": "Discord",
+  "category": "comm",
+  "icon": "discord",
+  "hipaaEligible": false,
+  "allowedHosts": ["discord.com"],
+  "scopes": ["oauth", "identify", "email"]
+}

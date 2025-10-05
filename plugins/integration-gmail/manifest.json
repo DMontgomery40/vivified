@@ -1,0 +1,16 @@
+{
+  "type": "integration",
+  "key": "gmail",
+  "name": "Gmail",
+  "category": "comm",
+  "icon": "gmail",
+  "hipaaEligible": false,
+  "allowedHosts": [
+    "accounts.google.com",
+    "oauth2.googleapis.com",
+    "openidconnect.googleapis.com",
+    "www.googleapis.com",
+    "gmail.googleapis.com"
+  ],
+  "scopes": ["oauth", "gmail.readonly"]
+}
