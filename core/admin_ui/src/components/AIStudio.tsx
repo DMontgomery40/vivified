@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Box, Paper, Typography, Stack, Button, TextField, Chip, FormGroup, FormControlLabel, Checkbox, Alert, Switch, MenuItem } from '@mui/material';
-import HelpTip from './common/HelpTip';
+import HelpTip from './HelpTip';
 import AdminAPIClient from '../api/client';
 
 type Props = { client: AdminAPIClient; readOnly?: boolean };
