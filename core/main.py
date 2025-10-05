@@ -11,6 +11,7 @@ from starlette.responses import FileResponse
 
 from .plugin_manager.registry import PluginRegistry
 from .api import admin_router, auth_router
+from .api.integrations import router as integrations_router
 from .api.dependencies import require_auth, get_current_user
 from .identity.auth import rate_limit
 from .api.admin import configure_admin_api
@@ -196,6 +197,7 @@ app.include_router(metrics_router)
 app.include_router(notifications_router)
 app.include_router(automation_router)
 app.include_router(admin_ai_router)
+app.include_router(integrations_router)
 
 
 class ManifestModel(BaseModel):
@@ -332,6 +334,78 @@ async def startup_event():
         logger.info("Core services started successfully")
     except Exception as e:
         logger.error(f"Failed to start core services: {e}")
+
+    # Auto-register integration plugins to make integrations first-class in Vivified
+    try:
+        seeds = [
+            {
+                "id": "connector.hubspot",
+                "name": "HubSpot Connector",
+                "version": "1.0.0",
+                "contracts": ["integration"],
+                "traits": ["integration_plugin", "external_service"],
+                "allowed_domains": ["api.hubapi.com", "app.hubspot.com"],
+                "host": "frigg",
+                "port": 3001,
+                "endpoints": {"connect": "/rpc/hubspot/connect", "callback": "/rpc/hubspot/callback", "status": "/rpc/hubspot/status", "revoke": "/rpc/hubspot/revoke"},
+                "security": {"scopes": ["oauth2"]},
+                "compliance": {"hipaa_controls": [], "audit_level": "standard"},
+            },
+            {
+                "id": "connector.gmail",
+                "name": "Gmail Connector",
+                "version": "1.0.0",
+                "contracts": ["integration"],
+                "traits": ["integration_plugin", "external_service"],
+                "allowed_domains": [
+                    "accounts.google.com",
+                    "oauth2.googleapis.com",
+                    "openidconnect.googleapis.com",
+                    "www.googleapis.com",
+                    "gmail.googleapis.com",
+                ],
+                "host": "frigg",
+                "port": 3001,
+                "endpoints": {"connect": "/rpc/gmail/connect", "callback": "/rpc/gmail/callback", "status": "/rpc/gmail/status", "revoke": "/rpc/gmail/revoke"},
+                "security": {"scopes": ["oauth2"]},
+                "compliance": {"hipaa_controls": [], "audit_level": "standard"},
+            },
+            {
+                "id": "connector.discord",
+                "name": "Discord Connector",
+                "version": "1.0.0",
+                "contracts": ["integration"],
+                "traits": ["integration_plugin", "external_service"],
+                "allowed_domains": ["discord.com"],
+                "host": "frigg",
+                "port": 3001,
+                "endpoints": {"connect": "/rpc/discord/connect", "callback": "/rpc/discord/callback", "status": "/rpc/discord/status", "revoke": "/rpc/discord/revoke"},
+                "security": {"scopes": ["oauth2"]},
+                "compliance": {"hipaa_controls": [], "audit_level": "standard"},
+            },
+        ]
+        for manifest in seeds:
+            try:
+                # Skip if already registered
+                if manifest["id"] in registry.plugins:
+                    continue
+                await registry.register_plugin(manifest)
+                # Seed gateway allowlist for this plugin
+                if gateway_service is not None:
+                    for domain in manifest.get("allowed_domains", []) or []:
+                        try:
+                            await gateway_service.add_domain_allowlist(
+                                plugin_id=manifest["id"],
+                                domain=str(domain),
+                                allowed_methods=["GET", "POST"],
+                                allowed_paths=[],
+                            )
+                        except Exception:
+                            logger.debug("seed allowlist failed for %s", domain, exc_info=True)
+            except Exception:
+                logger.debug("plugin seed failed", exc_info=True)
+    except Exception:
+        logger.debug("auto-register seed error", exc_info=True)
 
     # DB bootstrap: run migrations and initialize services
     if os.getenv("DB_INIT", "false").lower() in {"1", "true", "yes"}:

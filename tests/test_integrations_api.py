@@ -60,6 +60,41 @@ class _HttpxStubClient:
 
     async def post(self, url: str, json: Optional[Dict[str, Any]] = None, headers: Optional[Dict[str, str]] = None):
         path = urlparse(url).path
+        # Operator lane emulation
+        if path.startswith('/gateway/'):
+            parts = path.split('/')
+            # /gateway/{target_plugin}/{operation}
+            target_plugin = parts[2] if len(parts) > 2 else ''
+            operation = parts[3] if len(parts) > 3 else ''
+            payload = (json or {}).get('payload') or {}
+            # Map plugin->provider
+            prov = 'hubspot'
+            if 'gmail' in target_plugin: prov = 'gmail'
+            if 'discord' in target_plugin: prov = 'discord'
+            if operation == 'connect':
+                state = payload.get('state') or ''
+                if str(state).endswith('FAIL'):
+                    return _StubResponse(400, { 'error': { 'code': 'oauth.url_generation_failed', 'message': 'Failed to generate URL' }})
+                u = f"https://oauth.example/authorize?provider={prov}&{urlencode({'state': state})}"
+                return _StubResponse(200, { 'url': u })
+            if operation == 'callback':
+                code = payload.get('code')
+                uid = payload.get('userId')
+                if code == 'TEST_CODE':
+                    self._connected[f"{uid}:{prov}"] = True
+                    return _StubResponse(200, { 'ok': True, 'entity': { 'provider': prov, 'account_name': 'Test Account' } })
+                return _StubResponse(400, { 'error': { 'code': 'oauth.exchange_failed', 'message': 'bad code' }})
+            if operation == 'status':
+                uid = payload.get('userId')
+                key = f"{uid}:{prov}"
+                if self._connected.get(key):
+                    return _StubResponse(200, { 'connected': True, 'details': { 'account_name': 'Test Account' } })
+                return _StubResponse(200, { 'connected': False })
+            if operation == 'revoke':
+                uid = payload.get('userId')
+                self._connected[f"{uid}:{prov}"] = False
+                return _StubResponse(200, { 'ok': True })
+            return _StubResponse(404, { 'error': { 'code': 'route.not_found', 'message': 'not found' }})
         if "/oauth_cb/" in path:
             prov = path.rsplit("/", 1)[-1]
             user_id = (json or {}).get("userId") or ""

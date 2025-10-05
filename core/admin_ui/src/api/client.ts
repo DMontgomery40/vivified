@@ -641,8 +641,14 @@ export class AdminAPIClient {
     return res.json();
   }
 
-  async connectIntegration(provider: string): Promise<{ url: string }>{
-    const res = await this.fetch(`/integrations/${encodeURIComponent(provider)}/connect`, { method: 'POST' });
+  async getIntegrationProviders(): Promise<{ providers: Array<{ key: string; name: string; icon?: string; category?: string; hipaa_allowed: boolean; outbound_domains: string[]; env_vars: string[] }> }>{
+    const res = await this.fetch('/integrations/providers');
+    return res.json();
+  }
+
+  async connectIntegration(provider: string, popup: boolean = true): Promise<{ url: string }>{
+    const q = popup ? '?popup=1' : '';
+    const res = await this.fetch(`/integrations/${encodeURIComponent(provider)}/connect${q}`, { method: 'POST' });
     return res.json();
   }
 

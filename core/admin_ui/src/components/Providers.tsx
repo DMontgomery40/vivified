@@ -20,9 +20,9 @@ export default function Providers({ client, canManage }: { client: AdminAPIClien
     setLoading(true);
     setError('');
     try {
-      const res = await client.listIntegrations();
-      const base = (res?.items || []) as ProviderItem[];
-      // Probe HIPAA block via status endpoint deterministically
+      // Load provider registry then probe status per provider
+      const prov = await client.getIntegrationProviders();
+      const base: ProviderItem[] = (prov?.providers || []).map((p: any) => ({ provider: p.key, name: p.name, connected: false }));
       const probed = await Promise.all(base.map(async (it) => {
         try {
           await client.statusIntegration(it.provider);

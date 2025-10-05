@@ -108,6 +108,14 @@ class TraitRegistry:
                 requires=["admin"],
             ),
             Trait(
+                name="integration_manager",
+                description="Can manage external integrations and connections",
+                category=TraitCategory.CAPABILITY,
+                ui_label="Integrations Manager",
+                ui_icon="hub",
+                requires=["admin"],
+            ),
+            Trait(
                 name="handles_notifications",
                 description="Can handle notification events and sends",
                 category=TraitCategory.CAPABILITY,

@@ -27,6 +27,7 @@ import {
 } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
 import SettingsIcon from '@mui/icons-material/Settings';
+import HubIcon from '@mui/icons-material/Hub';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import SendIcon from '@mui/icons-material/Send';
 import ListAltIcon from '@mui/icons-material/ListAlt';
@@ -52,6 +53,7 @@ import JobsList from './components/JobsList';
 import Plugins from './components/Plugins';
 import ApiKeys from './components/ApiKeys';
 import Settings from './components/Settings';
+import Providers from './components/Providers';
 import UserManagement from './components/UserManagement';
 import Diagnostics from './components/Diagnostics';
 import Audit from './components/Audit';
@@ -328,6 +330,7 @@ function AppContent() {
   const settingsItems = [
     { label: 'Setup', icon: <HelpIcon /> },
     { label: 'Settings', icon: <SettingsIcon /> },
+    { label: 'Providers', icon: <HubIcon /> },
     { label: 'Configuration', icon: <TuneIcon /> },
     { label: 'Keys', icon: <VpnKeyIcon /> },
     { label: 'Users', icon: <VpnKeyIcon /> },
@@ -880,10 +883,22 @@ function AppContent() {
                   <Settings client={client!} readOnly={!hasTrait('role.admin')} />
                 </Box>
               )}
-              {settingsTab === 2 && <ConfigurationManager client={client!} />}
-              {settingsTab === 3 && <ApiKeys client={client!} readOnly={!hasTrait('role.admin')} />}
-              {settingsTab === 4 && <UserManagement client={client!} />}
-              {settingsTab === 5 && <MCP client={client!} />}
+              {settingsTab === 2 && (
+                (hasTrait('role.admin') || hasTrait('integration_manager')) ? (
+                  <Providers client={client!} canManage={hasTrait('role.admin') || hasTrait('integration_manager')} />
+                ) : (
+                  <Paper sx={{ p: 3 }}>
+                    <Typography variant="h6" gutterBottom>Providers</Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      This panel requires trait <code>integration_manager</code> or <code>role.admin</code>.
+                    </Typography>
+                  </Paper>
+                )
+              )}
+              {settingsTab === 3 && <ConfigurationManager client={client!} />}
+              {settingsTab === 4 && <ApiKeys client={client!} readOnly={!hasTrait('role.admin')} />}
+              {settingsTab === 5 && <UserManagement client={client!} />}
+              {settingsTab === 6 && <MCP client={client!} />}
             </Box>
             {/* Floating help overlay toggle for contextual guidance */}
             <HelpOverlayToggle />

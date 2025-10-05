@@ -107,3 +107,5 @@ alembic.ini.local
 *.bak
 .env.bak
 
+# HubSpot config file
+hubspot.config.yml
