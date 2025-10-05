@@ -24,12 +24,16 @@ def _env_true(name: str, default: str = "false") -> bool:
     return os.getenv(name, default).lower() in {"1", "true", "yes"}
 
 
-INTEGRATIONS_HIPAA_MODE = _env_true("INTEGRATIONS_HIPAA_MODE", "false")
-INTEGRATIONS_HIPAA_ALLOWED = {
-    p.strip().lower()
-    for p in os.getenv("INTEGRATIONS_HIPAA_ALLOWED", "").split(",")
-    if p.strip()
-}
+def _hipaa_mode() -> bool:
+    return _env_true("INTEGRATIONS_HIPAA_MODE", "false")
+
+
+def _hipaa_allowed() -> set[str]:
+    return {
+        p.strip().lower()
+        for p in os.getenv("INTEGRATIONS_HIPAA_ALLOWED", "").split(",")
+        if p.strip()
+    }
 
 
 class ProviderInfo(BaseModel):
@@ -83,11 +87,11 @@ async def _audit(
 
 
 def _hipaa_blocked(key: str, eligible: bool) -> bool:
-    if not INTEGRATIONS_HIPAA_MODE:
+    if not _hipaa_mode():
         return False
     if not eligible:
         return True
-    return key.lower() not in INTEGRATIONS_HIPAA_ALLOWED
+    return key.lower() not in _hipaa_allowed()
 
 
 # State store (short-lived, in-memory); mirrors /integrations implementation
