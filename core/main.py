@@ -260,7 +260,9 @@ async def startup_event():
             try:
                 reloaded = await schema_registry.hydrate_from_config()  # type: ignore[attr-defined]
                 if reloaded:
-                    logger.info("Hydrated %d canonical schemas from ConfigService", reloaded)
+                    logger.info(
+                        "Hydrated %d canonical schemas from ConfigService", reloaded
+                    )
             except Exception:
                 logger.debug("schema hydrate failed", exc_info=True)
 
@@ -340,16 +342,25 @@ async def startup_event():
             from .config.service import init_config_service
 
             engine = get_engine()
-            
+
             # Run Alembic migrations to create all tables
             try:
                 from alembic.config import Config
                 from alembic import command
                 from os import path as ospath
-                alembic_cfg = Config(ospath.join(ospath.dirname(__file__), "alembic.ini"))
-                alembic_cfg.set_main_option("script_location", ospath.join(ospath.dirname(__file__), "migrations"))
+
+                alembic_cfg = Config(
+                    ospath.join(ospath.dirname(__file__), "alembic.ini")
+                )
+                alembic_cfg.set_main_option(
+                    "script_location",
+                    ospath.join(ospath.dirname(__file__), "migrations"),
+                )
                 # Get the database URL from environment
-                db_url = os.getenv("DATABASE_URL", "postgresql+asyncpg://vivified:changeme@postgres:5432/vivified")
+                db_url = os.getenv(
+                    "DATABASE_URL",
+                    "postgresql+asyncpg://vivified:changeme@postgres:5432/vivified",
+                )
                 # Alembic needs sync URL
                 sync_url = db_url.replace("+asyncpg", "").replace("+aiosqlite", "")
                 alembic_cfg.set_main_option("sqlalchemy.url", sync_url)
@@ -357,14 +368,14 @@ async def startup_event():
                 logger.info("Database migrations applied successfully")
             except Exception as e:
                 logger.warning(f"Migration upgrade skipped or failed: {e}")
-            
+
             async with engine.begin():
                 pass
-                
+
             # Initialize ConfigService with database session factory for persistence
             await init_config_service(async_session_factory)
             logger.info("ConfigService initialized with database persistence")
-                
+
             # Create identity schema and defaults
             async with async_session_factory() as session:
                 ids = IdentityService(session, get_auth_manager())
@@ -743,12 +754,18 @@ async def operator_invoke(target_plugin: str, operation: str, req: Dict[str, Any
             caller = (req or {}).get("caller_plugin", "unknown")
             key = f"operator.allow.{caller}->{target_plugin}"
             allowed = await get_config_service().get(key) or []
-            allowed_set = set(str(op) for op in allowed) if isinstance(allowed, list) else set()
+            allowed_set = (
+                set(str(op) for op in allowed) if isinstance(allowed, list) else set()
+            )
 
             if operation not in allowed_set:
                 # Optional dev-mode fallback: allow any declared endpoint operation on target
                 # when DEV_MODE=true or operator.allow.dev_all=true.
-                dev_mode = os.getenv("DEV_MODE", "false").lower() in {"1", "true", "yes"}
+                dev_mode = os.getenv("DEV_MODE", "false").lower() in {
+                    "1",
+                    "true",
+                    "yes",
+                }
                 dev_all = False
                 try:
                     cfg_val = await get_config_service().get("operator.allow.dev_all")
@@ -759,8 +776,15 @@ async def operator_invoke(target_plugin: str, operation: str, req: Dict[str, Any
                 if dev_mode or dev_all:
                     tinfo = registry.plugins.get(target_plugin) or {}
                     t_eps = (tinfo.get("manifest") or {}).get("endpoints") or {}
-                    if isinstance(t_eps, dict) and (operation in t_eps or operation.replace("_", "-") in t_eps):
-                        logger.debug("dev-mode operator allow: %s -> %s:%s", caller, target_plugin, operation)
+                    if isinstance(t_eps, dict) and (
+                        operation in t_eps or operation.replace("_", "-") in t_eps
+                    ):
+                        logger.debug(
+                            "dev-mode operator allow: %s -> %s:%s",
+                            caller,
+                            target_plugin,
+                            operation,
+                        )
                     else:
                         raise HTTPException(
                             status_code=403,

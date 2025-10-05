@@ -163,15 +163,29 @@ class ConfigService:
         if self.db_factory:
             async with self.db_factory() as session:
                 await self._set_db_with_session(
-                    session, key, value, is_sensitive, updated_by, reason, plugin_id, environment
+                    session,
+                    key,
+                    value,
+                    is_sensitive,
+                    updated_by,
+                    reason,
+                    plugin_id,
+                    environment,
                 )
                 await session.commit()
             return
         # Fallback to direct session (no commit, caller responsible)
         await self._set_db_with_session(
-            self.db, key, value, is_sensitive, updated_by, reason, plugin_id, environment
+            self.db,
+            key,
+            value,
+            is_sensitive,
+            updated_by,
+            reason,
+            plugin_id,
+            environment,
         )
-    
+
     async def _set_db_with_session(
         self,
         session: AsyncSession,
@@ -269,12 +283,21 @@ class ConfigService:
         # Use factory if available
         if self.db_factory:
             async with self.db_factory() as session:
-                return await self._get_db_with_session(session, key, reveal, plugin_id, environment)
+                return await self._get_db_with_session(
+                    session, key, reveal, plugin_id, environment
+                )
         # Fallback to direct session
-        return await self._get_db_with_session(self.db, key, reveal, plugin_id, environment)
-    
+        return await self._get_db_with_session(
+            self.db, key, reveal, plugin_id, environment
+        )
+
     async def _get_db_with_session(
-        self, session: AsyncSession, key: str, reveal: bool, plugin_id: Optional[str], environment: str
+        self,
+        session: AsyncSession,
+        key: str,
+        reveal: bool,
+        plugin_id: Optional[str],
+        environment: str,
     ) -> Optional[Any]:
         """Get configuration value from database with hierarchical override."""
         # Check database
@@ -314,7 +337,7 @@ class ConfigService:
                 return await self._get_all_db_with_session(session, reveal, plugin_id)
         # Fallback to direct session
         return await self._get_all_db_with_session(self.db, reveal, plugin_id)
-    
+
     async def _get_all_db_with_session(
         self, session: AsyncSession, reveal: bool, plugin_id: Optional[str]
     ) -> Dict[str, Any]:
@@ -354,7 +377,7 @@ _CONFIG_SERVICE: Optional[ConfigService] = None
 
 def get_config_service() -> ConfigService:
     """Get or create the global ConfigService instance.
-    
+
     WARNING: This returns a ConfigService without DB session (in-memory only).
     Use init_config_service() during startup to initialize with database persistence.
     """
@@ -367,13 +390,15 @@ def get_config_service() -> ConfigService:
 
 async def init_config_service(db_session_factory: Any) -> ConfigService:
     """Initialize ConfigService with database persistence.
-    
+
     Call this during application startup to enable persistent configuration storage.
-    
+
     Args:
         db_session_factory: AsyncSession factory (e.g., async_session_factory from database.py)
     """
     global _CONFIG_SERVICE
     enc = os.getenv("CONFIG_ENC_KEY")
-    _CONFIG_SERVICE = ConfigService(db_session_factory=db_session_factory, encryption_key=enc)
+    _CONFIG_SERVICE = ConfigService(
+        db_session_factory=db_session_factory, encryption_key=enc
+    )
     return _CONFIG_SERVICE

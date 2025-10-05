@@ -94,7 +94,7 @@ async def ai_agent_run(
         if _RAG is None:
             _RAG = RAGService(os.getenv("REDIS_URL"))
         _AGENT = AgentService(_RAG)
-    
+
     # Support both old API (prompt) and new API (messages array)
     messages = payload.get("messages")
     if messages and isinstance(messages, list) and len(messages) > 0:
@@ -105,16 +105,16 @@ async def ai_agent_run(
         # Old API: single prompt (backwards compatibility)
         prompt = str(payload.get("prompt") or "").strip()
         conversation_history = []
-    
+
     if not prompt:
         raise HTTPException(status_code=400, detail="prompt or messages required")
-    
+
     hipaa_mode = bool(payload.get("hipaa_mode", True))  # Default to True for safety
     out = await _AGENT.run(
-        prompt, 
-        user_traits=(user.get("traits") or []), 
+        prompt,
+        user_traits=(user.get("traits") or []),
         hipaa_mode=hipaa_mode,
-        conversation_history=conversation_history
+        conversation_history=conversation_history,
     )  # type: ignore[union-attr]
     return out
 
@@ -139,8 +139,7 @@ async def ai_get_config(_: Dict = Depends(require_auth(["admin"]))):
         api_key_present = True
     else:
         api_key_present = bool(
-            (await cfg.get("secrets.ai.openai.api_key"))
-            or os.getenv("OPENAI_API_KEY")
+            (await cfg.get("secrets.ai.openai.api_key")) or os.getenv("OPENAI_API_KEY")
         )
     rag_redis = await cfg.get("ai.rag.redis_url") or os.getenv("REDIS_URL")
     safe = {

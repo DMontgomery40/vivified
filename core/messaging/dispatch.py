@@ -137,4 +137,3 @@ class PluginDispatcher:
             return list(self._registry.plugins.keys())  # type: ignore[attr-defined]
         except Exception:
             return []
-

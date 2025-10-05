@@ -19,7 +19,12 @@ logger = logging.getLogger(__name__)
 class MessagingService:
     """Main messaging service for inter-plugin communication."""
 
-    def __init__(self, audit_service: AuditService, policy_engine: PolicyEngine, registry: Optional[Any] = None):
+    def __init__(
+        self,
+        audit_service: AuditService,
+        policy_engine: PolicyEngine,
+        registry: Optional[Any] = None,
+    ):
         self.audit_service = audit_service
         self.policy_engine = policy_engine
         # EventBus will auto-select broker via env (EVENT_BUS_BACKEND=nats|redis|memory)
