@@ -109,3 +109,5 @@ alembic.ini.local
 
 # HubSpot config file
 hubspot.config.yml
+.venv-ci/
+audit_*.txt

@@ -265,3 +265,18 @@ def test_log_redaction(caplog, monkeypatch):
     text = "\n".join(rec.message for rec in caplog.records)
     assert "@" not in text  # no emails
     assert "+1" not in text  # no phone numbers
+
+
+def test_list_providers_registry():
+    from core.main import app
+    client = TestClient(app)
+    _require_integrations(client)
+    auth = _auth(client)
+
+    r = client.get('/integrations/providers', headers=auth)
+    assert r.status_code == 200
+    body = r.json()
+    providers = body.get('providers') or []
+    keys = {p.get('key') for p in providers}
+    # Expect at least these three providers present
+    assert {'hubspot', 'gmail', 'discord'}.issubset(keys)

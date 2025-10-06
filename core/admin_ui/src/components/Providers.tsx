@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Box, Button, Chip, CircularProgress, Grid, Paper, Tooltip, Typography } from '@mui/material';
+import HelpTip from './common/HelpTip';
 import HubIcon from '@mui/icons-material/Hub';
+import EmailIcon from '@mui/icons-material/Email';
+import ChatIcon from '@mui/icons-material/Chat';
 import LinkIcon from '@mui/icons-material/Link';
 import LinkOffIcon from '@mui/icons-material/LinkOff';
 import RefreshIcon from '@mui/icons-material/Refresh';
@@ -99,6 +102,7 @@ export default function Providers({ client, canManage }: { client: AdminAPIClien
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
         <HubIcon color="primary" />
         <Typography variant="h6">Providers</Typography>
+        <HelpTip topic="integrations-providers" />
         <Box sx={{ flex: 1 }} />
         <Button startIcon={<RefreshIcon />} onClick={refresh} disabled={loading} variant="outlined">Refresh</Button>
       </Box>
@@ -132,6 +136,9 @@ export default function Providers({ client, canManage }: { client: AdminAPIClien
           {items.map((it) => (
             <Grid item xs={12} md={6} key={it.provider}>
               <Paper sx={{ p: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
+                <Box sx={{ mr: 1 }}>
+                  {it.provider === 'hubspot' ? <HubIcon color='primary' /> : it.provider === 'gmail' ? <EmailIcon color='primary' /> : <ChatIcon color='primary' />}
+                </Box>
                 <Box sx={{ flex: 1 }}>
                   <Typography variant="subtitle1">{it.name}</Typography>
                   <Typography variant="body2" color="text.secondary">{it.provider}</Typography>

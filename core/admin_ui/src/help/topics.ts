@@ -17,6 +17,48 @@ export type HelpTopic = {
 };
 
 export const helpTopics: Record<string, HelpTopic> = {
+  'integrations-providers': {
+    id: 'integrations-providers',
+    title: 'Integrations (Providers)',
+    eli5:
+      'What this does: Lets you connect external systems (CRMs, email, chat) so Vivified can act on your behalf.\n\nHow to use: Click Connect on a provider. A new tab opens; approve access. When it closes, this panel will refresh to Connected. Revoke disconnects safely.\n\nHIPAA: In compliance mode, only providers on the allow-list appear as Connect‑able. Others are disabled by policy with an explanation.',
+    dev: [
+      'Registry: GET /integrations/providers (this list) • Status: GET /integrations/{provider}/status • Connect/Revoke: POST /integrations/{provider}/{connect|revoke}.',
+      'Redirect: Set REDIRECT_URI=http://vivified-core:8000/integrations. The platform appends /{provider}/callback.',
+      'Operator lane: Core → /gateway/{connector.*}/{connect|callback|status|revoke} → sidecar (/rpc/*).',
+      'Egress allow-list: Admin → Tools → Gateway Allowlist → add hosts per provider (e.g., api.hubapi.com).',
+    ],
+    docSlug: 'integrations/providers',
+  },
+  'integrations-gmail': {
+    id: 'integrations-gmail',
+    title: 'Gmail Connector Setup',
+    eli5:
+      'Step‑by‑step (ELI5):\n\n1) Open Google Cloud Console → Credentials → “Create Credentials” → “OAuth client ID.”\n2) Choose “Web application.” Add “Authorized redirect URIs”: http://vivified-core:8000/integrations/gmail/callback (or your public URL).\n3) Copy Client ID and Client Secret into Settings → Providers (Gmail) or your .env.\n4) Click Connect; approve access; the panel refreshes to Connected.\n\nHIPAA: To use Workspace only, ask an admin to enforce your domain; consumer Gmail stays blocked in HIPAA mode.',
+    dev: [
+      'Google Cloud Console — OAuth consent: https://console.cloud.google.com/apis/credentials/consent',
+      'Create OAuth client: https://console.cloud.google.com/apis/credentials • Type: Web application • Redirect: http://vivified-core:8000/integrations/gmail/callback',
+      'Scopes: GMAIL_SCOPE (e.g., https://www.googleapis.com/auth/gmail.readonly,openid,email)',
+      'Workspace domain guard: set GMAIL_ENFORCE_WORKSPACE_DOMAIN=true and GMAIL_ALLOWED_DOMAIN=yourdomain.com; then add gmail to INTEGRATIONS_HIPAA_ALLOWED.',
+      'Egress: accounts.google.com, oauth2.googleapis.com, openidconnect.googleapis.com, www.googleapis.com, gmail.googleapis.com.',
+      'Admin → Tools → Gateway Allowlist: add above hosts; Admin → Settings → Security: ensure audit logging enabled.',
+    ],
+    docSlug: 'integrations/gmail',
+  },
+  'integrations-discord': {
+    id: 'integrations-discord',
+    title: 'Discord Connector Setup',
+    eli5:
+      'Step‑by‑step (ELI5):\n\n1) Open Discord Developer Portal → “New Application.”\n2) Go to “OAuth2 → General.” Add Redirect URI: http://vivified-core:8000/integrations/discord/callback (or your public URL).\n3) Copy Client ID and Client Secret into Settings → Providers (Discord) or your .env.\n4) Click Connect; approve; the panel will show Connected.\n\nHIPAA: Discord is not HIPAA‑eligible. It remains disabled in HIPAA mode.',
+    dev: [
+      'Discord Developer Portal: https://discord.com/developers/applications',
+      'OAuth2 settings → Redirects: add http://vivified-core:8000/integrations/discord/callback',
+      'Scopes: DISCORD_SCOPE=identify,email (adjust as needed).',
+      'Egress: discord.com only. Admin → Tools → Gateway Allowlist to add and pin methods/paths as needed.',
+      'Tokens stored in sidecar (Mongo); Vivified never logs tokens; audits are PHI‑safe.',
+    ],
+    docSlug: 'integrations/discord',
+  },
   diagnostics: {
     id: 'diagnostics',
     title: 'Diagnostics',
