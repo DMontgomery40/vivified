@@ -1,0 +1,10 @@
+{
+  "type": "integration",
+  "key": "hubspot",
+  "name": "HubSpot",
+  "category": "crm",
+  "icon": "hubspot",
+  "hipaaEligible": false,
+  "allowedHosts": ["auth.hubspot.com", "api.hubapi.com", "app.hubspot.com"],
+  "scopes": ["oauth", "crm.objects.contacts.read"]
+}

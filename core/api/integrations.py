@@ -8,7 +8,7 @@ import time
 import secrets
 
 from fastapi import APIRouter, Depends, Query, HTTPException
-from fastapi.responses import JSONResponse, RedirectResponse, HTMLResponse
+from fastapi.responses import JSONResponse, HTMLResponse
 from pydantic import BaseModel, Field
 import httpx
 
@@ -68,7 +68,9 @@ def _env_true(name: str, default: str = "false") -> bool:
     return os.getenv(name, default).lower() in {"1", "true", "yes"}
 
 
-INTEGRATIONS_BASE_URL = os.getenv("INTEGRATIONS_BASE_URL", "http://frigg:3001").rstrip("/")
+INTEGRATIONS_BASE_URL = os.getenv("INTEGRATIONS_BASE_URL", "http://frigg:3001").rstrip(
+    "/"
+)
 INTEGRATIONS_INTERNAL_TOKEN = os.getenv("INTEGRATIONS_INTERNAL_TOKEN", "")
 INTEGRATIONS_HIPAA_MODE = _env_true("INTEGRATIONS_HIPAA_MODE", "false")
 INTEGRATIONS_HIPAA_ALLOWED = {
@@ -257,6 +259,32 @@ async def _verify_state(user_id: str, provider: str, state: Optional[str]) -> bo
 router = APIRouter(prefix="/integrations", tags=["integrations"])
 
 
+# Providers registry (Step-2 ready)
+@router.get("/providers")
+async def get_integration_providers(
+    _: Dict[str, Any] = Depends(require_auth(["admin", "integration_manager"]))
+) -> Dict[str, Any]:
+    try:
+        items: List[Dict[str, Any]] = []
+        for key, info in PROVIDER_REGISTRY.items():
+            items.append(
+                {
+                    "key": key,
+                    "name": str(info.get("name") or key),
+                    "icon": str(info.get("icon") or "hub"),
+                    "category": str(info.get("category") or "other"),
+                    "hipaa_allowed": bool(info.get("hipaa_allowed", False)),
+                    "outbound_domains": list(info.get("outbound_domains") or []),
+                    "env_vars": list(info.get("env_vars") or []),
+                }
+            )
+        # Deprecation: prefer /plugins/integration/providers
+        resp = {"providers": items}
+        return JSONResponse(content=resp, headers={"Deprecation": "true"})
+    except Exception:
+        return {"providers": []}
+
+
 # -----------------------------
 # Operator lane helper
 # -----------------------------
@@ -268,12 +296,21 @@ _PROVIDER_PLUGIN = {
 }
 
 
-async def _operator_call(target_plugin: str, operation: str, payload: Dict[str, Any], timeout: int = 15) -> Dict[str, Any]:
+async def _operator_call(
+    target_plugin: str,
+    operation: str,
+    payload: Dict[str, Any],
+    timeout: int = 15,
+) -> Dict[str, Any]:
     """Invoke operator lane for integration actions (connect/callback/status/revoke)."""
     try:
         import httpx
 
-        req = {"caller_plugin": "connector.bridge", "payload": payload, "timeout": int(timeout)}
+        req = {
+            "caller_plugin": "connector.bridge",
+            "payload": payload,
+            "timeout": int(timeout),
+        }
         url = f"http://127.0.0.1:8000/gateway/{target_plugin}/{operation}"
         async with httpx.AsyncClient(timeout=timeout) as client:
             r = await client.post(url, json=req)
@@ -281,10 +318,13 @@ async def _operator_call(target_plugin: str, operation: str, payload: Dict[str, 
             # Map error via internal mapping
             try:
                 data = r.json()
-                msg = data.get("detail") or data
+                _ = data.get("detail") or data
             except Exception:
-                msg = r.text
-            code = "service.unavailable" if r.status_code >= 500 else "oauth.exchange_failed"
+                _ = r.text
+            if r.status_code >= 500:
+                code = "service.unavailable"
+            else:
+                code = "oauth.exchange_failed"
             status, pub = _map_internal_error(code)
             raise HTTPException(status_code=status, detail=pub)
         return r.json()
@@ -368,30 +408,66 @@ async def connect_integration(
     plugin_id = _PROVIDER_PLUGIN.get(provider, "")
     if plugin_id:
         try:
-            data = await _operator_call(plugin_id, "connect", {"userId": user_id, "state": state}, timeout=10)
+            data = await _operator_call(
+                plugin_id, "connect", {"userId": user_id, "state": state}, timeout=10
+            )
             url_out = str((data or {}).get("url") or "")
             if url_out:
-                await _audit("integration_connect_initiated", "connect", "success", user_id, provider)
+                await _audit(
+                    "integration_connect_initiated",
+                    "connect",
+                    "success",
+                    user_id,
+                    provider,
+                )
                 return ConnectResponse(url=url_out)
         except HTTPException as e:
-            return _error_response(e.status_code, "integration.oauth_failed", "Unable to connect")
+            return _error_response(
+                e.status_code, "integration.oauth_failed", "Unable to connect"
+            )
     # Fallback direct call
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
-            r = await client.get(f"{INTEGRATIONS_BASE_URL}/oauth_url/{provider}", params={"userId": user_id, "state": state}, headers=_client_headers())
+            r = await client.get(
+                f"{INTEGRATIONS_BASE_URL}/oauth_url/{provider}",
+                params={"userId": user_id, "state": state},
+                headers=_client_headers(),
+            )
             if r.status_code == 200:
-                data = r.json(); connect_url = str(data.get("url") or "")
+                data = r.json()
+                connect_url = str(data.get("url") or "")
                 if not connect_url:
-                    return _error_response(502, "integration.unavailable", "Failed to generate connect URL")
-                await _audit("integration_connect_initiated", "connect", "success", user_id, provider)
+                    return _error_response(
+                        502, "integration.unavailable", "Failed to generate connect URL"
+                    )
+                await _audit(
+                    "integration_connect_initiated",
+                    "connect",
+                    "success",
+                    user_id,
+                    provider,
+                )
                 return ConnectResponse(url=connect_url)
-            try: err = r.json().get("error", {})
-            except Exception: err = {}
+            try:
+                err = r.json().get("error", {})
+            except Exception:
+                err = {}
             status, pcode = _map_internal_error(str(err.get("code") or ""))
-            await _audit("integration_connect_initiated", "connect", "failure", user_id, provider, details={"status": status, "code": pcode})
-            return _error_response(status, pcode, str(err.get("message") or "Unable to connect"))
+            await _audit(
+                "integration_connect_initiated",
+                "connect",
+                "failure",
+                user_id,
+                provider,
+                details={"status": status, "code": pcode},
+            )
+            return _error_response(
+                status, pcode, str(err.get("message") or "Unable to connect")
+            )
     except (httpx.TimeoutException, httpx.ConnectError):
-        return _error_response(503, "integration.unavailable", "Integration service unavailable")
+        return _error_response(
+            503, "integration.unavailable", "Integration service unavailable"
+        )
 
 
 @router.get("/{provider}/callback")
@@ -535,9 +611,12 @@ async def get_status(
                 provider,
                 details={"status": status, "code": pcode},
             )
-            return _error_response(
+            # Deprecation header on error, too
+            dep = _error_response(
                 status, pcode, str(err.get("message") or "Status check failed")
             )
+            dep.headers["Deprecation"] = "true"
+            return dep
     except (httpx.TimeoutException, httpx.ConnectError):
         return _error_response(
             503, "integration.unavailable", "Integration service unavailable"
@@ -580,7 +659,11 @@ async def revoke_integration(
                 await _audit(
                     "integration_revoke", "revoke", "success", user_id, provider
                 )
-                return RevokeResponse(ok=True)
+                # Deprecation header
+                res = RevokeResponse(ok=True)
+                return JSONResponse(
+                    content=res.model_dump(), headers={"Deprecation": "true"}
+                )
             try:
                 err = r.json().get("error", {})
             except Exception:
@@ -601,6 +684,8 @@ async def revoke_integration(
         return _error_response(
             503, "integration.unavailable", "Integration service unavailable"
         )
+
+
 class ProviderInfoModel(BaseModel):
     key: str
     name: str
@@ -612,7 +697,9 @@ class ProviderInfoModel(BaseModel):
 
 
 @router.get("/providers")
-async def list_providers(_: Dict[str, Any] = Depends(require_auth(["admin", "integration_manager"]))):
+async def list_providers(
+    _: Dict[str, Any] = Depends(require_auth(["admin", "integration_manager"]))
+):
     items: List[ProviderInfoModel] = []
     try:
         for key, info in PROVIDER_REGISTRY.items():
